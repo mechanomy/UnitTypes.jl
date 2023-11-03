@@ -1,0 +1,73 @@
+#inventor
+**/OldVersions
+*.lck
+
+#python
+__pycache__
+*.py[cod]
+
+#ipynb
+.ipynb_checkpoints
+
+#ignore latex/pdflatex auxiliary files:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.glsdefs
+*.ist
+*.tlg
+*.tld
+*.tdn
+*.glo
+*.gls
+*.glsdefs
+*.bbl
+*.blg
+
+# Build tool auxiliary files:
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+# node
+node_modules
+
+# ?
+.sync/*
+temp
+
+*.~lock*
+
+*.mat
+
+~$*.SLDPRT
+~$*.sldprt
+~$*.SLDASM
+~$*.sldasm
+~$*.SLDDRW
+~$*.slddrw
+
+# VSCode
+*.code-workspace
+
+# Documenter.jl
+docs/build/*
+
