@@ -5,15 +5,29 @@ module UnitTypes
 
   include("AbsExtent.jl")
   using .AbsExtent
-  export AbstractExtent, Meter, MilliMeter, Inch, Foot #reexport
+  export AbstractExtent
+  export Meter
 
-  include("AbsAngle.jl") # module
+  include("SI.jl")
+  using .SI
+  export MilliMeter
+  
+  include("Imperial.jl")
+  using .Imperial
+  export Inch, Foot #reexport?
+
+  include("AbsAngle.jl")
   using .AbsAngle 
   export AbstractAngle, Degree, Radian
+
 
   include("AbsDimension.jl")
   using .AbsDimension
   export AbstractDiameter, Diameter, Radius, Length, Width, Height
+
+
+
+
 
 end
 

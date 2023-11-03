@@ -2,9 +2,11 @@
 
 
 module AbsMeasure
+  using TestItems 
+
   # MEASURES - these units measure extent in some manner
 
-  export AbstractMeasure, @makeMeasure
+  export AbstractMeasure, @makeMeasure#, measure2String
   abstract type AbstractMeasure end
 
   # `@makeMeasure MilliMeter` will create:
@@ -13,6 +15,7 @@ module AbsMeasure
   #   toBase::Number
   #   MilliMeter(x) = new(x, 1e-3)
   # end
+
   # https://docs.julialang.org/en/v1/manual/metaprogramming/#Code-Generation
   macro makeMeasure(name, abstractName, toBase, unit="")
     esc(
@@ -28,6 +31,12 @@ module AbsMeasure
     )
   end
 
+  @testitem "AbsMeasure constructors" begin
+    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @test typeof(TestMeasure(1.2)) <: AbstractMeasure
+    @test typeof(TestMeasure(1.2)) <: TestMeasure
+  end
+
   #            desired           given                            how
   Base.convert(::Type{Int32},    x::T) where T<:AbstractMeasure = Int32(round(x.value));
   Base.convert(::Type{Int64},    x::T) where T<:AbstractMeasure = Int64(round(x.value));
@@ -36,8 +45,28 @@ module AbsMeasure
   Base.convert(::Type{T},   x::Number) where T<:AbstractMeasure = T(x)::T
   Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value )::T #convert first to Measure, then to number...this works fine in terminal
 
-  # convert between measures
+  @testitem "AbsMeasure convert to Number" begin
+    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    a = convert(Float64, TestMeasure(3.4) )
+    @test isa(a, Float64)
+    @test a == 3.4
+
+    b = convert(Int32, TestMeasure(3.4) )
+    @test isa(b, Int32)
+    @test b == 3
+
+    c = convert(Int64, TestMeasure(3.4) )
+    @test isa(c, Int64)
+    @test c == 3
+  end
+
+  # convert between measures...I think this is wrong because it would allow converting between AbstractExtent and AbstractAngle
   Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works...
+  @testitem "AbsMeasure convert between Measures" begin
+    @makeMeasure TestMeasureA AbstractMeasure 1.0 "tma" 
+    @makeMeasure TestMeasureB AbstractMeasure 10.0 "tmb"
+    @test convert(TestMeasureA,TestMeasureB(1.2)) ≈ TestMeasureA(12.0)
+  end
 
   Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol)
   Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {U<:AbstractMeasure, T<:Number} = isapprox(x, y.value, atol=atol, rtol=rtol) #I expected this to be implied by prior..
@@ -62,16 +91,49 @@ module AbsMeasure
   Base.:/(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) / x
   Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value/convert(T,y).value)
 
-  """
-  """
-  function measure2string(m::T)::String where T<:AbstractMeasure
-    # return @sprintf("%3.3f []", m)
-    return "$(m.value)$(m.unit)"
+  @testitem "AbsMeasure operations" begin
+    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @testset "Measure +-*/ Number" begin
+      @test isa(TestMeasure(1.2)+0.1, TestMeasure)
+      @test isa(0.1 + TestMeasure(1.2), TestMeasure)
+      @test isapprox(TestMeasure(1.2)+0.1, TestMeasure(1.3), rtol=1e-3)
+      @test isapprox(0.1+TestMeasure(1.2), TestMeasure(1.3), rtol=1e-3)
+
+      @test isapprox(TestMeasure(1.2)-0.1, TestMeasure(1.1), rtol=1e-3)
+      @test isapprox(0.1-TestMeasure(1.2), TestMeasure(-1.1), rtol=1e-3)
+
+      @test isapprox(TestMeasure(1.2)*0.1, TestMeasure(0.12), rtol=1e-3)
+      @test isapprox(0.1*TestMeasure(1.2), TestMeasure(0.12), rtol=1e-3)
+
+      @test isapprox(TestMeasure(1.2)/0.1, TestMeasure(12), rtol=1e-3)
+      @test isapprox(0.1/TestMeasure(1.2), TestMeasure(0.08333), rtol=1e-3)
+    end
+    @testset "Measure +-*/ Measure" begin
+      @test isapprox(TestMeasure(1.2)+TestMeasure(0.1), TestMeasure(1.3), rtol=1e-3)
+      @test isapprox(TestMeasure(1.2)-TestMeasure(0.1), TestMeasure(1.1), rtol=1e-3)
+      @test isapprox(TestMeasure(1.2)*TestMeasure(0.1), TestMeasure(0.12), rtol=1e-3)
+      @test isapprox(TestMeasure(1.2)/TestMeasure(0.1), TestMeasure(12), rtol=1e-3)
+    end
   end
 
   """
   """
-  function Base.show(io::IO, m::T) where T<:AbstractMeasure
-    print(io, measure2string(m))
+  function measure2String(m::T)::String where T<:AbstractMeasure
+    # return @sprintf("%3.3f []", m)
+    return "$(m.value)$(m.unit)"
   end
+  function Base.show(io::IO, m::T) where T<:AbstractMeasure
+    print(io, measure2String(m))
+  end
+
+  @testitem "AbsMeasure measure2string()" begin
+    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @test UnitTypes.AbsMeasure.measure2String(TestMeasure(3.4)) == "3.4tm"
+    @test string(TestMeasure(3.4)) == "3.4tm"
+  end
+
+
+
 end
+
+

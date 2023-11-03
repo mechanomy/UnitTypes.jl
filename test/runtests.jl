@@ -1,10 +1,3 @@
-using Test
-using UnitTypes
-
-include("testAbsMeasure.jl")
-include("testAbsExtent.jl")
-include("testAbsAngle.jl")
-
-include("testDimensions.jl")
-
+using TestItemRunner # https://github.com/julia-vscode/TestItemRunner.jl 
+@run_package_tests verbose=true
 ;
