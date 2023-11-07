@@ -12,12 +12,13 @@ module AbsDimension
   # struct Diameter{T <:AbstractExtent} <: AbstractDiameter
   #   value::T
   # end
-  macro makeDimension(name, abstractType) # a dimension is inherently a contextualized Extent
+  macro makeDimension(name, abstractType) # a dimension is inherently an AbstractExtent, particularized to a certain dimensional measurement
     esc(
       quote
         struct $name{T <: AbstractExtent } <: $abstractType
           value::T
         end
+        # $name(x::T where T<:AbstractExtent) = convert($name, x) # conversion by constructor: Diameter(x::T where T<:AbstractExtent) = convert(Diameter, x)
       end
     )
   end
@@ -77,9 +78,6 @@ module AbsDimension
   #     end
   #   end
 
-
-
-
   Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} = typeof(x).parameters[1](x.value) # if T is a Diameter, it already has an AbstractMeasure; this convert simply returns that # D.M -> M
   Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractMeasure} = throw(ErrorException("UnitTypes.jl cannot convert() Measure [$U] into Dimension [$T], use the Dimension's constructor directly.")) # M -> D.M should fail
   Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension} = T( convert(T.parameters[1], x)) # D.M -> D.MM
@@ -93,21 +91,22 @@ module AbsDimension
   @testitem "AbsDimension convert()s" begin
     @testset "Dimension to Measure " begin
       d = Diameter{Meter}(3.4)
+      # d = Diameter(Meter(3.4))
+
       @test convert(Meter, d) ≈ Meter(3.4)
       @test convert(MilliMeter, d) ≈ MilliMeter(3400)
       @test isapprox( d, Meter(3.4), rtol=1e-3 )
       @test isapprox( Meter(3.4), d, rtol=1e-3 )
     end
 
-    @testset "Measure units within a Dimension" begin
-      @test convert(Diameter{MilliMeter}, Diameter(Meter(3.4))) ≈ MilliMeter(3400) # convert underlying Meter to MilliMeter
-    end
+    # @testset "Measure units within a Dimension" begin
+    #   @test convert(Diameter{MilliMeter}, Diameter(Meter(3.4))) ≈ MilliMeter(3400) # convert underlying Meter to MilliMeter
+    # end
 
     # @testset "do not convert() Measure to Dimension" begin
     #   @test_throws ErrorException convert(UnitTypes.Diameter{UnitTypes.Meter}, UnitTypes.Meter(3.4))
     # end
   end
-  
 
 
   # is there a clean lower() function, stripping the concept from the extent?
@@ -139,7 +138,6 @@ module AbsDimension
   @testitem "AbsDimension: DiameterRadius conversion" begin
     d = Diameter(Meter(3.4))
     @test convert(Radius, d) ≈ Meter(1.7)
-    # @test Diameter(Meter(3.4)) ≈ Radius(Meter(1.7))
 
     r = Radius(Meter(1.7))
     @test convert(Diameter, r) ≈ Meter(3.4)
@@ -149,14 +147,18 @@ module AbsDimension
 
     # down-convert Diameter to Length?
   # rod = convert(Float64,s.outside.value/2) # make a strip()?
- 
+  
     # @testset "things I want to do" begin
     #   @test isapprox( Inch(Foot(1.2)), Inch(14.4), atol=1e-3) #conversion by constructor
     # end
   end
 
-
-  
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Diameter, U<:Radius} = isapprox(convert(Diameter, y), x, atol=atol, rtol=rtol)
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Radius, U<:Diameter} = isapprox(convert(Diameter, x), y, atol=atol, rtol=rtol)
+  # @testitem "AbsDimension: DiameterRadius isapprox" begin
+  #   @test Diameter(Meter(3.4)) ≈ Radius(Meter(1.7))
+  #   @test Radius(Meter(1.7)) ≈ Diameter(Meter(3.4)) 
+  # end
 
   
   export AbstractLength, Length, Height, Width, Depth

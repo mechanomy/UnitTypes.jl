@@ -5,8 +5,8 @@ module Imperial
   using ..AbsExtent
 
 
-  @makeMeasure Inch AbstractExtent 25.4/1000 "in"
-  @makeMeasure Foot AbstractExtent 12*25.4/1000 "ft"
+  @makeMeasure Inch "in" 25.4/1000 Meter
+  @makeMeasure Foot "ft" 12*25.4/1000 Meter
   export Inch, Foot
 
 end

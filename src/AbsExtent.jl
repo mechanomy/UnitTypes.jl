@@ -8,13 +8,8 @@ module AbsExtent
   export AbstractExtent
   abstract type AbstractExtent <: AbstractMeasure end # an extent is a physical length or distance with a base unit of Meter
 
-  @makeMeasure Meter AbstractExtent 1.0 "m" # need at least one Extent defined to enable conversion between all others
+  @makeMeasureFromAbstract Meter "m" 1.0 AbstractExtent # need at least one Extent defined to enable conversion between all others
   export Meter
-
-  # include("SI.jl") # already included in UnitTypes.jl
-  # using .SI # AbsExtent does not use SI, the testitem runs in its own namespace with a default using PackageName...
-  # include("Imperial.jl")
-  # using .Imperial
 
   #Since we already have the ability to convert between Measures, is this necessary?
   Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractExtent, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
@@ -25,12 +20,12 @@ module AbsExtent
     # @makeMeasure TestMeasure AbstractMeasure 1.0 "tm"
     # @test Meter(1.0) ≈ TestMeasure(1.0) # this should fail because there we can only convert between AbstractExtents
 
+    @makeMeasureFromAbstract TestExtent "te" 1.0 AbstractExtent
+    @makeMeasure TestExtentMilli "mte" 0.001 TestExtent
 
-    @test Inch(1.0) ≈ MilliMeter(25.4)
-    @test Inch(12.0) ≈ Foot(1.0)
-
-    @test MilliMeter(Inch(1.0)) ≈ 25.4
-
+    @test TestExtent(1.0) ≈ TestExtentMilli(1000)
+    @test TestExtentMilli(1000) ≈ TestExtent(1.0) 
+    @test TestExtent(TestExtentMilli(1000)) ≈ 1.0
 
     # @testset "things I want to do" begin
     #   @show typeof( Inch(1.0) / Inch(2.0) ) # == canceled units? - need to fix the convert()s

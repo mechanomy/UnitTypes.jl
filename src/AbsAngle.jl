@@ -10,8 +10,11 @@ module AbsAngle
   export AbstractAngle, Radian, Degree
   abstract type AbstractAngle <: AbstractMeasure end
 
-  @makeMeasure Radian AbstractAngle 1.0 "rad"
-  @makeMeasure Degree AbstractAngle π/180 "°"
+  # @makeMeasure Radian AbstractAngle 1.0 "rad"
+  # @makeMeasure Degree AbstractAngle π/180 "°"
+  @makeMeasureFromAbstract Radian "rad" 1.0 AbstractAngle
+  @makeMeasure Degree "°" π/180 Radian # 1 degree = pi/180 rad
+
   @testitem "AbsAngle Radian Degree definitions" begin
     @test Radian(π) ≈ π
     @test Degree(180) ≈ 180.0

@@ -1,11 +1,14 @@
 module UnitTypes
   include("AbsMeasure.jl")
   using .AbsMeasure # the . indicates a local, sub package
-  export AbstractMeasure, @makeMeasure
+  export AbstractMeasure, @makeMeasure, @makeMeasureFromAbstract
 
   include("AbsExtent.jl")
   using .AbsExtent
   export AbstractExtent
+
+  # include("SIBase.jl")
+  # using .SIBase
   export Meter
 
   include("SI.jl")

@@ -4,9 +4,7 @@
 module AbsMeasure
   using TestItems 
 
-  # MEASURES - these units measure extent in some manner
-
-  export AbstractMeasure, @makeMeasure#, measure2String
+  export AbstractMeasure, @makeMeasureFromAbstract, @makeMeasure#, measure2String
   abstract type AbstractMeasure end
 
   # `@makeMeasure MilliMeter` will create:
@@ -17,24 +15,41 @@ module AbsMeasure
   # end
 
   # https://docs.julialang.org/en/v1/manual/metaprogramming/#Code-Generation
-  macro makeMeasure(name, abstractName, toBase, unit="")
+  macro makeMeasureFromAbstract(name, unit, toBase, abstractType)
     esc(
       quote
-        struct $name <: $abstractName
+        struct $name <: $abstractType
           value::Number
           toBase::Number
           unit::String
           $name(x) = new(x,$toBase,$unit)
         end
-        $name(x::T where T<:$abstractName) = convert($name, x) # conversion by constructor: Inch(x::T where T<:AbstractExtent) = convert(Inch, x)
+        $name(x::T where T<:$abstractType) = convert($name, x) # conversion by constructor: Inch(x::T where T<:AbstractExtent) = convert(Inch, x)
       end
     )
   end
 
+  macro makeMeasure(name, unit, toBase, baseUnit)
+    esc( 
+      quote
+        absName = supertype($baseUnit)
+        @makeMeasureFromAbstract $name $unit $toBase absName
+      end
+    )
+  end
+
+
+
+
   @testitem "AbsMeasure constructors" begin
-    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @makeMeasureFromAbstract TestMeasure "tm" 1.0 AbstractMeasure # Meter not defined yet, so make a temporary for testing
     @test typeof(TestMeasure(1.2)) <: AbstractMeasure
     @test typeof(TestMeasure(1.2)) <: TestMeasure
+
+    @makeMeasure TestDerivedMeasure "tdm" 0.1 TestMeasure
+
+    @test typeof(TestDerivedMeasure(1.2)) <: AbstractMeasure
+    @test typeof(TestDerivedMeasure(1.2)) <: TestDerivedMeasure
   end
 
   #            desired           given                            how
@@ -46,7 +61,7 @@ module AbsMeasure
   Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value )::T #convert first to Measure, then to number...this works fine in terminal
 
   @testitem "AbsMeasure convert to Number" begin
-    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @makeMeasureFromAbstract TestMeasure "tm" 1.0 AbstractMeasure
     a = convert(Float64, TestMeasure(3.4) )
     @test isa(a, Float64)
     @test a == 3.4
@@ -63,8 +78,9 @@ module AbsMeasure
   # convert between measures...I think this is wrong because it would allow converting between AbstractExtent and AbstractAngle
   Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works...
   @testitem "AbsMeasure convert between Measures" begin
-    @makeMeasure TestMeasureA AbstractMeasure 1.0 "tma" 
-    @makeMeasure TestMeasureB AbstractMeasure 10.0 "tmb"
+    @makeMeasureFromAbstract TestMeasure "tm" 1.0 AbstractMeasure
+    @makeMeasure TestMeasureA "tma" 1.0  TestMeasure
+    @makeMeasure TestMeasureB "tmb" 10.0 TestMeasure
     @test convert(TestMeasureA,TestMeasureB(1.2)) ≈ TestMeasureA(12.0)
   end
 
@@ -92,7 +108,7 @@ module AbsMeasure
   Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value/convert(T,y).value)
 
   @testitem "AbsMeasure operations" begin
-    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @makeMeasureFromAbstract TestMeasure "tm" 1.0 AbstractMeasure
     @testset "Measure +-*/ Number" begin
       @test isa(TestMeasure(1.2)+0.1, TestMeasure)
       @test isa(0.1 + TestMeasure(1.2), TestMeasure)
@@ -127,7 +143,7 @@ module AbsMeasure
   end
 
   @testitem "AbsMeasure measure2string()" begin
-    @makeMeasure TestMeasure AbstractMeasure 1.0 "tm" # Meter not defined yet, so make a temporary for testing
+    @makeMeasureFromAbstract TestMeasure "tm" 1.0 AbstractMeasure 
     @test UnitTypes.AbsMeasure.measure2String(TestMeasure(3.4)) == "3.4tm"
     @test string(TestMeasure(3.4)) == "3.4tm"
   end
