@@ -26,7 +26,9 @@ module UnitTypes
 
   include("AbsDimension.jl")
   using .AbsDimension
-  export AbstractDiameter, Diameter, Radius, Length, Width, Height
+  export @makeDimension, AbstractDimension
+
+  # export AbstractDiameter, Diameter, Radius, Length, Width, Height
 
 
 

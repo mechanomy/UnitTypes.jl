@@ -6,114 +6,148 @@ module AbsDimension
   
   ## CONCEPTS - These terms describe the type of measurement. A CONCEPT necessarily includes a MEASURE, as an undimensional Diameter makes no sense.
   export AbstractDimension, @makeDimension
-  abstract type AbstractDimension <: AbstractMeasure end 
+  # abstract type AbstractDimension <: AbstractMeasure end 
+  abstract type AbstractDimension end 
 
   # `@makeDimension Diameter AbstracDiameter` will create:
   # struct Diameter{T <:AbstractExtent} <: AbstractDiameter
   #   value::T
   # end
+  # @makeDimension Diameter ⌀ AbstractDiameter
+  # show() => ⌀3.4mm
   macro makeDimension(name, abstractType) # a dimension is inherently an AbstractExtent, particularized to a certain dimensional measurement
     esc(
+      # if type is abstract ... else 
       quote
         struct $name{T <: AbstractExtent } <: $abstractType
           value::T
         end
-        # $name(x::T where T<:AbstractExtent) = convert($name, x) # conversion by constructor: Diameter(x::T where T<:AbstractExtent) = convert(Diameter, x)
       end
     )
   end
 
-  # I'd like a 'permute operation' to do the drudgery of below..?
-  # macro permuteOperation(operation, ::AbsA, ::AbsB)
-  #   esc(
-  #     quote
-  #       $operation(a::AA, b::BB) where {AA<:AbsA, BB<:AbsB} = operation( AA.value?, BB.value?) # is there a way around this?
-  #     end
-  #   )
-  # end
-  # @macroexpand @permuteOperation( Base.:+, AbstractDimension, Number)
+  @testitem "makeDimension" begin
+    @makeDimension TestDim1 AbstractDimension
+    tdm1 = TestDim1{Meter}(3.4)
+    @test typeof(tdm1) <: AbstractDimension
+    @test typeof(tdm1) <: TestDim1
+    @test !(typeof(tdm1) <: AbstractMeasure)
+    @test isa(tdm1.value, Meter)
+  end
+
+  Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension} = T( x.value) # there's no reason for me to do the Measure conversion here when T's constructor will
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.value, convert(T,y).value, atol=atol, rtol=rtol)
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractExtent} = isapprox(x.value, convert(T.parameters[1],y).value, atol=atol, rtol=rtol)
+
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) #convert to base?
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Number, U<:AbstractDimension} = isapprox(x, y.value, atol=atol, rtol=rtol) 
+
+  @testitem "Dimension isapprox()" begin
+    @makeMeasure TestExtent1 "te1" 1.0 Meter
+    @makeMeasure TestExtent2 "te2" 2.0 Meter
+    @makeDimension TestDim1 AbstractDimension
+    @makeDimension TestDim2 AbstractDimension
+
+    d11 = TestDim1{TestExtent1}(1.2)
+    d22 = TestDim2{TestExtent2}(0.6)
+    @test d11 ≈ d22
+    @test d22 ≈ d11
+    @test convert(TestDim1, d22) ≈ d11
+    @test !(d11 ≈ TestDim2{TestExtent2}(1.2))
+    @test convert(TestDim2, d11) ≈ d22
+
+    @test d11 ≈ 1.2
+    @test d22 ≈ 0.6
+  end
 
   Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.value+y )
+  Base.:+(x::T, y::U) where {T<:Number, U<:AbstractDimension} = U( x+y.value )
   Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.value-y )
   Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:Number} = T( y-x.value )
   Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.value*y )
+  Base.:*(x::T, y::U) where {T<:Number, U<:AbstractDimension} = U( x*y.value )
   Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.value/y )
   Base.:/(y::U, x::T) where {T<:AbstractDimension, U<:Number} = T( y/x.value )
 
   Base.:+(x::T, y::T) where T<:AbstractDimension = T( x.value + y.value)
-  # Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
+  Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = x + convert(T, y)
   Base.:-(x::T, y::T) where T<:AbstractDimension = T( x.value - y.value)
-  # Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x - T(y) 
-  # Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = T(y) - x
+  Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = x - convert(T, y)
 
-  #what sense does this make?
-  Base.:*(x::T, y::T) where T<:AbstractDimension = T( x.value * y.value)
-  Base.:/(x::T, y::T) where T<:AbstractDimension = T( x.value / y.value)
+  Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractExtent} = x + T(y) 
+  Base.:+(y::U, x::T) where {T<:AbstractDimension, U<:AbstractExtent} = x + T(y) 
+  Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractExtent} = x - T(y) 
+  Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:AbstractExtent} = T(y) - x
 
-  # concepts = [Diameter, Radius, Length, Height, Width, Depth]
-  # measures = [Meter, MilliMeter, Inch, Foot]
-  # @testset "Dimensions" begin
-  #   for C in concepts
-  #     for M in measures
-  #       @testset "checking $C{$M}" begin
-  #         d = C{M}(3.4)
-  #         @test typeof(d) <: AbstractDimension
-  #         @test typeof(d) <: C
-  #         @test convert(Float64, d) ≈ 3.4
-  #         @testset "Dimension + Number" begin
-  #           @test isapprox( C{M}(1.2) + 0.1, 1.3, rtol=1e-3)
-  #           @test isapprox( C{M}(1.2) - 0.1, 1.1, rtol=1e-3)
-  #           @test isapprox( 0.1 - C{M}(1.2), -1.1, rtol=1e-3)
-  #           @test isapprox( C{M}(1.2) * 0.1, 0.12, rtol=1e-3)
-  #           @test isapprox( C{M}(1.2) / 0.1, 12, rtol=1e-3)
-  #           @test isapprox( 0.1 / C{M}(1.2), 0.08333, rtol=1e-3)
-  #         end
-  #         @testset "Dimension + Dimension" begin
-  #           @test isapprox( C{M}(1.2) + C{M}(0.1), C{M}(1.3), rtol=1e-3)
-  #           @test isapprox( C{M}(1.2) - C{M}(0.1), C{M}(1.1), rtol=1e-3)
-  #           @test isapprox( C{M}(1.2) * C{M}(0.1), C{M}(0.12), rtol=1e-3)
-  #           @test isapprox( C{M}(1.2) / C{M}(0.1), C{M}(12), rtol=1e-3)
-  #         end
-  #       end
-  #     end
-  #   end
+  # prevent these operations:
+  Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to multiply Dimensions"))
+  Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to divide Dimensions"))
 
-  Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} = typeof(x).parameters[1](x.value) # if T is a Diameter, it already has an AbstractMeasure; this convert simply returns that # D.M -> M
-  Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractMeasure} = throw(ErrorException("UnitTypes.jl cannot convert() Measure [$U] into Dimension [$T], use the Dimension's constructor directly.")) # M -> D.M should fail
-  Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension} = T( convert(T.parameters[1], x)) # D.M -> D.MM
-  # Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = T(x.value) ambiguous with above float64,
-  # Base.convert(::Type{Float64}, x::U) where {U<:AbstractDimension} = convert(Float64,x.value)  #works
-  # Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, x.value) 
-  # Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, x) 
-  Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, convert(U.parameters[1], x) ) #convert first to Measure, then to number...this works fine in terminal
-  # Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = T(convert(U.parameters[1], x) ) #
-  
-  @testitem "AbsDimension convert()s" begin
-    @testset "Dimension to Measure " begin
-      d = Diameter{Meter}(3.4)
-      # d = Diameter(Meter(3.4))
+  @testitem "AbsDimension overloads" begin
+    @makeMeasure TestExtent1 "te1" 1.0 Meter
+    @makeMeasure TestExtent2 "te2" 2.0 Meter
+    @makeDimension TestDim1 AbstractDimension
+    @makeDimension TestDim2 AbstractDimension
 
-      @test convert(Meter, d) ≈ Meter(3.4)
-      @test convert(MilliMeter, d) ≈ MilliMeter(3400)
-      @test isapprox( d, Meter(3.4), rtol=1e-3 )
-      @test isapprox( Meter(3.4), d, rtol=1e-3 )
+    d11 = TestDim1{TestExtent1}(1.2)
+    @testset "Dimension +-*/ Number" begin
+      @test d11 + 2 ≈ 3.2
+      @test 2 + d11 ≈ 3.2
+      @test d11 + 2 ≈ TestExtent1(3.2)
+      @test d11 - 2 ≈ -0.8
+      @test 2 - d11 ≈  0.8
+      @test d11 * 2 ≈ 2.4
+      @test 2 * d11 ≈ 2.4
+      @test d11 / 2 ≈ 0.6
+      @test 2 / d11 ≈ 5/3
     end
 
-    # @testset "Measure units within a Dimension" begin
-    #   @test convert(Diameter{MilliMeter}, Diameter(Meter(3.4))) ≈ MilliMeter(3400) # convert underlying Meter to MilliMeter
-    # end
+    d22 = TestDim2{TestExtent2}(0.6)
+    @testset "Dimension +-*/ Dimension" begin
+      @test d11 + d22 ≈ TestExtent1(2.4)
+      @test d11 + d22 ≈ TestExtent2(1.2)
+      @test d11 - d22 ≈ 0
+      @test d22 - d11 ≈ 0
+      @test_throws ArgumentError d11 * d22 
+      @test_throws ArgumentError d11 / d22 
+    end
 
-    # @testset "do not convert() Measure to Dimension" begin
-    #   @test_throws ErrorException convert(UnitTypes.Diameter{UnitTypes.Meter}, UnitTypes.Meter(3.4))
-    # end
+    @testset "Dimension +-*/ Measure" begin
+      m1 = Meter(1)
+      @test d11 + m1 ≈ 2.2
+      @test m1 + d11 ≈ 2.2
+      @test isapprox(d11 - m1,  0.2, atol=1e-6)
+      @test isapprox(m1 - d11, -0.2, atol=1e-6)
+      @test_throws MethodError d11 / m1
+      @test_throws MethodError m1 / d11
+      @test_throws MethodError d11 + Radian(2) # does not <:AbstractExtent
+    end
+  end
+
+  Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, x.value.value) #just drill through the Dimension and the Measure
+  Base.convert(::Type{T}, x::U) where {T<:AbstractExtent, U<:AbstractDimension} = T( x.value )
+ 
+  @testitem "AbsDimension convert()s" begin
+    @makeMeasure TestExtent1 "te1" 1.0 Meter
+    @makeMeasure TestExtent2 "te2" 2.0 Meter
+    @makeDimension TestDim1 AbstractDimension
+    @makeDimension TestDim2 AbstractDimension
+    d11 = TestDim1{TestExtent1}(1.2)
+    d22 = TestDim2{TestExtent2}(0.6)
+
+    @test convert(Float64, d11) ≈ 1.2
+    @test convert(TestExtent2, d11) ≈ TestExtent2(0.6)
+    @test_throws MethodError convert(TestDim1, TestExtent1(1.2)) # don't convert, must use constructor
+
+
+    @testset "Measure units within a Dimension" begin
+      d12 = convert(TestDim1{TestExtent2}, TestDim1(TestExtent1(1.2))) 
+      @test isa(d12.value, TestExtent2)
+    end
   end
 
 
-  # is there a clean lower() function, stripping the concept from the extent?
-
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.value, convert(T,y).value, atol=atol, rtol=rtol)
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractExtent} = isapprox(x.value, convert(T.parameters[1],y).value, atol=atol, rtol=rtol)
-
+  
   """
   """
   function concept2string(c::T)::String where T<:AbstractDimension
@@ -128,44 +162,18 @@ module AbsDimension
 
 
 
-  export AbstractDiameter, Diameter, Radius
-  abstract type AbstractDiameter <: AbstractDimension end # things relating to circular diameter
-  @makeDimension Diameter AbstractDiameter
-  @makeDimension Radius AbstractDiameter
-  # Base.convert(::Type{Diameter}, x::Radius) = Diameter{typeof(x).parameters[1]}(x.value*2) 
-  Base.convert(::Type{Diameter}, x::Radius) = Diameter(typeof(x).parameters[1](x.value*2))
-  Base.convert(::Type{Radius}, x::Diameter) = Radius{typeof(x).parameters[1]}(x.value/2) 
-  @testitem "AbsDimension: DiameterRadius conversion" begin
-    d = Diameter(Meter(3.4))
-    @test convert(Radius, d) ≈ Meter(1.7)
 
-    r = Radius(Meter(1.7))
-    @test convert(Diameter, r) ≈ Meter(3.4)
-    
-    @test convert(Diameter{Inch}, Diameter(MilliMeter(25.4))).value ≈ 1.0
-    # @test convert(Inch, Diameter(MilliMeter(25.4))).value ≈ 1.0
-
-    # down-convert Diameter to Length?
-  # rod = convert(Float64,s.outside.value/2) # make a strip()?
-  
-    # @testset "things I want to do" begin
-    #   @test isapprox( Inch(Foot(1.2)), Inch(14.4), atol=1e-3) #conversion by constructor
-    # end
-  end
-
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Diameter, U<:Radius} = isapprox(convert(Diameter, y), x, atol=atol, rtol=rtol)
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Radius, U<:Diameter} = isapprox(convert(Diameter, x), y, atol=atol, rtol=rtol)
-  # @testitem "AbsDimension: DiameterRadius isapprox" begin
-  #   @test Diameter(Meter(3.4)) ≈ Radius(Meter(1.7))
-  #   @test Radius(Meter(1.7)) ≈ Diameter(Meter(3.4)) 
+  # I'd like a 'permute operation' to do the drudgery of below..?
+  # macro permuteOperation(operation, ::AbsA, ::AbsB)
+  #   esc(
+  #     quote
+  #       $operation(a::AA, b::BB) where {AA<:AbsA, BB<:AbsB} = operation( AA.value?, BB.value?) # is there a way around this?
+  #     end
+  #   )
   # end
+  # @macroexpand @permuteOperation( Base.:+, AbstractDimension, Number)
 
-  
-  export AbstractLength, Length, Height, Width, Depth
-  abstract type AbstractLength <: AbstractDimension end
-  @makeDimension Length AbstractLength
-  @makeDimension Height AbstractLength
-  @makeDimension Width AbstractLength
-  @makeDimension Depth AbstractLength
+
+  # is there a clean lower() function, stripping the concept from the extent?
 
 end

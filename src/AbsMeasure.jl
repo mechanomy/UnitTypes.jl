@@ -14,6 +14,9 @@ module AbsMeasure
   #   MilliMeter(x) = new(x, 1e-3)
   # end
 
+
+  # if baseUnit is abstract type ...
+
   # https://docs.julialang.org/en/v1/manual/metaprogramming/#Code-Generation
   macro makeMeasureFromAbstract(name, unit, toBase, abstractType)
     esc(
