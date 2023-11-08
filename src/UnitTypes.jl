@@ -1,38 +1,49 @@
 module UnitTypes
-  include("AbsMeasure.jl")
-  using .AbsMeasure # the . indicates a local, sub package
-  export AbstractMeasure, @makeMeasure
+  using Reexport
 
-  include("AbsExtent.jl")
-  using .AbsExtent
-  export AbstractExtent
+  include("Measure.jl")
+  # using .Measure # the . indicates a local, sub package
+  # export tractMeasure, @makeMeasure
+  @reexport using .Measure
 
-  include("SIBase.jl")
-  using .SIBase
-  export Meter
+  # SI Base: https://en.wikipedia.org/wiki/International_System_of_Units
+  include("Current.jl")
+  @reexport using .Current
 
-  include("SI.jl")
-  using .SI
-  export MilliMeter
+  include("Intensity.jl")
+  @reexport using .Intensity
+
+  include("Length.jl")
+  @reexport using .Length
+
+  include("Mass.jl")
+  @reexport using .Mass
+
+  include("Temperature.jl")
+  @reexport using .Temperature
+
+  include("Time.jl")
+  @reexport using .Time
+
+  # derived units
+  include("SIDerived.jl")
+  @reexport using .SIDerived
   
   include("Imperial.jl")
-  using .Imperial
-  export Inch, Foot #reexport?
+  @reexport using .Imperial
 
-  include("AbsAngle.jl")
-  using .AbsAngle 
-  export AbstractAngle, Degree, Radian
-
+  # non-physical units:
+  include("Angle.jl")
+  @reexport using .Angle 
 
 
-  include("AbsDimension.jl")
-  using .AbsDimension
-  export @makeDimension, AbstractDimension
+
+  #Concepts involving units
+  include("Dimension.jl")
+  @reexport using .Dimension
 
   include("Dimensions.jl")
-  using .Dimensions
-  export Length, Width, Height
-  export AbstractDiameter, Diameter, Radius
+  @reexport using .Dimensions
 
 
 

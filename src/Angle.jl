@@ -1,16 +1,16 @@
-module AbsAngle
+module Angle
   using TestItems
 
-  using ..AbsMeasure #the .. indicates a local, sibling package, https://docs.julialang.org/en/v1/manual/modules/#Submodules-and-relative-paths
+  using ..Measure #the .. indicates a local, sibling package, https://docs.julialang.org/en/v1/manual/modules/#Submodules-and-relative-paths
 
-  export AbstractAngle, Radian, Degree
-  abstract type AbstractAngle <: AbstractMeasure end
-  Base.convert(::Type{T}, x::U) where {T<:AbstractAngle, U<:AbstractAngle} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the desitination's toBase...
+  export tractAngle, Radian, Degree
+  abstract type tractAngle <: tractMeasure end
+  Base.convert(::Type{T}, x::U) where {T<:tractAngle, U<:tractAngle} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the desitination's toBase...
 
-  @makeMeasure Radian "rad" 1.0 AbstractAngle
+  @makeMeasure Radian "rad" 1.0 tractAngle
   @makeMeasure Degree "°" π/180 Radian # 1 degree = pi/180 rad
 
-  @testitem "AbsAngle Radian Degree definitions" begin
+  @testitem "Angle Radian Degree definitions" begin
     @test Radian(π) ≈ π
     @test Degree(180) ≈ 180.0
     @test Radian(π) ≈ Degree(180)
@@ -28,7 +28,7 @@ module AbsAngle
   # the correct solution is to push the result units back into the calc, but I don't know if this can be inferred from the types.
   # there may be a way through promotions? https://docs.julialang.org/en/v1/manual/conversion-and-promotion/#Promotion
   Base.promote_rule(::Type{Radian}, ::Type{Degree}) = Radian #promote to Radian in general
-  @testitem "AbsAngle promotion" begin
+  @testitem "Angle promotion" begin
     @test promote_type(Radian, Degree) == Radian
   end
 
@@ -47,7 +47,7 @@ module AbsAngle
   # --> @test isapprox( asin(√2/2), Degree(45), atol=1e-3) # this fails
   # asind() works fine, is more correct, but means that asind() will return a untyped radian number rather than Radian.  Now this can be converted to Radian by a later call but there's a gap there
 
-  @testitem "AbsAngle trigonometry" begin
+  @testitem "Angle trigonometry" begin
     @test isapprox( √2/2, sin(Radian(π/4)), atol=1e-3 )
     @test isapprox( sin(Radian(π/4)), √2/2, atol=1e-3 )
     @test isapprox( sin(Degree(45)), √2/2, atol=1e-3)
