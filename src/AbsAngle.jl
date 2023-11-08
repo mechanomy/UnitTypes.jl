@@ -5,8 +5,9 @@ module AbsAngle
 
   export AbstractAngle, Radian, Degree
   abstract type AbstractAngle <: AbstractMeasure end
+  Base.convert(::Type{T}, x::U) where {T<:AbstractAngle, U<:AbstractAngle} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the desitination's toBase...
 
-  @makeMeasureFromAbstract Radian "rad" 1.0 AbstractAngle
+  @makeMeasure Radian "rad" 1.0 AbstractAngle
   @makeMeasure Degree "°" π/180 Radian # 1 degree = pi/180 rad
 
   @testitem "AbsAngle Radian Degree definitions" begin
@@ -44,7 +45,7 @@ module AbsAngle
   # --> @test isapprox( asin(√2/2), Radian(π/4), atol=1e-3) # this succeeds even without preceding
   # Base.asin(x::T where T<:Number)::Degree = convert(Degree, Radian(asin(x))) 
   # --> @test isapprox( asin(√2/2), Degree(45), atol=1e-3) # this fails
-  # asind works fine, is more correct
+  # asind() works fine, is more correct, but means that asind() will return a untyped radian number rather than Radian.  Now this can be converted to Radian by a later call but there's a gap there
 
   @testitem "AbsAngle trigonometry" begin
     @test isapprox( √2/2, sin(Radian(π/4)), atol=1e-3 )

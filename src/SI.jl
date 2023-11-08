@@ -1,5 +1,3 @@
-
-
 module SI
   using TestItems 
   using ..AbsMeasure
@@ -8,8 +6,6 @@ module SI
 
   export MilliMeter
   @makeMeasure MilliMeter "mm" 0.001 Meter
-
-
 
   # eventually move this standard consistency testing to some test module than can be run across all subtypes of AbstractExtent
   @testitem "testing SI" begin

@@ -1,7 +1,7 @@
 module UnitTypes
   include("AbsMeasure.jl")
   using .AbsMeasure # the . indicates a local, sub package
-  export AbstractMeasure, @makeMeasure, @makeMeasureFromAbstract
+  export AbstractMeasure, @makeMeasure
 
   include("AbsExtent.jl")
   using .AbsExtent

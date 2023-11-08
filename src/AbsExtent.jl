@@ -5,14 +5,12 @@ module AbsExtent
   export AbstractExtent
   abstract type AbstractExtent <: AbstractMeasure end # an extent is a physical length or distance with a base unit of Meter
 
-  #Since we already have the ability to convert between Measures, is this necessary?
   Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractExtent, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
+  Base.convert(::Type{T}, x::U) where {T<:AbstractExtent, U<:AbstractExtent} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the destination's toBase...
+
 
   @testitem "AbsExtent conversions" begin
-    # @makeMeasure TestMeasure AbstractMeasure 1.0 "tm"
-    # @test Meter(1.0) ≈ TestMeasure(1.0) # this should fail because there we can only convert between AbstractExtents
-
-    @makeMeasureFromAbstract TestExtent "te" 1.0 AbstractExtent
+    @makeMeasure TestExtent "te" 1.0 AbstractExtent
     @makeMeasure TestExtentMilli "mte" 0.001 TestExtent
 
     @test TestExtent(1.0) ≈ TestExtentMilli(1000)
@@ -23,7 +21,6 @@ module AbsExtent
     #   @show typeof( Inch(1.0) / Inch(2.0) ) # == canceled units? - need to fix the convert()s
     #   @show typeof( Inch(1.0) * Foot(1.0) ) # == in^2 or ft^2?
     # end
-
   end
 
 

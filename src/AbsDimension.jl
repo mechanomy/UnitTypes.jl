@@ -6,25 +6,26 @@ module AbsDimension
   
   ## CONCEPTS - These terms describe the type of measurement. A CONCEPT necessarily includes a MEASURE, as an undimensional Diameter makes no sense.
   export AbstractDimension, @makeDimension
-  # abstract type AbstractDimension <: AbstractMeasure end 
   abstract type AbstractDimension end 
 
   # `@makeDimension Diameter AbstracDiameter` will create:
   # struct Diameter{T <:AbstractExtent} <: AbstractDiameter
   #   value::T
   # end
-  # @makeDimension Diameter ⌀ AbstractDiameter
-  # show() => ⌀3.4mm
-  macro makeDimension(name, abstractType) # a dimension is inherently an AbstractExtent, particularized to a certain dimensional measurement
+  macro makeDimension(name, abstractName) # a dimension is inherently an AbstractExtent, particularized to a certain dimensional measurement
     esc(
-      # if type is abstract ... else 
       quote
-        struct $name{T <: AbstractExtent } <: $abstractType
+        struct $name{T <: AbstractExtent } <: $abstractName
           value::T
         end
       end
     )
   end
+
+  # If I wanted to make subtype Dimensions, perhaps:
+  # @makeDimension Diameter 1.0 AbstractDiameter ⌀
+  # @makeDimension Radius 0.5 Diameter
+  # show() => ⌀3.4mm
 
   @testitem "makeDimension" begin
     @makeDimension TestDim1 AbstractDimension
@@ -126,7 +127,7 @@ module AbsDimension
 
   Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, x.value.value) #just drill through the Dimension and the Measure
   Base.convert(::Type{T}, x::U) where {T<:AbstractExtent, U<:AbstractDimension} = T( x.value )
- 
+  
   @testitem "AbsDimension convert()s" begin
     @makeMeasure TestExtent1 "te1" 1.0 Meter
     @makeMeasure TestExtent2 "te2" 2.0 Meter
