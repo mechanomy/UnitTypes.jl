@@ -1,6 +1,3 @@
-
-
-
 module AbsMeasure
   using TestItems 
 
@@ -40,9 +37,6 @@ module AbsMeasure
       end
     )
   end
-
-
-
 
   @testitem "AbsMeasure constructors" begin
     @makeMeasureFromAbstract TestMeasure "tm" 1.0 AbstractMeasure # Meter not defined yet, so make a temporary for testing

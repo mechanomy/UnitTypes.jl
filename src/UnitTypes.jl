@@ -7,8 +7,8 @@ module UnitTypes
   using .AbsExtent
   export AbstractExtent
 
-  # include("SIBase.jl")
-  # using .SIBase
+  include("SIBase.jl")
+  using .SIBase
   export Meter
 
   include("SI.jl")
@@ -24,11 +24,15 @@ module UnitTypes
   export AbstractAngle, Degree, Radian
 
 
+
   include("AbsDimension.jl")
   using .AbsDimension
   export @makeDimension, AbstractDimension
 
-  # export AbstractDiameter, Diameter, Radius, Length, Width, Height
+  include("Dimensions.jl")
+  using .Dimensions
+  export Length, Width, Height
+  export AbstractDiameter, Diameter, Radius
 
 
 

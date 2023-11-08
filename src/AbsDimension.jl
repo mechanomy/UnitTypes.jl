@@ -139,31 +139,36 @@ module AbsDimension
     @test convert(TestExtent2, d11) ≈ TestExtent2(0.6)
     @test_throws MethodError convert(TestDim1, TestExtent1(1.2)) # don't convert, must use constructor
 
-
     @testset "Measure units within a Dimension" begin
       d12 = convert(TestDim1{TestExtent2}, TestDim1(TestExtent1(1.2))) 
       @test isa(d12.value, TestExtent2)
     end
   end
-
-
   
   """
   """
-  function concept2string(c::T)::String where T<:AbstractDimension
+  function dimension2String(c::T)::String where T<:AbstractDimension
     return "$(split(string(T),"{")[1])($(convert(T.parameters[1],c)))" #ugly parsing of typestring...but not seeing an alternative
   end
+  @testitem "dimension2String" begin
+    @makeMeasure TestExtent1 "te1" 1.0 Meter
+    @makeDimension TestDim1 AbstractDimension
+    d11 = TestDim1{TestExtent1}(1.2)
+
+    # @test UnitTypes.AbsDimension.dimension2String(d11) === "Main.var\"##300\".TestDim1(1.2te1)" #this #300 is execution specific from TestItemRunner
+    @test occursin("TestDim1(1.2te1)",UnitTypes.AbsDimension.dimension2String(d11))
+    @test occursin("TestDim1(1.2te1)",string(d11))
+  end
+
 
   """
   """
   function Base.show(io::IO, c::T) where T<:AbstractDimension
-    print(io, concept2string(c))
+    print(io, dimension2String(c))
   end
 
 
-
-
-  # I'd like a 'permute operation' to do the drudgery of below..?
+  # I'd like a 'permute operation' to do the drudgery of the isapprox and converts..?
   # macro permuteOperation(operation, ::AbsA, ::AbsB)
   #   esc(
   #     quote
@@ -172,8 +177,4 @@ module AbsDimension
   #   )
   # end
   # @macroexpand @permuteOperation( Base.:+, AbstractDimension, Number)
-
-
-  # is there a clean lower() function, stripping the concept from the extent?
-
 end
