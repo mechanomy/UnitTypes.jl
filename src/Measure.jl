@@ -133,71 +133,33 @@ module Measure
   end
 
 
-  macro makeBaseUnit(quantityName, baseUnitName, baseUnitSymbol)
-    abstractName = Symbol("Abstract"*String(quantityName))
+  # for @makeBaseUnit Length Meter "m"
+  # will make AbstractLength <: AbstractMeasure, Meter
+  macro makeBaseUnit(quantityName, unitName, unitSymbol::String)
+    abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
+    # println("\nmakeBaseUnit: $quantityName $unitName $unitSymbol")
     # @show __source__
     # @show __module__
-
-
-    # @show fname =  Symbol(String(quantityName)*"_doThing")
-    # return esc( quote
-    #   function $fname()
-    #     println("\ndoingThing")#, string($quantityName))
-    #   end
-    # end
-    # )
-    #works
-
-    # @show sname = Symbol(String(quantityName)*"_struct")
-    # return esc( 
-    #   quote
-    #     struct $sname
-    #       value::Number
-    #     end
-    #   end
-    # )
-    #works
-
-    # @show sname = Symbol(String(quantityName)*"_struct")
-    # return 
-    #   quote
-    #     struct $(esc($sname))
-    #       value::Number
-    #     end
-    #   end
-    #does not work, stay with esc(quote)
-
-    
-    # @show sname = Symbol(String(quantityName)*"_struct")
     return esc(
       quote
         export $abstractName #AbstractLength
         abstract type $abstractName <: AbstractMeasure end
 
-        struct $quantityName <: $abstractName #Meter <: AbstractLength
-          value::Number
-          toBase::Number
-          unit::String
-        end
-        $quantityName(x::T where T<:$abstractName) = convert($quantityName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-        export $quantityName
+        # struct $unitName <: $abstractName #Meter <: AbstractLength
+        #   value::Number
+        #   toBase::Number
+        #   unit::String
+        # end
+        # $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+        # export $unitName
+        # @show names($__module__)
 
-        @makeMeasure $baseUnitName $baseUnitSymbol 1.0 $abstractName
+        @makeMeasure $unitName $unitSymbol 1.0 $abstractName
 
         Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should scale these in some fair way, todo
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
         Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the destination's toBase...
-
-        # testitems included here are not detected by testItemRunner
-          # @testitem "BENS $quantityName conversions" begin
-          #   @makeMeasure TestLength "te" 1.0 $abstractName
-          #   @makeMeasure TestLengthMilli "mte" 0.001 TestLength
-
-          #   @test TestLength(1.0) ≈ TestLengthMilli(1000)
-          #   @test TestLengthMilli(1000) ≈ TestLength(1.0) 
-          #   @test TestLength(TestLengthMilli(1000)) ≈ 1.0
-          # end
       end
     )
   end
