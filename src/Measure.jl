@@ -1,11 +1,11 @@
 module Measure
   using TestItems 
 
-  export tractMeasure, @makeMeasure
-  abstract type tractMeasure end
+  export AbstractMeasure, @makeMeasure, @makeBaseUnit
+  abstract type AbstractMeasure end
 
   # `@makeMeasure MilliMeter "mm" 0.001 Meter` will create:
-  # struct MilliMeter <: tractLength
+  # struct MilliMeter <: AbstractLength
   #   value::Number
   #   toBase::Number
   #   MilliMeter(x) = new(x, 1e-3)
@@ -36,23 +36,23 @@ module Measure
   end
 
   @testitem "Measure constructors" begin
-    @makeMeasure TestMeasure "tm" 1.0 tractMeasure # Meter not defined yet, so make a temporary for testing
-    @test typeof(TestMeasure(1.2)) <: tractMeasure
+    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure # Meter not defined yet, so make a temporary for testing
+    @test typeof(TestMeasure(1.2)) <: AbstractMeasure
     @test typeof(TestMeasure(1.2)) <: TestMeasure
 
     @makeMeasure TestDerivedMeasure "tdm" 0.1 TestMeasure
 
-    @test typeof(TestDerivedMeasure(1.2)) <: tractMeasure
+    @test typeof(TestDerivedMeasure(1.2)) <: AbstractMeasure
     end
 
   #            desired           given                            how
-  Base.convert(::Type{Int32},    x::T) where T<:tractMeasure = Int32(round(x.value)); #this might be too open-ended, maybe restrict to T{Int32}?
-  Base.convert(::Type{Int64},    x::T) where T<:tractMeasure = Int64(round(x.value));
-  Base.convert(::Type{T},   x::Number) where T<:tractMeasure = T(x)::T
-  Base.convert(::Type{T}, x::U) where {T<:Number, U<:tractMeasure} = convert(T, x.value )::T #convert first to Measure, then to number...this works fine in terminal
+  Base.convert(::Type{Int32},    x::T) where T<:AbstractMeasure = Int32(round(x.value)); #this might be too open-ended, maybe restrict to T{Int32}?
+  Base.convert(::Type{Int64},    x::T) where T<:AbstractMeasure = Int64(round(x.value));
+  Base.convert(::Type{T},   x::Number) where T<:AbstractMeasure = T(x)
+  Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value ) #convert first to Measure, then to number...this works fine in terminal
 
   @testitem "Measure convert to Number" begin
-    @makeMeasure TestMeasure "tm" 1.0 tractMeasure
+    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure
     a = convert(Float64, TestMeasure(3.4) )
     @test isa(a, Float64)
     @test a == 3.4
@@ -66,33 +66,33 @@ module Measure
     @test c == 3
   end
 
-  # convert between measures?...this is wrong because it would allow converting between tractLength and tractAngle # Base.convert(::Type{T}, x::U) where {T<:tractMeasure, U<:tractMeasure} = T(x.value*x.toBase/T(1.0).toBase);
+  # convert between measures?...this is wrong because it would allow converting between AbstractLength and AbstractAngle # Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T(x.value*x.toBase/T(1.0).toBase);
 
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:tractMeasure, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol)
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {U<:tractMeasure, T<:Number} = isapprox(x, y.value, atol=atol, rtol=rtol) #I expected this to be implied by prior..
-  Base.isapprox(x::T, y::T; atol::Real=0, rtol::Real=atol) where T<:tractMeasure = isapprox(x.value, y.value, atol=atol, rtol=rtol)
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:tractMeasure, U<:tractMeasure} = isapprox(x.value, convert(T,y), atol=atol, rtol=rtol)
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol)
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {U<:AbstractMeasure, T<:Number} = isapprox(x, y.value, atol=atol, rtol=rtol) #I expected this to be implied by prior..
+  Base.isapprox(x::T, y::T; atol::Real=0, rtol::Real=atol) where T<:AbstractMeasure = isapprox(x.value, y.value, atol=atol, rtol=rtol)
+  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure, U<:AbstractMeasure} = isapprox(x.value, convert(T,y), atol=atol, rtol=rtol)
 
   # argument order matters, need to doubly define everyting:
-  Base.:+(x::T, y::U) where {T<:tractMeasure, U<:Number} = x + T(y)
-  Base.:+(y::U, x::T) where {U<:Number, T<:tractMeasure} = T(y) + x
-  Base.:+(x::T, y::U) where {T<:tractMeasure, U<:tractMeasure} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
-  # Base.:+(x::T, y::U) where {T<:tractMeasure, U<:tractMeasure} = +(promote(x,y)) #this fails, probably need to make a simpler demo https://docs.julialang.org/en/v1/manual/conversion-and-promotion/#Promotion
+  Base.:+(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = x + T(y)
+  Base.:+(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) + x
+  Base.:+(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
+  # Base.:+(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = +(promote(x,y)) #this fails, probably need to make a simpler demo https://docs.julialang.org/en/v1/manual/conversion-and-promotion/#Promotion
 
-  Base.:-(x::T, y::U) where {T<:tractMeasure, U<:Number} = x - T(y)
-  Base.:-(y::U, x::T) where {U<:Number, T<:tractMeasure} = T(y) - x
-  Base.:-(x::T, y::U) where {T<:tractMeasure, U<:tractMeasure} = T( x.value-convert(T,y).value)
+  Base.:-(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = x - T(y)
+  Base.:-(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) - x
+  Base.:-(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value-convert(T,y).value)
 
-  Base.:*(x::T, y::U) where {T<:tractMeasure, U<:Number} = x * T(y)
-  Base.:*(y::U, x::T) where {U<:Number, T<:tractMeasure} = T(y) * x
-  Base.:*(x::T, y::U) where {T<:tractMeasure, U<:tractMeasure} = T( x.value*convert(T,y).value)
+  Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = x * T(y)
+  Base.:*(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) * x
+  Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value*convert(T,y).value)
 
-  Base.:/(x::T, y::U) where {T<:tractMeasure, U<:Number} = x / T(y)
-  Base.:/(y::U, x::T) where {U<:Number, T<:tractMeasure} = T(y) / x
-  Base.:/(x::T, y::U) where {T<:tractMeasure, U<:tractMeasure} = T( x.value/convert(T,y).value)
+  Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = x / T(y)
+  Base.:/(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) / x
+  Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value/convert(T,y).value)
 
   @testitem "Measure operations" begin
-    @makeMeasure TestMeasure "tm" 1.0 tractMeasure
+    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure
     @testset "Measure +-*/ Number" begin
       @test isa(TestMeasure(1.2)+0.1, TestMeasure)
       @test isa(0.1 + TestMeasure(1.2), TestMeasure)
@@ -118,19 +118,90 @@ module Measure
 
   """
   """
-  function measure2String(m::T)::String where T<:tractMeasure
+  function measure2String(m::T)::String where T<:AbstractMeasure
     # return @sprintf("%3.3f []", m)
     return "$(m.value)$(m.unit)"
   end
-  function Base.show(io::IO, m::T) where T<:tractMeasure
+  function Base.show(io::IO, m::T) where T<:AbstractMeasure
     print(io, measure2String(m))
   end
 
   @testitem "Measure measure2string()" begin
-    @makeMeasure TestMeasure "tm" 1.0 tractMeasure 
+    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure 
     @test UnitTypes.Measure.measure2String(TestMeasure(3.4)) == "3.4tm"
     @test string(TestMeasure(3.4)) == "3.4tm"
   end
+
+
+  macro makeBaseUnit(quantityName, baseUnitName, baseUnitSymbol)
+    abstractName = Symbol("Abstract"*String(quantityName))
+    # @show __source__
+    # @show __module__
+
+
+    # @show fname =  Symbol(String(quantityName)*"_doThing")
+    # return esc( quote
+    #   function $fname()
+    #     println("\ndoingThing")#, string($quantityName))
+    #   end
+    # end
+    # )
+    #works
+
+    # @show sname = Symbol(String(quantityName)*"_struct")
+    # return esc( 
+    #   quote
+    #     struct $sname
+    #       value::Number
+    #     end
+    #   end
+    # )
+    #works
+
+    # @show sname = Symbol(String(quantityName)*"_struct")
+    # return 
+    #   quote
+    #     struct $(esc($sname))
+    #       value::Number
+    #     end
+    #   end
+    #does not work, stay with esc(quote)
+
+    
+    # @show sname = Symbol(String(quantityName)*"_struct")
+    return esc(
+      quote
+        export $abstractName #AbstractLength
+        abstract type $abstractName <: AbstractMeasure end
+
+        struct $quantityName <: $abstractName #Meter <: AbstractLength
+          value::Number
+          toBase::Number
+          unit::String
+        end
+        $quantityName(x::T where T<:$abstractName) = convert($quantityName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+        export $quantityName
+
+        @makeMeasure $baseUnitName $baseUnitSymbol 1.0 $abstractName
+
+        Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should scale these in some fair way, todo
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
+        Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the destination's toBase...
+
+        # testitems included here are not detected by testItemRunner
+          # @testitem "BENS $quantityName conversions" begin
+          #   @makeMeasure TestLength "te" 1.0 $abstractName
+          #   @makeMeasure TestLengthMilli "mte" 0.001 TestLength
+
+          #   @test TestLength(1.0) ≈ TestLengthMilli(1000)
+          #   @test TestLengthMilli(1000) ≈ TestLength(1.0) 
+          #   @test TestLength(TestLengthMilli(1000)) ≈ 1.0
+          # end
+      end
+    )
+  end
+  
 end
 
 

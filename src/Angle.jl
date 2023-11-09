@@ -1,13 +1,13 @@
-module Angle
-  using TestItems
+# module Angle
+  # using TestItems
 
-  using ..Measure #the .. indicates a local, sibling package, https://docs.julialang.org/en/v1/manual/modules/#Submodules-and-relative-paths
+  # using ..Measure #the .. indicates a local, sibling package, https://docs.julialang.org/en/v1/manual/modules/#Submodules-and-relative-paths
 
-  export tractAngle, Radian, Degree
-  abstract type tractAngle <: tractMeasure end
-  Base.convert(::Type{T}, x::U) where {T<:tractAngle, U<:tractAngle} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the desitination's toBase...
+  export AbstractAngle, Radian, Degree
+  abstract type AbstractAngle <: AbstractMeasure end
+  Base.convert(::Type{T}, x::U) where {T<:AbstractAngle, U<:AbstractAngle} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the desitination's toBase...
 
-  @makeMeasure Radian "rad" 1.0 tractAngle
+  @makeMeasure Radian "rad" 1.0 AbstractAngle
   @makeMeasure Degree "°" π/180 Radian # 1 degree = pi/180 rad
 
   @testitem "Angle Radian Degree definitions" begin
@@ -64,4 +64,4 @@ module Angle
     @test isapprox( atan(1), Radian(π/4), atol=1e-3)
     @test isapprox( atand(1), Degree(45), atol=1e-3)
   end
-end
+# end
