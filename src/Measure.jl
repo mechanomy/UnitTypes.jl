@@ -1,7 +1,7 @@
 module Measure
   using TestItems 
 
-  export AbstractMeasure, @makeMeasure, @makeBaseUnit
+  export AbstractMeasure, @makeMeasure, @makeBaseUnit, toBaseFloat, @unitProduct, @unitDivide
   abstract type AbstractMeasure end
 
   # `@makeMeasure MilliMeter "mm" 0.001 Meter` will create:
@@ -31,6 +31,7 @@ module Measure
         end
         $name(x::T where T<:absName) = convert($name, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
         export $name
+        # make an alias: Meter(x) == Length(x), where Length assumes Meter?
       end
     )
   end
@@ -125,6 +126,10 @@ module Measure
   function Base.show(io::IO, m::T) where T<:AbstractMeasure
     print(io, measure2String(m))
   end
+  
+  function toBaseFloat(m::T) where T<:AbstractMeasure
+    return m.value * m.toBase
+  end
 
   @testitem "Measure measure2string()" begin
     @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure 
@@ -137,22 +142,10 @@ module Measure
   # will make AbstractLength <: AbstractMeasure, Meter
   macro makeBaseUnit(quantityName, unitName, unitSymbol::String)
     abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
-    # println("\nmakeBaseUnit: $quantityName $unitName $unitSymbol")
-    # @show __source__
-    # @show __module__
     return esc(
       quote
         export $abstractName #AbstractLength
         abstract type $abstractName <: AbstractMeasure end
-
-        # struct $unitName <: $abstractName #Meter <: AbstractLength
-        #   value::Number
-        #   toBase::Number
-        #   unit::String
-        # end
-        # $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-        # export $unitName
-        # @show names($__module__)
 
         @makeMeasure $unitName $unitSymbol 1.0 $abstractName
 
@@ -164,6 +157,47 @@ module Measure
     )
   end
   
+
+  # @unitProduct AbstractForce AbstractLength NewtonMeter
+  # @unitProduct Newton Meter NewtonMeter
+  # the commutivity of * allows permuation
+  macro unitProduct(Abs1, Abs2, Operation)
+    return esc(
+      quote
+        if Base.isconcretetype($Abs1)
+          abs1 = supertype($Abs1)
+        else
+          abs1 = $Abs1
+        end
+        if Base.isconcretetype($Abs2)
+          abs2 = supertype($Abs2)
+        else
+          abs2 = $Abs2
+        end
+        Base.:*(x::T, y::U) where {T<:abs1, U<:abs2} = $Operation( toBaseFloat(x) * toBaseFloat(y) )
+        Base.:*(y::U, x::T) where {T<:abs1, U<:abs2} = $Operation( toBaseFloat(y) * toBaseFloat(x) )
+      end
+    )
+  end
+
+  # division is not commutive, a/b != b/a
+  # Base.:/(x::T, y::U) where {T<:NewtonMeter, U<:Newton} = Meter( toBaseFloat(x) / toBaseFloat(y) )
+  # Base.:/(x::T, y::U) where {T<:NewtonMeter, U<:Meter} = Newton( toBaseFloat(x) / toBaseFloat(y) )
+  # @unitDivide NewtonMeter Newton Meter
+  # @unitDivide NewtonMeter Meter Newton
+  # Input / Divsior = Output
+  macro unitDivide(Input, Divisor, Output)
+    return esc(
+      quote
+        # Base.:/(x::T, y::U) where {T<:$Input, U<:$Divisor} = $Output( toBaseFloat(x) / toBaseFloat(y) )
+        absInput = supertype($Input)
+        absDivisor = supertype($Divisor)
+        Base.:/(x::T, y::U) where {T<:absInput, U<:absDivisor} = $Output( toBaseFloat(x) / toBaseFloat(y) )
+      end
+    )
+  end
+
+
 end
 
 
