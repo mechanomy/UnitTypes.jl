@@ -1,7 +1,7 @@
 module Measure
   using TestItems 
 
-  export AbstractMeasure, @makeMeasure, @makeBaseUnit, toBaseFloat, @unitProduct, @unitDivide, @unitOps
+  export AbstractMeasure, @makeMeasure, @makeBaseUnit, toBaseFloat, @unitProduct, @unitDivide, @addUnitOperations
   abstract type AbstractMeasure end
 
   # `@makeMeasure MilliMeter "mm" 0.001 Meter` will create:
@@ -89,7 +89,6 @@ module Measure
   Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value*convert(T,y).value)
 
   Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = T(x.value/y)
-  # Base.:/(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y/x.value) # this would create a different unit
   Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value/convert(T,y).value)
 
   @testitem "Measure operations" begin
@@ -107,13 +106,10 @@ module Measure
       @test isapprox(0.1*TestMeasure(1.2), TestMeasure(0.12), rtol=1e-3)
 
       @test isapprox(TestMeasure(1.2)/0.1, TestMeasure(12), rtol=1e-3)
-      # @test isapprox(0.1/TestMeasure(1.2), TestMeasure(0.08333), rtol=1e-3)
     end
     @testset "Measure +-*/ Measure" begin
       @test isapprox(TestMeasure(1.2)+TestMeasure(0.1), TestMeasure(1.3), rtol=1e-3)
       @test isapprox(TestMeasure(1.2)-TestMeasure(0.1), TestMeasure(1.1), rtol=1e-3)
-      # @test isapprox(TestMeasure(1.2)*TestMeasure(0.1), TestMeasure(0.12), rtol=1e-3)
-      # @test isapprox(TestMeasure(1.2)/TestMeasure(0.1), TestMeasure(12), rtol=1e-3)
     end
   end
 
@@ -239,57 +235,35 @@ module Measure
   #   @test TestNM(1) / TestM(1) ≈ TestN(1)
   # end
 
-  macro unitOps(In1, In2, Result)
+  macro addUnitOperations(In1, In2, Result)
     return esc(
       quote
-        # @unitProduct $In1 $In2 $Result
-        # @unitDivide $Result $In1 $In2
-        # if $In1 != $In2 # avoid duplicate definition for cases like Area/Length = Length
-        #   @unitDivide $Result $In2 $In1
-        # end
+        absIn1 = supertype($In1) # Meter
+        absIn2 = supertype($In2) # Meter
+        absRes = supertype($Result) # Meter2
 
         #product
-        # if Base.isconcretetype($In1)
-          absIn1 = supertype($In1) # Meter
-        # else
-          # absIn1 = $In1
-        # end
-        # if Base.isconcretetype($In2)
-          absIn2 = supertype($In2) # Meter
-        # else
-          # absIn2 = $In2
-        # end
-        # if Base.isconcretetype($Result)
-          absRes = supertype($Result) # Meter2
-        # else
-          # res = $Result
-        # end
-
-        # println("unitProduct($($Abs1) = $abs1, $($Abs2) = $abs2, $($Operation))")
-
         Base.:*(x::T, y::U) where {T<:absIn1, U<:absIn2} = $Result( toBaseFloat(x) * toBaseFloat(y) )
         if absIn1 != absIn2
           Base.:*(y::U, x::T) where {T<:absIn1, U<:absIn2} = $Result( toBaseFloat(y) * toBaseFloat(x) )
         end
 
         #divide
-        # absInput = supertype($Input)
-        # absDivisor = supertype($Divisor)
-        # println("unitDivide($($Input) = $absInput, $($Divisor) = $absDivisor, $($Output))")
         Base.:/(x::T, y::U) where {T<:absRes, U<:absIn1} = $In2( toBaseFloat(x) / toBaseFloat(y) )
         if absIn1 != absIn2
           Base.:/(x::T, y::U) where {T<:absRes, U<:absIn2} = $In1( toBaseFloat(x) / toBaseFloat(y) )
         end
+
       end
     )
   end
 end
-@testitem "unitOps" begin
+@testitem "addUnitOperations" begin
     @makeBaseUnit TestNM TNM "tnm"
     @makeBaseUnit TestN TN "tn"
     @makeBaseUnit TestM TM "tm"
 
-    @unitOps TN TM TNM
+    @addUnitOperations TN TM TNM
     
     # @unitProduct TN TM TNM
     @test TN(1) * TM(1) ≈ TNM(1)

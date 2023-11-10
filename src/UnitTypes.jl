@@ -3,40 +3,15 @@ module UnitTypes
   using TestItems
 
   include("Measure.jl")
-  # using .Measure # the . indicates a local, sub package
-  # export AbstractMeasure, @makeMeasure
   @reexport using .Measure
 
   # # SI Base: https://en.wikipedia.org/wiki/International_System_of_Units
-
-  include("Current.jl")
-  # @reexport using .Current
-
-  include("Intensity.jl")
-  # @reexport using .Intensity
-
-  include("Length.jl")
-  # @reexport using .Length
-
-  include("Mass.jl")
-  # @reexport using .Mass
-
-  include("Temperature.jl")
-  # @reexport using .Temperature
-
-  include("Time.jl")
-  # @reexport using .Time
+  include("SIBase.jl")
 
   # derived units
   include("SIDerived.jl")
-  # @reexport using .SIDerived
-  
   include("Imperial.jl")
-  # @reexport using .Imperial
-
-  # non-physical units:
   include("Angle.jl")
-  # @reexport using .Angle 
 
 
 
