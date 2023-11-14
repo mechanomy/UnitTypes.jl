@@ -4,28 +4,27 @@ mPerIn = 0.0254
 inPerFt = 12
 ftPerMi = 5280
 
-@makeMeasure Inch "in" mPerIn Meter
-@makeMeasure Foot "ft" mPerIn*inPerFt Meter
-@makeMeasure Yard "yd" mPerIn*inPerFt*3 Meter
-@makeMeasure Mile "mi" mPerIn*inPerFt*ftPerMi Meter
-@makeMeasure NauticalMile "nmi" 1852 Meter
+@makeDerivedMeasure Inch "in" mPerIn Meter
+@makeDerivedMeasure Foot "ft" mPerIn*inPerFt Meter
+@makeDerivedMeasure Yard "yd" mPerIn*inPerFt*3 Meter
+@makeDerivedMeasure Mile "mi" mPerIn*inPerFt*ftPerMi Meter
+@makeDerivedMeasure NauticalMile "nmi" 1852 Meter
 
-@makeMeasure SquareFoot "sqft" (mPerIn*inPerFt)^2 Meter2
-@makeMeasure Acre "ac" 4840*(mPerIn*inPerFt)^2 Meter2
-@makeMeasure SquareMile "sqmi" (mPerIn*inPerFt*ftPerMi)^2 Meter2
+@makeDerivedMeasure SquareFoot "sqft" (mPerIn*inPerFt)^2 Meter2
+@makeDerivedMeasure Acre "ac" 4840*(mPerIn*inPerFt)^2 Meter2
+@makeDerivedMeasure SquareMile "sqmi" (mPerIn*inPerFt*ftPerMi)^2 Meter2
 
-@makeMeasure FootPerSecond "ft/s" mPerIn*inPerFt MeterPerSecond
+@makeDerivedMeasure FootPerSecond "ft/s" mPerIn*inPerFt MeterPerSecond
 
 
+@makeDerivedMeasure FluidOunce "floz" 28.4130625e-3 Meter3
+@makeDerivedMeasure Pint "pt" 568.26126e-3 Meter3
+@makeDerivedMeasure Quart "qt" 1136.5225e-3 Meter3
+@makeDerivedMeasure Gallon "gal" 4546.09e-3 Meter3
 
-@makeMeasure FluidOunce "floz" 28.4130625e-3 Meter3
-@makeMeasure Pint "pt" 568.26126e-3 Meter3
-@makeMeasure Quart "qt" 1136.5225e-3 Meter3
-@makeMeasure Gallon "gal" 4546.09e-3 Meter3
-
-@makeMeasure Ounce "oz" 28.349523125e-3 Kilogram
-@makeMeasure PoundMass "lbm" 0.45359237 Kilogram
-@makeMeasure Slug "slug" 14.59390294 Kilogram
+@makeDerivedMeasure Ounce "oz" 28.349523125e-3 Kilogram
+@makeDerivedMeasure PoundMass "lbm" 0.45359237 Kilogram
+@makeDerivedMeasure Slug "slug" 14.59390294 Kilogram
 
 
 

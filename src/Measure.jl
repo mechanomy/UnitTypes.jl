@@ -1,10 +1,38 @@
 module Measure
   using TestItems 
 
-  export AbstractMeasure, @makeMeasure, @makeBaseUnit, toBaseFloat, @unitProduct, @unitDivide, @addUnitOperations
+  export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @unitProduct, @unitDivide, @addUnitOperations
   abstract type AbstractMeasure end
 
-  # `@makeMeasure MilliMeter "mm" 0.001 Meter` will create:
+  # for @makeBaseMeasure Length Meter "m"
+  # will make AbstractLength <: AbstractMeasure, Meter
+  macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)
+    # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
+    abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
+    return esc(
+      quote
+        export $abstractName #AbstractLength
+        abstract type $abstractName <: AbstractMeasure end
+
+        @makeDerivedMeasure $unitName $unitSymbol 1.0 $abstractName
+
+        Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should scale these in some fair way, todo
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
+        Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the destination's toBase...
+      end
+    )
+  end
+  @testitem "makeBaseMeasure" begin
+    @makeBaseMeasure TestMBU TMBU "tmbu" #this makes it in the TestItemRunner context, not Main
+    mod = Measure.@returnModuleName
+    # @show names(mod)
+    @test isdefined(mod, :AbstractTestMBU)
+    @test isdefined(mod, :TMBU)
+  end
+
+
+  # `@makeDerivedMeasure MilliMeter "mm" 0.001 Meter` will create:
   # struct MilliMeter <: AbstractLength
   #   value::Number
   #   toBase::Number
@@ -15,7 +43,8 @@ module Measure
     referenceType: all Measures are convertible to a defining base type; lengths are defined relative to Meter.
     Now 
   """
-  macro makeMeasure(name, unit, toBase, referenceType)
+  macro makeDerivedMeasure(name, unit, toBase, referenceType)
+    # println("makeDerivedMeasure( $name :: $(typeof(name)), $unit :: $(typeof(unit)) )")
     return esc( 
       quote
         if Base.isconcretetype($referenceType)
@@ -37,14 +66,14 @@ module Measure
   end
 
   @testitem "Measure constructors" begin
-    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure # Meter not defined yet, so make a temporary for testing
+    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure # Meter not defined yet, so make a temporary for testing
     @test typeof(TestMeasure(1.2)) <: AbstractMeasure
     @test typeof(TestMeasure(1.2)) <: TestMeasure
 
-    @makeMeasure TestDerivedMeasure "tdm" 0.1 TestMeasure
+    @makeDerivedMeasure TestDerivedMeasure "tdm" 0.1 TestMeasure
 
     @test typeof(TestDerivedMeasure(1.2)) <: AbstractMeasure
-    end
+  end
 
   #            desired           given                            how
   Base.convert(::Type{Int32},    x::T) where T<:AbstractMeasure = Int32(round(x.value)); #this might be too open-ended, maybe restrict to T{Int32}?
@@ -53,7 +82,7 @@ module Measure
   Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value ) #convert first to Measure, then to number...this works fine in terminal
 
   @testitem "Measure convert to Number" begin
-    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure
+    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
     a = convert(Float64, TestMeasure(3.4) )
     @test isa(a, Float64)
     @test a == 3.4
@@ -92,7 +121,7 @@ module Measure
   Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value/convert(T,y).value)
 
   @testitem "Measure operations" begin
-    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure
+    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
     @testset "Measure +-*/ Number" begin
       @test isa(TestMeasure(1.2)+0.1, TestMeasure)
       @test isa(0.1 + TestMeasure(1.2), TestMeasure)
@@ -128,47 +157,10 @@ module Measure
   end
 
   @testitem "Measure measure2string()" begin
-    @makeMeasure TestMeasure "tm" 1.0 AbstractMeasure 
+    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure 
     @test UnitTypes.Measure.measure2String(TestMeasure(3.4)) == "3.4tm"
     @test string(TestMeasure(3.4)) == "3.4tm"
   end
-
-  macro returnModuleName()
-    # println("returnModuleName: $(__module__)")
-    return esc( quote
-      $(__module__)
-    end
-    )
-  end
-
-  # for @makeBaseUnit Length Meter "m"
-  # will make AbstractLength <: AbstractMeasure, Meter
-  macro makeBaseUnit(quantityName, unitName, unitSymbol::String)
-    # println("makeBaseUnit: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
-    abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
-    return esc(
-      quote
-        export $abstractName #AbstractLength
-        abstract type $abstractName <: AbstractMeasure end
-
-        @makeMeasure $unitName $unitSymbol 1.0 $abstractName
-
-        Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
-        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should scale these in some fair way, todo
-        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
-        Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the destination's toBase...
-      end
-    )
-  end
-  @testitem "makeBaseUnit" begin
-    @makeBaseUnit TestMBU TMBU "tmbu" #this makes it in the TestItemRunner context, not Main
-    mod = Measure.@returnModuleName
-    # @show names(mod)
-    @test isdefined(mod, :AbstractTestMBU)
-    @test isdefined(mod, :TMBU)
-  end
-  
-
   # @unitProduct AbstractForce AbstractLength NewtonMeter
   # @unitProduct Newton Meter NewtonMeter
   # the commutivity of * allows permuation
@@ -193,17 +185,20 @@ module Measure
       end
     )
   end
-  # @testitem "unitProduct" begin
-  #   abstract type AbstractTest <: AbstractMeasure end
-  #   @makeMeasure TestN "tn" 1.0 AbstractTest 
-  #   @makeMeasure TestM "tm" 1.0 AbstractTest 
-  #   @makeMeasure TestNM "tnm" 1.0 AbstractTest 
+  @testitem "unitProduct" begin
+    abstract type AbstractTest <: AbstractMeasure end
+    @makeDerivedMeasure TestN "tn" 1.0 AbstractTest 
+    @makeDerivedMeasure TestM "tm" 1.0 AbstractTest 
+    @makeDerivedMeasure TestNM "tnm" 1.0 AbstractTest 
     
-  #   @unitProduct TestN TestM TestNM 
+    @unitProduct TestN TestM TestNM 
 
-  #   @test TestN(1) * TestN(1) ≈ TestNM(1)
-  #   @test TestM(1) * TestM(1) ≈ TestNM(1)
-  # end
+    @test TestN(1) * TestM(1) ≈ TestNM(1)
+    @test TestM(1) * TestN(1) ≈ TestNM(1)
+
+    @test isa(TestM(1)*TestN(1), TestNM)
+    @test isa(TestN(1)*TestM(1), TestNM)
+  end
 
 
   # division is not commutive, a/b != b/a
@@ -222,18 +217,26 @@ module Measure
       end
     )
   end
-  # @testitem "unitDivide" begin
-  #   abstract type AbstractTest <: AbstractMeasure end
-  #   @makeMeasure TestNM "tnm" 1.0 AbstractTest 
-  #   @makeMeasure TestN "tn" 1.0 AbstractTest 
-  #   @makeMeasure TestM "tm" 1.0 AbstractTest 
+  @testitem "unitDivide" begin
+    @makeBaseMeasure NM TestNM "tnm"
+    @makeBaseMeasure N TestN "tn"
+    @makeBaseMeasure M TestM "tm" 
+    @addUnitOperations TestN TestM TestNM
     
-  #   @unitDivide TestNM TestN TestM
-  #   @test TestNM(1) / TestN(1) ≈ TestM(1)
+    @unitDivide TestNM TestN TestM
+    @test TestNM(1) / TestN(1) ≈ TestM(1)
+    @test isa(TestNM(1)/TestN(1), TestM)
 
-  #   @unitDivide TestNM TestM TestN
-  #   @test TestNM(1) / TestM(1) ≈ TestN(1)
-  # end
+    @unitDivide TestNM TestM TestN
+    @test TestNM(1) / TestM(1) ≈ TestN(1)
+    @test isa(TestNM(1)/TestM(1), TestN)
+
+
+    @test true
+
+    # @show TestN(1)/TestNM(1)
+    @test_throws MethodError TestN(1)/TestNM(1)
+  end
 
   macro addUnitOperations(In1, In2, Result)
     return esc(
@@ -257,11 +260,10 @@ module Measure
       end
     )
   end
-end
-@testitem "addUnitOperations" begin
-    @makeBaseUnit TestNM TNM "tnm"
-    @makeBaseUnit TestN TN "tn"
-    @makeBaseUnit TestM TM "tm"
+  @testitem "addUnitOperations" begin
+    @makeBaseMeasure TestNM TNM "tnm"
+    @makeBaseMeasure TestN TN "tn"
+    @makeBaseMeasure TestM TM "tm"
 
     @addUnitOperations TN TM TNM
     
@@ -271,10 +273,23 @@ end
 
     # # @unitDivide TNM TN TM
     @test TNM(1) / TN(1) ≈ TM(1)
+    @test isa(TNM(1) / TN(1), TM)
 
     # # @unitDivide TNM TM TN
     @test TNM(1) / TM(1) ≈ TN(1)
+    @test isa(TNM(1) / TM(1), TN)
   end
 
 
 
+
+  macro returnModuleName()
+    # println("returnModuleName: $(__module__)")
+    return esc( quote
+      $(__module__)
+    end
+    )
+  end
+
+
+end

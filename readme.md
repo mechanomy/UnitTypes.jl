@@ -78,6 +78,9 @@ struct $name <: $abstractName
 end
 ```
 
+## logical operations
+inches can be added, as can inch and millimeter, but only when computing area does inch*inch make sense
+int / inch is 
 
 
 # Comparsion with other packages

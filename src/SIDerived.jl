@@ -1,15 +1,15 @@
 # following https://en.wikipedia.org/wiki/International_System_of_Units for names, definitions, and symbols
 
 # Length powers
-@makeMeasure Femtometer "fm" 10^-15 Meter
-@makeMeasure Picometer "pm" 10^-12 Meter
-@makeMeasure Nanometer "nm" 10^-9 Meter
-@makeMeasure Micrometer "μm" 10^-6 Meter
-@makeMeasure Millimeter "mm" 10^-3 Meter
-@makeMeasure Centimeter "cm" 0.01 Meter
-@makeMeasure Decimeter "dm" 0.01 Meter
-@makeMeasure Kilometer "km" 1e3 Meter
-@makeMeasure Megameter "Mm" 1e3 Meter
+@makeDerivedMeasure Femtometer "fm" 10^-15 Meter
+@makeDerivedMeasure Picometer "pm" 10^-12 Meter
+@makeDerivedMeasure Nanometer "nm" 10^-9 Meter
+@makeDerivedMeasure Micrometer "μm" 10^-6 Meter
+@makeDerivedMeasure Millimeter "mm" 10^-3 Meter
+@makeDerivedMeasure Centimeter "cm" 0.01 Meter
+@makeDerivedMeasure Decimeter "dm" 0.01 Meter
+@makeDerivedMeasure Kilometer "km" 1e3 Meter
+@makeDerivedMeasure Megameter "Mm" 1e3 Meter
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -20,25 +20,25 @@ end
   @test Millimeter(1)*Meter(3) / Millimeter(1) ≈ Meter(3)
 end
 
-@makeBaseUnit Area Meter2 "m^2"
+@makeBaseMeasure Area Meter2 "m^2"
 @addUnitOperations Meter Meter Meter2
 
-@makeBaseUnit Volume Meter3 "m^3"
+@makeBaseMeasure Volume Meter3 "m^3"
 @addUnitOperations Meter2 Meter Meter3
-@makeMeasure Liter "L" 1e-3 Meter3
-@makeMeasure Milliliter "mL" 1e-3 Liter
+@makeDerivedMeasure Liter "L" 1e-3 Meter3
+@makeDerivedMeasure Milliliter "mL" 1e-3 Liter
 
-@makeBaseUnit Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
-@makeBaseUnit SpecificVolume M3PerKg "m^3/kg"
+@makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
+@makeBaseMeasure SpecificVolume M3PerKg "m^3/kg"
 Base.convert(::Type{U}, x::T) where {U<:AbstractDensity, T<:AbstractSpecificVolume} = KgPerM3(1/toBaseFloat(x))
 Base.convert(::Type{U}, x::T) where {U<:AbstractSpecificVolume, T<:AbstractDensity} = M3PerKg(1/toBaseFloat(x))
 
-@makeBaseUnit SurfaceDensity KgPerM2 "kg/m^2"
-@makeBaseUnit CurrentDensity APerM2 "A/m^2"
-@makeBaseUnit MagneticFieldStrength APerM "A/m"
+@makeBaseMeasure SurfaceDensity KgPerM2 "kg/m^2"
+@makeBaseMeasure CurrentDensity APerM2 "A/m^2"
+@makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
-@makeBaseUnit Frequency Hertz "Hz"
-@makeMeasure PerSecond "1/s" 1 Hertz
+@makeBaseMeasure Frequency Hertz "Hz"
+@makeDerivedMeasure PerSecond "1/s" 1 Hertz
 
 Base.convert(::Type{U}, x::T) where {U<:AbstractTime, T<:AbstractFrequency} = Second(1/toBaseFloat(x))
 Base.convert(::Type{U}, x::T) where {U<:AbstractFrequency, T<:AbstractTime} = Hertz(1/toBaseFloat(x))
@@ -47,55 +47,54 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractFrequency, T<:AbstractTime} = He
   @test Second(10) ≈ Hertz(0.1)
 end
 
-@makeBaseUnit Velocity MeterPerSecond "m/s"
+@makeBaseMeasure Velocity MeterPerSecond "m/s"
 @addUnitOperations Meter PerSecond MeterPerSecond # this is ugly...
 
-@makeBaseUnit Acceleration MeterPerSecond2 "m/s^2"
+@makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
 @addUnitOperations MeterPerSecond PerSecond MeterPerSecond2 # also ugly
 
-@makeBaseUnit Force Newton "N"
+@makeBaseMeasure Force Newton "N"
 @addUnitOperations Kilogram MeterPerSecond2 Newton
 
-@makeBaseUnit Torque NewtonMeter "Nm"
+@makeBaseMeasure Torque NewtonMeter "Nm"
 @addUnitOperations Newton Meter NewtonMeter
 
-@makeBaseUnit Pressure Pascal "Pa"
+@makeBaseMeasure Pressure Pascal "Pa"
 @addUnitOperations Newton Meter2 Pascal
 
-@makeBaseUnit Charge Coulomb "C"
+@makeBaseMeasure Charge Coulomb "C"
 @addUnitOperations Second Ampere Coulomb
 
-@makeBaseUnit ElectricPotential Volt "V"
+@makeBaseMeasure ElectricPotential Volt "V"
 # @addUnitOperations I * R = V
 # @addUnitOperations P / I = V
 # @addUnitOperations kg*m^2/s^3/A -- I just need to write a function to parse unit symbols into con/destructive operations
-@makeMeasure Kilovolt "KV" 1e3 Volt
+@makeDerivedMeasure Kilovolt "KV" 1e3 Volt
 
-@makeBaseUnit Resistance Ohm "Ω"
-@makeMeasure Milliohm "mΩ" 1e-3 Ohm
-@makeMeasure Kiloohm "kΩ" 1e3 Ohm
-@makeMeasure Megaohm "MΩ" 1e6 Ohm
+@makeBaseMeasure Resistance Ohm "Ω"
+@makeDerivedMeasure Milliohm "mΩ" 1e-3 Ohm
+@makeDerivedMeasure Kiloohm "kΩ" 1e3 Ohm
+@makeDerivedMeasure Megaohm "MΩ" 1e6 Ohm
 
-@makeBaseUnit Capacitance Farad "F" 
-@makeMeasure Millifarad "mF" 1e-3 Farad
-@makeMeasure Microfarad "μF" 1e-6 Farad
-@makeMeasure Nanofarad "nF" 1e-9 Farad
-@makeMeasure Picofarad "pF" 1e-12 Farad
+@makeBaseMeasure Capacitance Farad "F" 
+@makeDerivedMeasure Millifarad "mF" 1e-3 Farad
+@makeDerivedMeasure Microfarad "μF" 1e-6 Farad
+@makeDerivedMeasure Nanofarad "nF" 1e-9 Farad
+@makeDerivedMeasure Picofarad "pF" 1e-12 Farad
 
-@makeBaseUnit Conductance Siemens "Ω^-1"
+@makeBaseMeasure Conductance Siemens "Ω^-1"
 Base.convert(::Type{U}, x::T) where {U<:AbstractResistance, T<:AbstractConductance} = Ohm(1/toBaseFloat(x))
 Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistance} = Siemens(1/toBaseFloat(x))
 
-@makeBaseUnit MagneticFlux Weber "Wb"
+@makeBaseMeasure MagneticFlux Weber "Wb"
 
-@makeBaseUnit MagneticFluxDensity Tesla "T"
+@makeBaseMeasure MagneticFluxDensity Tesla "T"
 
-@makeBaseUnit Inductance Henry "H"
-@makeMeasure Millihenry "mH" 1e-3 Henry
+@makeBaseMeasure Inductance Henry "H"
+@makeDerivedMeasure Millihenry "mH" 1e-3 Henry
 
-
-@makeBaseUnit LuminousFlux Lumen "lm"
-@makeBaseUnit Illuminance Lux "lx"
-@makeBaseUnit Becquerel Becquerel "Bq"
-@makeBaseUnit Gray Gray "Gy"
-@makeBaseUnit Sievert Sievert "Sv"
+@makeBaseMeasure LuminousFlux Lumen "lm"
+@makeBaseMeasure Illuminance Lux "lx"
+# @makeBaseMeasure DecayRate Becquerel "Bq"
+# @makeBaseMeasure AbsorbedDose Gray "Gy"
+# @makeBaseMeasure EquivalentDose Sievert "Sv"
