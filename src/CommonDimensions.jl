@@ -22,3 +22,4 @@ end
 @makeDimension Width Meter
 @makeDimension Depth Meter
 
+@makeDimension Duration Second
