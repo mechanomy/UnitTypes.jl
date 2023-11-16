@@ -35,10 +35,10 @@ Closest candidates are:
 ```
 
 ## Introducing new types
-Three macros are provided to enable new measures and dimensions to be created.
-* `@makeBaseMeasure` - introduces a new basic Measure like Meter or Volume
-* `@makeDerivedMeasure` - introduces a new name for a Measure, often a prefix like Millimeter or Liter
-* `@makeDimension` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle
+Three macros are provided to enable new measures and dimensions to be created:
+* `@makeBaseMeasure` - introduces a new basic Measure like Meter or Volume,
+* `@makeDerivedMeasure` - introduces a new name for a Measure, often a prefix like Millimeter or Liter,
+* `@makeDimension` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
 ## Design
 UnitTypes introduces an abstract type hierarchy of:
@@ -54,10 +54,11 @@ See [src/CommonDimensions.jl](src/CommonDimensions.jl)
 Please open an issue or PR to add more units.
 
 The idea is that a Measure is some quantity bearing units, while a Dimension is some context-specific application of a Measure.
+Within a Dimension multiple Measures may logically be used as long as they are dimensionally consistent.
 For instance, a circle may be described by its radius, diameter, or circumference, concepts that can be interchangeably converted, using any Measure of extent.
-A function creating a circle can then store radii while accepting Radius, Diameter, or Circumference arguments, as the type system provides conversion between the argument and the function's internal convention.
+A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference arguments, as the type system provides conversion between the argument and the function's internal convention.
 
-Any concrete Dimension consists of a struct with field 
+Concrete Dimensions look like
 ```julia
 struct Diameter{T <: AbstractLength } <: AbstractDimension
   value::T
