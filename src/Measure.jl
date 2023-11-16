@@ -1,12 +1,28 @@
 module Measure
+  using DocStringExtensions
   using TestItems 
-  # import Unitful
+  import Unitful
 
   export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @unitProduct, @unitDivide, @addUnitOperations
   abstract type AbstractMeasure end
 
-  # for @makeBaseMeasure Length Meter "m"
-  # will make AbstractLength <: AbstractMeasure, Meter
+  """
+  $TYPEDSIGNATURES
+
+  Make a new base measure which has no multiplicative relationship to an existing unit.
+  For example, in `@makeBaseMeasure Length Meter "m"`:
+  * `quantityName` is the name of the measure, 'Length' above.
+  * `unitName` is the name of the unit which will be used to make measures bearing that unit, 'Meter' above.
+  * `unitSymbol` is the abbreviation of the unit name, used in all string presentations of the measure.
+  The macro will introduce `AbstractLength <: AbstractMeasure` and `Meter()` into the current scope.
+  
+  Measures created by the macro have fields:
+  * `value::Number` raw value of the measure
+  * `toBase::Number` == 1 for base measures
+  * `unit::String` the unit to be displayed
+
+  See also [toBaseFloat()](toBaseFloat).
+  """
   macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)
     # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
     abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
@@ -32,13 +48,6 @@ module Measure
     @test isdefined(mod, :TMBU)
   end
 
-  # `@makeDerivedMeasure MilliMeter "mm" 0.001 Meter` will create:
-  # struct MilliMeter <: AbstractLength
-  #   value::Number
-  #   toBase::Number
-  #   MilliMeter(x) = new(x, 1e-3)
-  # end
-
   """
     referenceType: all Measures are convertible to a defining base type; lengths are defined relative to Meter.
     Now 
@@ -52,6 +61,10 @@ module Measure
         else 
           absName = $referenceType
         end
+
+        """
+          This type represents units of $($name).
+        """
         struct $name <: absName
           value::Number
           toBase::Number
@@ -59,7 +72,8 @@ module Measure
           $name(x) = new(x,$toBase,$unit)
         end
         $name(x::T where T<:absName) = convert($name, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-        $name(uf::T) where T<:Unitful.AbstractQuantity = convert($name, uf) # add a constructor for Unitful units to prevent struct.value = Unitful
+        # $name(uf::T) where T<:Unitful.AbstractQuantity = convert($name, uf) # add a constructor for Unitful units to prevent struct.value = Unitful...this requires that all modules that use @makeDerived also import Unitful, commenting out for now...
+        $name(uf::T) where T<:UnitTypes.Measure.Unitful.AbstractQuantity = convert($name, uf) # can I access the Unitful in UnitTypes?
         export $name
 
       end

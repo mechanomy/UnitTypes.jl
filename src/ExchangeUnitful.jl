@@ -37,6 +37,8 @@ module ExchangeUnitful
           b = 1.2 * Unitful.uparse(a.unit)
           @test convert(unitType, b) ≈ a
         end
+
+        # commenting this test until I figure out how to turn on the unitful conversion constructor without needing all users to using Unitful.
         @testset "Constructing $ut from Unitful" begin
           wrong = unitType( 1.2 * Unitful.uparse(a.unit) )
           @test !(typeof(wrong.value) <: Unitful.AbstractQuantity)
@@ -46,34 +48,4 @@ module ExchangeUnitful
       end
     end
   end
-
-  @testitem "check double units" begin
-    using Unitful
-    # I'm seeing:
-    # julia> using UnitTypes, Unitful
-    # julia> a = 1.2u"N*m"
-    # 1.2 m N
-    # julia> b = NewtonMeter(a)
-    # 1.2 m NN*m
-    # where UnitTypes.NewtonMeter(Unitful.Nm) should convert rather than just m NN*m.
-    # This is due to Unitful subtyping Number
-    uf = 1.2u"N*m"
-    # @show typeof(uf)
-    # @show supertype(typeof(uf))
-    # ut = NewtonMeter(1.2)
-    # wrong = NewtonMeter(uf)
-    # @show typeof(wrong.value)
-    # @show typeof(wrong.value) == typeof(uf)
-    # @test !(typeof(wrong.value) <: Unitful.AbstractQuantity)
-    # @test typeof(wrong.value) <: Real
-    # @test typeof(wrong.value) <: Float64
-    # imho Unitful shouldn't subtype Number; I could restrict value::Real because I don't think I can value::Number(exceptUnitful)...
-    # and because the problem is in the struct rather than convert(), I'd have to add Unitful type checking there..?  Could I make additional constructors for everything here?
-    # UTNM(uf::T) where T<:Unitful.AbstractQuantity = convert(NewtonMeter, uf)
-    # utnm = UTNM(uf)
-    # @show utnm
-    # @show typeof(utnm)
-    # @show typeof(utnm.value)
-  end
-
 end

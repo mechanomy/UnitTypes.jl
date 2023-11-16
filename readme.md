@@ -1,4 +1,4 @@
-## Overview
+# UnitTypes.jl
 This package provides physical units as Julia types.
 
 ```julia

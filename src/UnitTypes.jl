@@ -1,7 +1,8 @@
 module UnitTypes
+  using DocStringExtensions
   using Reexport
   using TestItems
-  import Unitful #need to import here because this is where macros evaluate
+  # using Unitful #need to import here because this is where macros evaluate
 
   include("Measure.jl")
   @reexport using .Measure
