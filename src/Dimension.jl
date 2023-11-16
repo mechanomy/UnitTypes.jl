@@ -7,7 +7,6 @@ Make a new dimension `dimName` of `measure`; also creates 'Abstract`dimName`'
 """
 macro makeDimension(dimName, measure) # a dimension is a measurement applied to a certain context
   abstractName = Symbol("Abstract"*String(dimName)) #AbstractDiameter
-  abstractMeas = supertype(typeof(measure))
   esc(
     quote
       #create an abstractType of this dimension
@@ -15,7 +14,8 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
       export $abstractName #AbstractDiameter
 
       #and the dimension itself
-      struct $dimName{T <: $abstractMeas } <: $abstractName # Diamter{T<:AbstractLength} <: AbstractDiameter
+      abstractMeas = supertype($measure) # AbstractLength = supertype(Meter)
+      struct $dimName{T <: abstractMeas } <: $abstractName # Diamter{T<:AbstractLength} <: AbstractDiameter
         value::T #Meter
       end
       export $dimName
