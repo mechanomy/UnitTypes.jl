@@ -38,7 +38,7 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractSpecificVolume, T<:AbstractDensi
 @makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
 @makeBaseMeasure Frequency Hertz "Hz"
-@makeDerivedMeasure PerSecond "1/s" 1 Hertz
+@makeDerivedMeasure PerSecond "s^-1" 1 Hertz
 
 Base.convert(::Type{U}, x::T) where {U<:AbstractTime, T<:AbstractFrequency} = Second(1/toBaseFloat(x))
 Base.convert(::Type{U}, x::T) where {U<:AbstractFrequency, T<:AbstractTime} = Hertz(1/toBaseFloat(x))
@@ -56,8 +56,9 @@ end
 @makeBaseMeasure Force Newton "N"
 @addUnitOperations Kilogram MeterPerSecond2 Newton
 
-@makeBaseMeasure Torque NewtonMeter "Nm"
+@makeBaseMeasure Torque NewtonMeter "N*m"
 @addUnitOperations Newton Meter NewtonMeter
+# NewtonMeter(uf::T) where T<:Unitful.AbstractQuantity = convert(NewtonMeter, uf) #because it is more specific this should take precedence over NewtonMeter(::Number(Unitful))
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @addUnitOperations Newton Meter2 Pascal
@@ -69,7 +70,7 @@ end
 # @addUnitOperations I * R = V
 # @addUnitOperations P / I = V
 # @addUnitOperations kg*m^2/s^3/A -- I just need to write a function to parse unit symbols into con/destructive operations
-@makeDerivedMeasure Kilovolt "KV" 1e3 Volt
+@makeDerivedMeasure Kilovolt "kV" 1e3 Volt
 
 @makeBaseMeasure Resistance Ohm "Ω"
 @makeDerivedMeasure Milliohm "mΩ" 1e-3 Ohm

@@ -1,6 +1,7 @@
 module UnitTypes
   using Reexport
   using TestItems
+  import Unitful #need to import here because this is where macros evaluate
 
   include("Measure.jl")
   @reexport using .Measure
@@ -18,6 +19,8 @@ module UnitTypes
 
   include("CommonDimensions.jl")
 
+  include("ExchangeUnitful.jl")
+  # using .ExchangeUnitful
 
   # display(names(Measure.@returnModuleName, imported=true, all=true))
 

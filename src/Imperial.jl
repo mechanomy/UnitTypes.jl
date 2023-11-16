@@ -10,9 +10,9 @@ ftPerMi = 5280
 @makeDerivedMeasure Mile "mi" mPerIn*inPerFt*ftPerMi Meter
 @makeDerivedMeasure NauticalMile "nmi" 1852 Meter
 
-@makeDerivedMeasure SquareFoot "sqft" (mPerIn*inPerFt)^2 Meter2
+@makeDerivedMeasure SquareFoot "ft^2" (mPerIn*inPerFt)^2 Meter2
 @makeDerivedMeasure Acre "ac" 4840*(mPerIn*inPerFt)^2 Meter2
-@makeDerivedMeasure SquareMile "sqmi" (mPerIn*inPerFt*ftPerMi)^2 Meter2
+@makeDerivedMeasure SquareMile "mi^2" (mPerIn*inPerFt*ftPerMi)^2 Meter2
 
 @makeDerivedMeasure FootPerSecond "ft/s" mPerIn*inPerFt MeterPerSecond
 

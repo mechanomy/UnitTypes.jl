@@ -1,5 +1,6 @@
 module Measure
   using TestItems 
+  # import Unitful
 
   export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @unitProduct, @unitDivide, @addUnitOperations
   abstract type AbstractMeasure end
@@ -31,7 +32,6 @@ module Measure
     @test isdefined(mod, :TMBU)
   end
 
-
   # `@makeDerivedMeasure MilliMeter "mm" 0.001 Meter` will create:
   # struct MilliMeter <: AbstractLength
   #   value::Number
@@ -59,8 +59,9 @@ module Measure
           $name(x) = new(x,$toBase,$unit)
         end
         $name(x::T where T<:absName) = convert($name, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+        $name(uf::T) where T<:Unitful.AbstractQuantity = convert($name, uf) # add a constructor for Unitful units to prevent struct.value = Unitful
         export $name
-        # make an alias: Meter(x) == Length(x), where Length assumes Meter?
+
       end
     )
   end

@@ -1,4 +1,4 @@
-# Overview
+## Overview
 This package provides physical units as Julia types.
 
 ```julia
@@ -34,13 +34,13 @@ Closest candidates are:
   goFaster(::T) where T<:AbstractAcceleration
 ```
 
-# Introducing new types
+## Introducing new types
 Three macros are provided to enable new measures and dimensions to be created.
 * `@makeBaseMeasure` - introduces a new basic Measure like Meter or Volume
 * `@makeDerivedMeasure` - introduces a new name for a Measure, often a prefix like Millimeter or Liter
 * `@makeDimension` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle
 
-# Design
+## Design
 UnitTypes introduces an abstract type hierarchy of:
 * `AbstractDimension` - src/Dimension.jl
 `AbstractDiameter`, `AbstractRadius`, ...
@@ -82,8 +82,9 @@ Inch * 3 is convenient while 3 / Inch is unlikely to be desirable.
 
 With use and issues, these coherence rules will become more clear and explained by example.
 
-# Comparsion with other packages
-## Unitful.jl
+## Comparison with other packages
+
+### Unitful.jl
 [Unitful](https://painterqubits.github.io/Unitful.jl/latest/) leverages parametric types to store units, giving flexibility at the cost of compile-time type uncertainty.
 It's two major limitations are the avoidance of [angular measures](https://painterqubits.github.io/Unitful.jl/latest/trouble/#promotion-with-dimensionless-numbers), as they are not first-class but rather ratios, and rather lengthy type unions that clutter outputs, especially on error:
 
@@ -97,16 +98,38 @@ julia> goSlower(a)
 ERROR: MethodError: no method matching goSlower(::Quantity{Int64, 𝐋 , Unitful.FreeUnits{(mm,), 𝐋 , nothing}})
 
 Closest candidates are:
-  goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} wher    e {T, U}) 
+  goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} where {T, U}) 
 ```
 
-## DynamicQuantities.jl
+### DynamicQuantities.jl
+
 [DynamicQuantities](https://github.com/SymbolicML/DynamicQuantities.jl) is newer and faster than Unitful because it "defines a simple statically-typed Quantity type for storing physical units."
 It does this by storing the exponents on the basic units, allowing any unit traceable to SI to be used.
 But this performant representation hurts readability, and while the unit representation may be able to be hidden behind overrides of show(), Julia is designed for types to be read and manipulated directly by users.
 
-## UnitTypes.jl
+### UnitTypes.jl
+
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this literal typing of units.
 The cost is that UnitTypes does not have a catch-all unit representation.
 Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units, ie Celsius to Fahrenheit.
 This is not to say that this catch-all representation is not possible, but rather that it is not the first priority in writing the module as it likely involves unit string parsing and elaboration.
+
+## UnitTypes + Unitful
+Assuming that units defined in UnitTypes and Unitful have identical symbols (e.g. "N*m" for torques) allows bidirectional conversion with Unitful units.
+
+```julia
+julia> using UnitTypes, Unitful
+
+julia> a = 1.2u"N*m"
+1.2 m N
+
+julia> b = convert(NewtonMeter, a)
+1.2N*m
+
+julia> c = convert(typeof(1u"N*m"), b)
+1.2 m N
+
+julia> d = NewtonMeter( 1u"N*m" )
+1.2N*m
+```
+
