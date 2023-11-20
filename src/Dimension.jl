@@ -19,6 +19,10 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
         value::T #Meter
       end
       export $dimName
+
+
+
+
     end
   )
 end
@@ -37,7 +41,7 @@ end
 
 Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension} = T( x.value) # there's no reason for me to do the Measure conversion here when T's constructor will
 Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.value, convert(T,y).value, atol=atol, rtol=rtol)
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractLength} = isapprox(x.value, convert(T.parameters[1],y).value, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractMeasure} = isapprox(x.value, convert(T.parameters[1],y).value, atol=atol, rtol=rtol)
 
 Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) #convert to base?
 Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Number, U<:AbstractDimension} = isapprox(x, y.value, atol=atol, rtol=rtol) 
@@ -74,10 +78,10 @@ Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = x + con
 Base.:-(x::T, y::T) where T<:AbstractDimension = T( x.value - y.value)
 Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = x - convert(T, y)
 
-Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractLength} = x + T(y) 
-Base.:+(y::U, x::T) where {T<:AbstractDimension, U<:AbstractLength} = x + T(y) 
-Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractLength} = x - T(y) 
-Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:AbstractLength} = T(y) - x
+Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
+Base.:+(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
+Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x - T(y) 
+Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = T(y) - x
 
 # prevent these operations:
 Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to multiply Dimensions"))
@@ -120,12 +124,12 @@ Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(A
     @test isapprox(m1 - d11, -0.2, atol=1e-6)
     @test_throws MethodError d11 / m1
     @test_throws MethodError m1 / d11
-    @test_throws MethodError d11 + Radian(2) # does not <:AbstractLength
+    @test_throws MethodError d11 + Radian(2) # does not <:AbstractMeasure
   end
 end
 
 # Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, x.value.value) #not necessary? reduce to Number just drill through the Dimension and the Measure
-Base.convert(::Type{T}, x::U) where {T<:AbstractLength, U<:AbstractDimension} = T( x.value ) # reduce to Measure
+Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} = T( x.value ) # reduce to Measure
 
 @testitem "Dimension convert()s" begin
   @makeDerivedMeasure TestLength1 "te1" 1.0 Meter
