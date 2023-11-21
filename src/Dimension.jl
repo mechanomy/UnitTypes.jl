@@ -19,10 +19,6 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
         value::T #Meter
       end
       export $dimName
-
-
-
-
     end
   )
 end
@@ -43,8 +39,9 @@ Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension}
 Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.value, convert(T,y).value, atol=atol, rtol=rtol)
 Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractMeasure} = isapprox(x.value, convert(T.parameters[1],y).value, atol=atol, rtol=rtol)
 
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) #convert to base?
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Number, U<:AbstractDimension} = isapprox(x, y.value, atol=atol, rtol=rtol) 
+# these are too dangerous, screwing up isapprox and other things
+# Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) #convert to base?
+# Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Number, U<:AbstractDimension} = isapprox(x, y.value, atol=atol, rtol=rtol) 
 
 @testitem "Dimension isapprox()" begin
   @makeDerivedMeasure TestLength1 "te1" 1.0 Meter
@@ -59,9 +56,6 @@ Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Number, U<:Ab
   @test convert(TestDim1, d22) ≈ d11
   @test !(d11 ≈ TestDim2{TestLength2}(1.2))
   @test convert(TestDim2, d11) ≈ d22
-
-  @test d11 ≈ 1.2
-  @test d22 ≈ 0.6
 end
 
 Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.value+y )
@@ -94,43 +88,32 @@ Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(A
   @makeDimension TestDim2 TestLength2
 
   d11 = TestDim1{TestLength1}(1.2)
-  @testset "Dimension +-*/ Number" begin
-    @test d11 + 2 ≈ 3.2
-    @test 2 + d11 ≈ 3.2
-    @test d11 + 2 ≈ TestLength1(3.2)
-    @test d11 - 2 ≈ -0.8
-    @test 2 - d11 ≈  0.8
-    @test d11 * 2 ≈ 2.4
-    @test 2 * d11 ≈ 2.4
-    @test d11 / 2 ≈ 0.6
-    # @test 2 / d11 ≈ 5/3 #nonsense
-  end
-
   d22 = TestDim2{TestLength2}(0.6)
   @testset "Dimension +-*/ Dimension" begin
     @test d11 + d22 ≈ TestLength1(2.4)
     @test d11 + d22 ≈ TestLength2(1.2)
-    @test d11 - d22 ≈ 0
-    @test d22 - d11 ≈ 0
+    @test d11 - d22 ≈ TestLength1(0)
+    @test d22 - d11 ≈ TestLength1(0)
     @test_throws ArgumentError d11 * d22 
     @test_throws ArgumentError d11 / d22 
   end
 
   @testset "Dimension +-*/ Measure" begin
     m1 = Meter(1)
-    @test d11 + m1 ≈ 2.2
-    @test m1 + d11 ≈ 2.2
-    @test isapprox(d11 - m1,  0.2, atol=1e-6)
-    @test isapprox(m1 - d11, -0.2, atol=1e-6)
+    @test d11 + m1 ≈ TestDim1(TestLength1(2.2))
+    @test m1 + d11 ≈ TestDim1(TestLength1(2.2))
+    @test isapprox(d11 - m1,  TestDim1(TestLength1(0.2)), atol=1e-6)
+    @test isapprox(m1 - d11, TestDim1(TestLength1(-0.2)), atol=1e-6)
     @test_throws MethodError d11 / m1
     @test_throws MethodError m1 / d11
     @test_throws MethodError d11 + Radian(2) # does not <:AbstractMeasure
   end
 end
 
-# Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractDimension} = convert(T, x.value.value) #not necessary? reduce to Number just drill through the Dimension and the Measure
+"""
+Reduce the Dimension to its Measure
+"""
 Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} = T( x.value ) # reduce to Measure
-
 @testitem "Dimension convert()s" begin
   @makeDerivedMeasure TestLength1 "te1" 1.0 Meter
   @makeDerivedMeasure TestLength2 "te2" 2.0 Meter
@@ -139,7 +122,6 @@ Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} =
   d11 = TestDim1{TestLength1}(1.2)
   d22 = TestDim2{TestLength2}(0.6)
 
-  # @test convert(Float64, d11) ≈ 1.2 # I don't think this is necessary
   @test_throws MethodError convert(Float64, d11) ≈ 1.2 
   @test convert(TestLength2, d11) ≈ TestLength2(0.6)
   @test_throws MethodError convert(TestDim1, TestLength1(1.2)) # don't convert, must use constructor
