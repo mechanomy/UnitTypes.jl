@@ -1,8 +1,8 @@
 
 @makeDimension Diameter Meter
 @makeDimension Radius Meter
-Diameter( r::Radius ) = Diameter(r.value*2)
-Radius(d::Diameter) = Radius(d.value/2)
+Diameter( r::Radius ) = Diameter(r.measure*2)
+Radius(d::Diameter) = Radius(d.measure/2)
 Base.convert(::Type{Radius}, x::Diameter) = Radius(x)
 Base.convert(::Type{Diameter}, x::Radius) = Diameter(x)
 
