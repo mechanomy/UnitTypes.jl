@@ -16,6 +16,7 @@
   @test Meter(1.0) ≈ Millimeter(1000.0)
 end
 @testitem "check unit consistency" begin
+  @test isa(Meter(3)*2, Meter)
   @test Meter(3)*2 + Centimeter(5) ≈ Meter(6.05)
   @test Millimeter(1)*Meter(3) / Millimeter(1) ≈ Meter(3)
 end
@@ -54,11 +55,15 @@ end
 @addUnitOperations MeterPerSecond PerSecond MeterPerSecond2 # also ugly
 
 @makeBaseMeasure Force Newton "N"
+@makeDerivedMeasure KiloNewton "kN" 1e3 Newton
+@makeDerivedMeasure MilliNewton "mN" 1e-3 Newton
 @addUnitOperations Kilogram MeterPerSecond2 Newton
 
 @makeBaseMeasure Torque NewtonMeter "N*m"
 @addUnitOperations Newton Meter NewtonMeter
 # NewtonMeter(uf::T) where T<:Unitful.AbstractQuantity = convert(NewtonMeter, uf) #because it is more specific this should take precedence over NewtonMeter(::Number(Unitful))
+@makeDerivedMeasure NewtonMillimeter "N*mm" 1e-3 NewtonMeter
+@makeDerivedMeasure MilliNewtonMeter "mN*m" 1e-3 NewtonMeter
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @addUnitOperations Newton Meter2 Pascal

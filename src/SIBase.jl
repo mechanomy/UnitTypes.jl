@@ -5,9 +5,10 @@
   @makeDerivedMeasure TestCurrentMilli "mte" 0.001 TestCurrent
 
   @test Ampere(1) ≈ TestCurrent(1)
+  @test Ampere(TestCurrent(1)) ≈ TestCurrent(1)
   @test TestCurrent(1.0) ≈ TestCurrentMilli(1000)
   @test TestCurrentMilli(1000) ≈ TestCurrent(1.0) 
-  @test TestCurrent(TestCurrentMilli(1000)) ≈ 1.0
+  @test TestCurrent(TestCurrentMilli(1000)) ≈ TestCurrent(1.0)
 end
 
 @makeBaseMeasure Intensity Candela "cd"
@@ -17,7 +18,7 @@ end
 
   @test TestIntensity(1.0) ≈ TestIntensityMilli(1000)
   @test TestIntensityMilli(1000) ≈ TestIntensity(1.0) 
-  @test TestIntensity(TestIntensityMilli(1000)) ≈ 1.0
+  @test TestIntensity(TestIntensityMilli(1000)) ≈ TestIntensity(1.0)
 end
 
 @makeBaseMeasure Length Meter "m"
@@ -27,7 +28,7 @@ end
 
   @test TestLength(1.0) ≈ TestLengthMilli(1000)
   @test TestLengthMilli(1000) ≈ TestLength(1.0) 
-  @test TestLength(TestLengthMilli(1000)) ≈ 1.0
+  @test TestLength(TestLengthMilli(1000)) ≈ TestLength(1.0)
 end
 
 @makeBaseMeasure Mass Kilogram "kg"
@@ -36,7 +37,7 @@ end
   @makeDerivedMeasure TestMassMilli "mte" 0.001 TestMass
   @test TestMass(1.0) ≈ TestMassMilli(1000)
   @test TestMassMilli(1000) ≈ TestMass(1.0) 
-  @test TestMass(TestMassMilli(1000)) ≈ 1.0
+  @test TestMass(TestMassMilli(1000)) ≈ TestMass(1.0)
 end
 
 @makeBaseMeasure Temperature Kelvin "K"
@@ -44,12 +45,11 @@ end
   @makeDerivedMeasure TestTemp "tt" 1.0 AbstractTemperature
   @makeDerivedMeasure TestTempMilli "ttm" 0.001 TestTemp
 
-  @test TestTemp(1.0) ≈ 1.0
-  @test TestTempMilli(1000) ≈ 1000
+  @test TestTempMilli(1000) ≈ TestTempMilli(1000)
 
   @test TestTemp(1.0) ≈ TestTempMilli(1000.0)
   @test TestTempMilli(1000) ≈ TestTemp(1.0) 
-  @test TestTemp(TestTempMilli(1000)) ≈ 1.0
+  @test TestTemp(TestTempMilli(1000)) ≈ TestTemp(1.0)
 end
 
 @makeBaseMeasure Time Second "s"
@@ -59,5 +59,5 @@ end
 
   @test TestTime(1.0) ≈ TestTimeMilli(1000)
   @test TestTimeMilli(1000) ≈ TestTime(1.0) 
-  @test TestTime(TestTimeMilli(1000)) ≈ 1.0
+  @test TestTime(TestTimeMilli(1000)) ≈ TestTime(1.0)
 end

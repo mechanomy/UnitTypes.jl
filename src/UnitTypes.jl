@@ -4,6 +4,15 @@ module UnitTypes
   using TestItems
   # using Unitful #need to import here because this is where macros evaluate
 
+  # @template DEFAULT =
+  #   """
+  #   $(TYPEDSIGNATURES)
+  #   $(DOCSTRING)
+  #   """
+
+
+
+
   include("Measure.jl")
   @reexport using .Measure
 
@@ -24,7 +33,6 @@ module UnitTypes
   # using .ExchangeUnitful
 
   # display(names(Measure.@returnModuleName, imported=true, all=true))
-
 
 
 end

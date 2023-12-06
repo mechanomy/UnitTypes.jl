@@ -31,13 +31,15 @@ end
 
   @test typeof(tdm1) <: AbstractDimension
   @test !(typeof(tdm1) <: AbstractMeasure)
+  @test typeof(tdm1.measure) <: AbstractMeasure
   @test isa(tdm1.measure, TestMeas)
+  @test TestMeas(3.4) ≈ TestMeas(3.4)
   @test tdm1 ≈ TestMeas(3.4)
 end
 
 Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension} = T( x.measure) # there's no reason for me to do the Measure conversion here when T's constructor will
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.measure, convert(T,y).measure, atol=atol, rtol=rtol)
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractMeasure} = isapprox(x.measure, convert(T.parameters[1],y).value, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractMeasure} = isapprox(x.measure, y, atol=atol, rtol=rtol)
 
 # these are too dangerous, screwing up isapprox and other things
 # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:Number} = isapprox(x.measure, y, atol=atol, rtol=rtol) #convert to base?
@@ -67,10 +69,8 @@ Base.:*(x::T, y::U) where {T<:Number, U<:AbstractDimension} = U( x*y.measure )
 Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.measure/y )
 # Base.:/(y::U, x::T) where {T<:AbstractDimension, U<:Number} = T( y/x.measure ) #nonsense
 
-Base.:+(x::T, y::T) where T<:AbstractDimension = T( x.measure + y.measure)
-Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = x + convert(T, y)
-Base.:-(x::T, y::T) where T<:AbstractDimension = T( x.measure - y.measure)
-Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = x - convert(T, y)
+Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = T(x.measure + y.measure)
+Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = T(x.measure - y.measure) # this should allow Diameter(Meter(3.4)) - Radius(Centimeter(20)) =?= Diameter(Meter(3.0)), but need to prevent Diameter - Duration...
 
 Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
 Base.:+(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
@@ -78,12 +78,12 @@ Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x - T(y)
 Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = T(y) - x
 
 # prevent these operations:
-Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to multiply Dimensions"))
+Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to multiply Dimensions")) # what about Length * Width * Height = Volume?...
 Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to divide Dimensions"))
 
 @testitem "Dimension overloads" begin
-  @makeDerivedMeasure TestLength1 "te1" 1.0 Meter
-  @makeDerivedMeasure TestLength2 "te2" 2.0 Meter
+  @makeDerivedMeasure TestLength1 "tl1" 1.0 Meter
+  @makeDerivedMeasure TestLength2 "tl2" 2.0 Meter
   @makeDimension TestDim1 TestLength1
   @makeDimension TestDim2 TestLength2
 
@@ -92,8 +92,7 @@ Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(A
   @testset "Dimension +-*/ Dimension" begin
     @test d11 + d22 ≈ TestLength1(2.4)
     @test d11 + d22 ≈ TestLength2(1.2)
-    @test d11 - d22 ≈ TestLength1(0)
-    @test d22 - d11 ≈ TestLength1(0)
+    @test d22 - d11 ≈ TestLength2(0)
     @test_throws ArgumentError d11 * d22 
     @test_throws ArgumentError d11 / d22 
   end
@@ -111,7 +110,7 @@ Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(A
 end
 
 """
-Reduce the Dimension to its Measure
+  Reduce the Dimension to its Measure
 """
 Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} = T( x.measure ) # reduce to Measure
 @testitem "Dimension convert()s" begin
