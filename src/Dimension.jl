@@ -1,5 +1,5 @@
 # Dimensions - These terms describe the type of measurement. A Dimension necessarily includes a Measure, as an undimensional Diameter makes no sense but at the same time can be expressed through multiple Measures
-export AbstractDimension, @makeDimension
+export AbstractDimension, @makeDimension, @relateDimensions
 abstract type AbstractDimension end 
 
 """
@@ -13,131 +13,333 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
       abstract type $abstractName <: AbstractDimension end
       export $abstractName #AbstractDiameter
 
-      #and the dimension itself
       abstractMeas = supertype($measure) # AbstractLength = supertype(Meter)
       struct $dimName{T <: abstractMeas } <: $abstractName # Diamter{T<:AbstractLength} <: AbstractDiameter
-        measure::T #Meter
+        measure::T #eg Meter
       end
+      $dimName(x::Number) = $dimName($measure(x)) # converting constructor Diameter(3.4) = Diameter(Meter(3.4))
+      $dimName{$measure}(x::Number) = $dimName($measure(x)) # 
       export $dimName
+      
+      # Base.convert(::Type{T}, x::U) where {T<:abstractMeas, U<:AbstractDimension} = T(x.measure) # this should be convert(Meter, Diameter.measure), but just use .measure instead
+      Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
+      Base.:<(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = x.measure < convert(T,y).measure # can compare the same Dimension via the Measure; other <> ops are defined from this
     end
   )
 end
 @testitem "makeDimension" begin
-  @makeDerivedMeasure TestMeas "tm" 1.0 Meter
-  @makeDimension TestDim1 TestMeas 
-  tdm1 = TestDim1{TestMeas}(3.4)
-  @test isa(tdm1, TestDim1)
-  @test isa(TestDim1(TestMeas(4.5)), TestDim1) #nested constructor
+  @makeDerivedMeasure TestMeas1 "tm1" 1.0 Meter
+  @makeDimension TestDim1 TestMeas1 
 
+  @test isa(TestDim1(TestMeas1(3.4)), TestDim1) # default constructor 
+  @test isa(TestDim1(3.4), TestDim1) # $dimName(x::Number) = $dimName($measure(x)) 
+  @test isa(TestDim1{TestMeas1}(3.4), TestDim1)
+
+  tdm1 = TestDim1(3.4)
   @test typeof(tdm1) <: AbstractDimension
   @test !(typeof(tdm1) <: AbstractMeasure)
   @test typeof(tdm1.measure) <: AbstractMeasure
-  @test isa(tdm1.measure, TestMeas)
-  @test TestMeas(3.4) ≈ TestMeas(3.4)
-  @test tdm1 ≈ TestMeas(3.4)
+
+  # now make sure that I can't convert between Dimensions
+  @makeDerivedMeasure TestMeas2 "tm2" 2.0 Meter
+  @makeDimension TestDim2 TestMeas2 
+
+  @test isa(convert(TestMeas1,TestMeas2(3.4)), TestMeas1)
+  @test isa(TestDim1(TestMeas2(3.4)), TestDim1)  # if it can convert from TestMeas2 to TestMeas1, this should work since both are based on Meter
+
+  @makeDerivedMeasure TestMeas3 "ts3" 1.0 Second #these should fail, showing that the <:AbstractLength is working
+  @test_throws MethodError convert(TestMeas1,TestMeas3(3.4))  
+  @test_throws MethodError TestDim1(TestMeas3(3.4))
+
+  @test TestDim1(3.4) ≈ TestDim1(3.4) #Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
+  @test TestDim1(3.4) ≈ TestDim1(TestMeas1(3.4))
+  @test TestDim1(3.4) ≈ TestDim1(TestMeas2(1.7)) # having different internal Measures
+  @test isapprox( 3.400, 3.405, atol=0.1)
+  @test isapprox( TestDim1(3.400), TestDim1(3.405), atol=0.1 )
+
+  @test_throws MethodError TestDim2(1.7) ≈ TestDim1(3.4) # there is no conversion between testDim2 and testDim1
+  @test_throws MethodError convert(TestMeas1, TestDim1(3.4)) # just use .measure instead of convert
+  @test_throws MethodError TestMeas1(TestDim1(3.4)) # just use .measure instead of convert
+
+  @test TestDim1(1.7) < TestDim1(3.4)
+  @test TestDim1(3.5) > TestDim1(3.4)
+  @test TestDim1(convert(TestMeas1,TestMeas2(1.7))) > TestDim1(TestMeas1(3.0))
+  @test TestDim1(TestMeas2(1.7)) > TestDim1(convert(TestMeas2,TestMeas1(3.0)))
+
+  #disable for now
+  # # td12 > td11 isn't working:
+  # @show td11 = TestDim1(TestMeas1(3.0)) # 3.0tm1
+  # @show td12 = TestDim1(TestMeas2(1.7)) # 1.7tm2
+  # # @show td12 > td11 #error, cannot convert TestDim1{TestMeas2} to TestDim1{TestMeas1}
+  # @show td12.measure > td11.measure # true, 3.4 > 3.0
+  # @show td12.measure > convert(TestDim1, td11).measure # this should be l27 above...
 end
 
-Base.convert(::Type{T}, x::U) where {T<:AbstractDimension, U<:AbstractDimension} = T( x.measure) # there's no reason for me to do the Measure conversion here when T's constructor will
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractDimension} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:AbstractMeasure} = isapprox(x.measure, y, atol=atol, rtol=rtol)
+# @relateDimensions DiameterT = 2.0*RadiusT
+macro relateDimensions(relation)
+  # initially, the format is type1 = factor * type2
+  # @relatedDimensions DiameterT = 2*RadiusT becomes relation= :(DiameterT = 2RadiusT) ,  .args= Any[:DiameterT, :(2RadiusT)]
+  # for now just map this literally
+  if length(relation.args) == 2 && isa(relation.args[2], Expr)
+    type1 = relation.args[1] # DiameterT, AbstractDiameterT
+    type2 = relation.args[2].args[3] #RadiusT, AbstractRadiusT
+    operator = relation.args[2].args[1] # *
+    factor = relation.args[2].args[2] # 2.0
+    
+    #can I get the supertype of a type parameter?
+    # @show type1
+    # @show eval(Expr(:call, type1(3.4)))
+    # @show esc(:($type1(3.4)))
+    # esc(:($type1(3.4).measure)# retrieve abstract measure
+    # @show a = :($type1(3.4))
+    # @show a = eval(Expr(:call, $type1, 3.4 ))
+    # @show a = eval(Expr(:call, type1, 3.4 ))
+    # @show a = eval(Expr(:call, :($type1(3.4)) ))
+    return esc(
+      quote
 
-# these are too dangerous, screwing up isapprox and other things
-# Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDimension, U<:Number} = isapprox(x.measure, y, atol=atol, rtol=rtol) #convert to base?
-# Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Number, U<:AbstractDimension} = isapprox(x, y.measure, atol=atol, rtol=rtol) 
+        #converting constructor Radius(Diameter(3.4))
+        $type1(r::supertype($type2)) = $type1( eval(Expr(:call, $operator, r.measure, $factor)) ) # DiameterT( r::AbstractRadiusT ) = DiameterT(r.measure*2)
+        $type2(d::supertype($type1)) = $type2( eval(Expr(:call, $operator, d.measure, 1/$factor)) ) #note that this 1/$factor assumes $operator==*; RadiusT(d::AbstractDiameterT) = RadiusT(d.measure/2)
+        #regular convert
+        Base.convert(::Type{$type2}, y::supertype($type1)) = $type2(y) # Base.convert(::Type{RadiusT}, y::AbstractDiameterT) = RadiusT(y) 
+        Base.convert(::Type{$type1}, y::supertype($type2)) = $type1(y) # Base.convert(::Type{DiameterT}, y::AbstractRadiusT) = DiameterT(y)
 
-@testitem "Dimension isapprox()" begin
-  @makeDerivedMeasure TestLength1 "te1" 1.0 Meter
-  @makeDerivedMeasure TestLength2 "te2" 2.0 Meter
-  @makeDimension TestDim1 TestLength1
-  @makeDimension TestDim2 TestLength2
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:supertype($type1), U<:supertype($type2)} = isapprox(x.measure, eval(Expr(:call, $operator, y.measure, $factor)), atol=atol, rtol=rtol) # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = isapprox(x.measure, y.measure*2, atol=atol, rtol=rtol)
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:supertype($type2), U<:supertype($type1)} = isapprox(x.measure, eval(Expr(:call, $operator, y.measure, 1/$factor)), atol=atol, rtol=rtol) # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = isapprox(x.measure, y.measure/2, atol=atol, rtol=rtol)
 
-  d11 = TestDim1{TestLength1}(1.2)
-  d22 = TestDim2{TestLength2}(0.6)
-  @test d11 ≈ d22
-  @test d22 ≈ d11
-  @test convert(TestDim1, d22) ≈ d11
-  @test !(d11 ≈ TestDim2{TestLength2}(1.2))
-  @test convert(TestDim2, d11) ≈ d22
+        Base.:<(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = x.measure < eval(Expr(:call, $operator, y.measure, $factor))  # only need eval(Expr to interpolate the $operator and $factor, # Base.:<(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = x.measure < y.measure*2
+        Base.:<(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = x.measure < eval(Expr(:call, $operator, y.measure, 1/$factor))  # Base.:<(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = x.measure < y.measure* 1/2
+
+        Base.:+(x::T, y::U) where {T<:supertype($type1), U<:supertype($type1)} = T(x.measure + y.measure)
+        Base.:+(x::T, y::U) where {T<:supertype($type2), U<:supertype($type2)} = T(x.measure + y.measure) #this is where an OR subtyping <:{AbsDiam, AbsRad} would be convenient, could also define supertype AbsDiameterRadius via a makeBaseDimension 
+        Base.:+(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = T(x.measure + eval(Expr(:call, $operator, y.measure, $factor)) ) # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure + y.measure*2)
+        Base.:+(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = T(x.measure + eval(Expr(:call, $operator, y.measure, 1/$factor)) ) # Base.:+(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure + y.measure/2) #maintain Radius
+
+        Base.:-(x::T, y::U) where {T<:supertype($type1), U<:supertype($type1)} = T(x.measure - y.measure) # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractDiameterT} = T(x.measure - y.measure)
+        Base.:-(x::T, y::U) where {T<:supertype($type2), U<:supertype($type2)} = T(x.measure - y.measure) # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractRadiusT} = T(x.measure - y.measure)
+        Base.:-(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = T(x.measure - eval(Expr(:call, $operator, y.measure, $factor))) # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure - y.measure*2)
+        Base.:-(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = T(x.measure - eval(Expr(:call, $operator, y.measure, 1/$factor))) # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2)
+
+        # a = $type1(3.4)
+        # b = $type1(3.4).measure
+        # c = typeof($type1(3.4).measure)
+        # d = supertype(typeof($type1(3.4).measure))
+        # @show a b c d
+        AbsMeasure = supertype(typeof($type1(3.4).measure)) # determine the supertype of the measure; is there a way to eval this without adding to the package namespace?
+        Base.:+(x::T, y::U) where {T<:supertype($type1), U<:AbsMeasure} = T(x.measure+y) # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
+        Base.:+(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type1)} = U(x+y.measure) # Base.:+(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x+y.measure)
+        Base.:+(x::T, y::U) where {T<:supertype($type2), U<:AbsMeasure} = T(x.measure+y) # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
+        Base.:+(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type2)} = U(x+y.measure) # Base.:+(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x+y.measure)
+
+        Base.:-(x::T, y::U) where {T<:supertype($type1), U<:AbsMeasure} = T(x.measure-y) # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure-y)
+        Base.:-(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type1)} = U(x-y.measure) # Base.:-(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x-y.measure)
+        Base.:-(x::T, y::U) where {T<:supertype($type2), U<:AbsMeasure} = T(x.measure-y) # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure-y)
+        Base.:-(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type2)} = U(x-y.measure) # Base.:-(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x-y.measure)
+
+
+      end
+    )
+  else
+    println("not implemented")
+  end
+
+end
+export @relateDimensions
+@testitem "relateDimensions" begin
+  @makeBaseMeasure LengthTest MeterT "mt"
+  @makeDimension DiameterT MeterT
+  @makeDimension RadiusT MeterT
+  @relateDimensions DiameterT = 2*RadiusT
+
+  dm = DiameterT(MeterT(1.2))
+  rm = RadiusT(MeterT(0.6))
+
+  @test RadiusT(dm).measure ≈ MeterT(0.6)
+  @test DiameterT(rm).measure ≈ MeterT(1.2)
+
+  # Base.convert(::Type{RadiusT}, y::AbstractDiameterT) = RadiusT(y) # RadiusT(DiameterT)
+  @test convert(RadiusT, dm) ≈ rm
+  # Base.convert(::Type{DiameterT}, y::AbstractRadiusT) = DiameterT(y)
+  @test convert(DiameterT, rm) ≈ dm
+
+  @test isapprox(dm, dm)
+  @test isapprox(rm, rm)
+  # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = isapprox(x.measure, y.measure*2, atol=atol, rtol=rtol)
+  @test isapprox(dm, rm)
+  # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = isapprox(x.measure, y.measure/2, atol=atol, rtol=rtol)
+  @test isapprox(rm, dm)
+
+  # Base.:<(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = x.measure < y.measure*2
+  @test DiameterT(MeterT(1.2)) < RadiusT(MeterT(0.7))
+  @test !(RadiusT(MeterT(0.6)) > RadiusT(MeterT(0.7)))
+  @test RadiusT(MeterT(0.5)) <= DiameterT(MeterT(1.2))
+  # Base.:<(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = x.measure*2 < y.measure
+  @test DiameterT(MeterT(1.2)) > RadiusT(MeterT(0.4))
+  @test DiameterT(MeterT(1.2)) >= RadiusT(MeterT(0.5))
+
+  # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractDiameterT} = T(x.measure + y.measure)
+  @test dm + dm ≈ DiameterT(MeterT(2.4))
+
+  # Base.:+(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractRadiusT} = T(x.measure + y.measure)
+  @test rm + rm ≈ RadiusT(MeterT(1.2))
+
+  # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure + y.measure*2) #maintain Diameter
+  @test dm + rm ≈ DiameterT(MeterT(2.4))
+
+  # Base.:+(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure + y.measure/2) #maintain Radius
+  @test rm + dm ≈ RadiusT(MeterT(1.2))
+
+  # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractDiameterT} = T(x.measure - y.measure)
+  @test dm - dm ≈ DiameterT(MeterT(0))
+
+  # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractRadiusT} = T(x.measure - y.measure)
+  @test rm - rm ≈ RadiusT(MeterT(0))
+
+  # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure - y.measure*2) #maintain Diameter
+  @test dm - rm ≈ DiameterT(MeterT(0))
+
+  # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2) #maintain Radius
+  @test rm - dm ≈ RadiusT(MeterT(0))
+
+  @makeDerivedMeasure MillimeterT "mmt" 1e-3 MeterT
+  m = MillimeterT(1200)
+
+  # # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
+  @test dm + m ≈ DiameterT(MeterT(2.4))
+  # # Base.:+(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x+y.measure)
+  @test m + dm ≈ DiameterT(MeterT(2.4))
+  # # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure-y)
+  @test dm - m ≈ DiameterT(MeterT(0))
+  # # Base.:-(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x-y.measure)
+  @test m - dm ≈ DiameterT(MeterT(0))
+
+  @test isapprox(rm + m, RadiusT(MeterT(1.8)), atol=1e-3)
+  @test isapprox(m + rm, RadiusT(MeterT(1.8)), atol=1e-3)
+  @test isapprox(rm - m, RadiusT(MeterT(-0.6)), atol=1e-3)
+  @test isapprox(m - rm, RadiusT(MeterT(0.6)), atol=1e-3)
 end
 
-Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.measure+y )
-Base.:+(x::T, y::U) where {T<:Number, U<:AbstractDimension} = U( x+y.measure )
-Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.measure-y )
-Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:Number} = T( y-x.measure )
-Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.measure*y )
-Base.:*(x::T, y::U) where {T<:Number, U<:AbstractDimension} = U( x*y.measure )
-Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:Number} = T( x.measure/y )
-# Base.:/(y::U, x::T) where {T<:AbstractDimension, U<:Number} = T( y/x.measure ) #nonsense
 
-Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = T(x.measure + y.measure)
-Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = T(x.measure - y.measure) # this should allow Diameter(Meter(3.4)) - Radius(Centimeter(20)) =?= Diameter(Meter(3.0)), but need to prevent Diameter - Duration...
+#=
+@testitem "relateDimensions prototyping" begin
+  # these are all things that I want to be able to do to related dimensions
+  # I end up needing
+  # AbstractRadiusT RadiusT 
+  # AbstractDiameterT DiameterT 
+  # their relationship 2 | 1/2
+  # So, when I  @relateDimensions Fahrenheit(0) = Celsius(Kelvin(273.15) what do I get?
 
-Base.:+(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
-Base.:+(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = x + T(y) 
-Base.:-(x::T, y::U) where {T<:AbstractDimension, U<:AbstractMeasure} = x - T(y) 
-Base.:-(y::U, x::T) where {T<:AbstractDimension, U<:AbstractMeasure} = T(y) - x
+  @makeBaseMeasure LengthTest MeterT "mt"
+  @makeDimension DiameterT MeterT
+  @makeDimension RadiusT MeterT
+
+  DiameterT( r::AbstractRadiusT ) = DiameterT(r.measure*2)
+  dm = DiameterT(MeterT(1.2))
+  RadiusT(d::AbstractDiameterT) = RadiusT(d.measure/2)
+  rm = RadiusT(MeterT(0.6))
+
+  @test RadiusT(dm).measure ≈ MeterT(0.6)
+  @test DiameterT(rm).measure ≈ MeterT(1.2)
+
+  Base.convert(::Type{RadiusT}, y::AbstractDiameterT) = RadiusT(y) # RadiusT(DiameterT)
+  @test convert(RadiusT, dm) ≈ rm
+
+  Base.convert(::Type{DiameterT}, y::AbstractRadiusT) = DiameterT(y)
+  @test convert(DiameterT, rm) ≈ dm
+
+  @test isapprox(DiameterT(rm), dm)
+  # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = isapprox(x, T(y), atol=atol, rtol=rtol) # this doesn't work, but explicit does:
+  Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = isapprox(x.measure, y.measure/2, atol=atol, rtol=rtol)
+  @test isapprox(rm, dm)
+
+  Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = isapprox(x.measure, y.measure*2, atol=atol, rtol=rtol)
+  @test isapprox(dm, rm)
+
+  Base.:<(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = x.measure < y.measure*2
+  @test DiameterT(MeterT(1.2)) < RadiusT(MeterT(0.7))
+  Base.:<(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = x.measure*2 < y.measure
+  # Base.:>(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = x.measure > y.measure*2
+  @test DiameterT(MeterT(1.2)) > RadiusT(MeterT(0.4))
+
+
+  # not sure what needs to be done here... https://docs.julialang.org/en/v1/manual/interfaces/#Interfaces
+  # well, implement on Measures first 
+  # Base.zero(x::AbstractRadiusT) = RadiusT(MeterT(0))
+  # @show zero(RadiusT(MeterT(3.4)))
+  # Base.zero(x::AbstractDiameterT) = DiameterT(MeterT(0))
+  # @show zero(DiameterT(MeterT(3.4)))
+
+  # rads = LinRange(RadiusT(MeterT(0.5)), RadiusT(MeterT(3.0)), 10) # 1.0:2/10:3.0
+  # # @show rads[1].measure
+  # # @show rads collect(rads)
+  # # rads = LinRange(RadiusT(MeterT(0.5)), DiameterT(MeterT(3.0)), 10) # 1.0:2/10:3.0
+  # # @show rads
+
+  # my question is that these should not all need to be specified as they are entailed in convert above?
+  # Chaining in dispatch; I think this should work but need to define this as well....
+  Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractDiameterT} = T(x.measure + y.measure)
+  @test dm + dm ≈ DiameterT(MeterT(2.4))
+  Base.:+(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractRadiusT} = T(x.measure + y.measure)
+  @test rm + rm ≈ RadiusT(MeterT(1.2))
+
+  Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure + y.measure*2) #maintain Diameter
+  @test dm + rm ≈ DiameterT(MeterT(2.4))
+
+  Base.:+(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure + y.measure/2) #maintain Radius
+  @test rm + dm ≈ RadiusT(MeterT(1.2))
+
+  Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractDiameterT} = T(x.measure - y.measure)
+  @test dm - dm ≈ DiameterT(MeterT(0))
+
+  Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractRadiusT} = T(x.measure - y.measure)
+  @test rm - rm ≈ RadiusT(MeterT(0))
+
+  Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure - y.measure*2) #maintain Diameter
+  @test dm - rm ≈ DiameterT(MeterT(0))
+
+  Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2) #maintain Radius
+  @test rm - dm ≈ RadiusT(MeterT(0))
+
+  @makeDerivedMeasure MillimeterT "mmt" 1e-3 MeterT
+  m = MillimeterT(1200)
+
+  Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
+  @test dm + m ≈ DiameterT(MeterT(2.4))
+  Base.:+(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x+y.measure)
+  @test m + dm ≈ DiameterT(MeterT(2.4))
+  Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure-y)
+  @test dm - m ≈ DiameterT(MeterT(0))
+  Base.:-(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x-y.measure)
+  @test m - dm ≈ DiameterT(MeterT(0))
+
+end
+# =#
 
 # prevent these operations:
 Base.:*(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to multiply Dimensions")) # what about Length * Width * Height = Volume?...
 Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(ArgumentError("It is nonsensical to divide Dimensions"))
+@testitem "prevent */" begin
+  @makeBaseMeasure LengthTest MeterT "mt"
+  @makeDimension DiameterT MeterT
+  @makeDimension RadiusT MeterT
+  DiameterT( r::AbstractRadiusT ) = DiameterT(r.measure*2)
+  RadiusT(d::AbstractDiameterT) = RadiusT(d.measure/2)
 
-@testitem "Dimension overloads" begin
-  @makeDerivedMeasure TestLength1 "tl1" 1.0 Meter
-  @makeDerivedMeasure TestLength2 "tl2" 2.0 Meter
-  @makeDimension TestDim1 TestLength1
-  @makeDimension TestDim2 TestLength2
+  dm = DiameterT{MeterT}(1.2)
+  rm = RadiusT{MeterT}(0.6)
 
-  d11 = TestDim1{TestLength1}(1.2)
-  d22 = TestDim2{TestLength2}(0.6)
-  @testset "Dimension +-*/ Dimension" begin
-    @test d11 + d22 ≈ TestLength1(2.4)
-    @test d11 + d22 ≈ TestLength2(1.2)
-    @test d22 - d11 ≈ TestLength2(0)
-    @test_throws ArgumentError d11 * d22 
-    @test_throws ArgumentError d11 / d22 
-  end
-
-  @testset "Dimension +-*/ Measure" begin
-    m1 = Meter(1)
-    @test d11 + m1 ≈ TestDim1(TestLength1(2.2))
-    @test m1 + d11 ≈ TestDim1(TestLength1(2.2))
-    @test isapprox(d11 - m1,  TestDim1(TestLength1(0.2)), atol=1e-6)
-    @test isapprox(m1 - d11, TestDim1(TestLength1(-0.2)), atol=1e-6)
-    @test_throws MethodError d11 / m1
-    @test_throws MethodError m1 / d11
-    @test_throws MethodError d11 + Radian(2) # does not <:AbstractMeasure
-  end
-end
-
-"""
-  Reduce the Dimension to its Measure
-"""
-Base.convert(::Type{T}, x::U) where {T<:AbstractMeasure, U<:AbstractDimension} = T( x.measure ) # reduce to Measure
-@testitem "Dimension convert()s" begin
-  @makeDerivedMeasure TestLength1 "te1" 1.0 Meter
-  @makeDerivedMeasure TestLength2 "te2" 2.0 Meter
-  @makeDimension TestDim1 AbstractDimension
-  @makeDimension TestDim2 AbstractDimension
-  d11 = TestDim1{TestLength1}(1.2)
-  d22 = TestDim2{TestLength2}(0.6)
-
-  @test_throws MethodError convert(Float64, d11) ≈ 1.2 
-  @test convert(TestLength2, d11) ≈ TestLength2(0.6)
-  @test_throws MethodError convert(TestDim1, TestLength1(1.2)) # don't convert, must use constructor
-
-  @testset "Measure units within a Dimension" begin
-    d12 = convert(TestDim1{TestLength2}, TestDim1(TestLength1(1.2))) 
-    @test isa(d12.measure, TestLength2)
-    @test d12.measure.value ≈ 0.6
-  end
+  @test_throws ArgumentError dm * rm 
+  @test_throws ArgumentError dm / rm 
 end
 
 """
   create a string from Dimension `c` with format Module.DimensionName(value unit)
 """
 function dimension2String(c::T)::String where T<:AbstractDimension
-  return "$(split(string(T),"{")[1])($(convert(T.parameters[1],c)))" #ugly parsing of typestring...but not seeing an alternative
+  return "$(split(string(T),"{")[1])($(c.measure))" # 
 end
+# =
 @testitem "dimension2String" begin
   @makeDerivedMeasure TestLength1 "tl1" 1.0 Meter
   @makeDimension TestDim1 TestLength1
@@ -146,6 +348,7 @@ end
   @test occursin("TestDim1(1.2tl1)",UnitTypes.dimension2String(d11))
   @test occursin("TestDim1(1.2tl1)",string(d11))
 end
+# =#
 
 """
   @show functionality via `dimension2String()`.

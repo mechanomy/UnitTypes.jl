@@ -1,8 +1,51 @@
 module UnitTypesDev
 
+  abstract type AbsNum end
+  struct MyNum <: AbsNum
+    value::T
+  end
+  abstract type AbsWrap end
+  struct WrapA{T<:AbsNum} <: AbsWrap
+    value::T
+  end
+  struct WrapB{T<:AbsNum} <: AbsWrap
+    value::T
+  end
+
+  macro addConverts( TypeA, TypeB )
+    return esc(
+      quote
+        Base.:+(x::T,y::U) where {T<:supertype($TypeA), U<:AbsNum}
+      end
+    )
+  end
+
 end
 
-# =
+#=
+module UnitTypesCompound
+  using UnitTypes
+
+  newton = :(Kilogram * Meter / Second ^ 2)
+  @show newton # = newton = :((Kilogram * Meter) / Second ^ 2)
+  @show newton.args # = newton.args = Any[:/, :(Kilogram * Meter), :(Second ^ 2)]
+  # @show isa(newton.args[2], Symbol)
+  # @show typeof(newton.args[2])
+  # @show newton.args[2]
+  # @show newton.args[2].args
+
+  kgpm3 = :(Kilogram / Meter ^ 3)
+  @show kgpm3 # = kgpm3 = :(Kilogram / Meter ^ 3)
+  @show kgpm3.args # = kgpm3.args = Any[:/, :Kilogram, :(Meter ^ 3)]
+  struct WrapA{T<:AbsNum} 
+    value::T
+  end
+
+  macro addConverts
+
+end
+
+#=
 module UnitTypesCompound
   using UnitTypes
 

@@ -110,7 +110,7 @@ module Measure
   #            desired           given                            how
   Base.convert(::Type{Int32},    x::T) where T<:AbstractMeasure = Int32(round(x.value)); #this might be too open-ended, maybe restrict to T{Int32}?
   Base.convert(::Type{Int64},    x::T) where T<:AbstractMeasure = Int64(round(x.value));
-  Base.convert(::Type{T},   x::Number) where T<:AbstractMeasure = T(x)
+  # Base.convert(::Type{T},   x::Number) where T<:AbstractMeasure = T(x) #umm no you can't make random Numbers into Measures...
   Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value ) #convert first to Measure, then to number...this works fine in terminal
   @testitem "Measure convert to Number" begin
     @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
