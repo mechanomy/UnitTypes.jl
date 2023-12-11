@@ -145,7 +145,6 @@ macro relateDimensions(relation)
   end
 
 end
-export @relateDimensions
 @testitem "relateDimensions" begin
   @makeBaseMeasure LengthTest MeterT "mt"
   @makeDimension DiameterT MeterT

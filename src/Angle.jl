@@ -14,8 +14,6 @@
   @test Radian(1)*2 ≈ Radian(2)
   @test Degree(1)*2 ≈ Degree(2)
 
-  @show Radian(1) + Degree(1)
-  @show  Degree(1) + Radian(1) 
   # @test isapprox(Radian(1) + Degree(1), Radian(1 + 1/360), atol=1e-4)
   # @test isapprox(Radian(1) + Degree(1), Degree(1/π*360 + 1), atol=1e-4)
 end

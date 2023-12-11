@@ -36,7 +36,7 @@ module Measure
         Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should scale these in some fair way, todo
         # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
-        Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase); #...this is janky but works to get the destination's toBase...
+        Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase) #...this is janky but works to get the destination's toBase...
       end
     )
   end
@@ -111,7 +111,7 @@ module Measure
   Base.convert(::Type{Int32},    x::T) where T<:AbstractMeasure = Int32(round(x.value)); #this might be too open-ended, maybe restrict to T{Int32}?
   Base.convert(::Type{Int64},    x::T) where T<:AbstractMeasure = Int64(round(x.value));
   # Base.convert(::Type{T},   x::Number) where T<:AbstractMeasure = T(x) #umm no you can't make random Numbers into Measures...
-  Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value ) #convert first to Measure, then to number...this works fine in terminal
+  Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value ) 
   @testitem "Measure convert to Number" begin
     @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
     a = convert(Float64, TestMeasure(3.4) )
@@ -146,6 +146,10 @@ module Measure
     @test (TestMeasure(3.4) == TestMeasure(3.4)) == true
     @test (TestMeasure(3.4) != TestMeasure(1.2)) == true
     @test (TestMeasure(3.4) != TestMeasure(3.4)) == false
+
+    @makeBaseMeasure Leng Met "met"
+    @makeBaseMeasure Dens Den "den"
+    @test_throws MethodError Met(1.2)*Den(3.4)
   end
 
   #working with plain Numbers.
@@ -312,6 +316,59 @@ module Measure
     @test isa(TNM(1) / TM(1), TN)
   end
 
+
+  """
+    @relateMeasures Meter*Newton = NewtonMeter
+  """
+  macro relateMeasures(relation)
+    # an alternate format would be: @relateMeasures Meter(1)*Centimeter(100)=Meter2(1), adding conversion...
+    if length(relation.args) == 2# && isa(relation.args[2], Expr)
+      operator = relation.args[1].args[1] # *
+      type1 = relation.args[1].args[2] # TN
+      type2 = relation.args[1].args[3] # TM
+      type12 = relation.args[2].args[2] # TNM
+      return esc(
+        quote
+          if Symbol($operator) == Symbol("*") # @relateMeasures Newton*Meter = NewtonMeter
+            Base.:*(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
+            Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type1)} = $type2( toBaseFloat(x) / toBaseFloat(y) )
+            if supertype($type1) != supertype($type2) # add inverse only when supertypes differ
+              Base.:*(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
+              Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type2)} = $type1( toBaseFloat(x) / toBaseFloat(y) )
+            end
+          # elseif 
+          # @addUnitOperations P / I = V
+          else
+            println("Operator $($operator) unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter")
+          end
+        end
+      )
+    end
+
+  end
+  export @relateMeasures
+
+  @testitem "relateMeasures" begin
+    @makeBaseMeasure TestNM NewtonMeterT "tnm"
+    @makeBaseMeasure TestN NewtonT "tn"
+    @makeBaseMeasure TestM MeterT "tm"
+    @relateMeasures NewtonT*MeterT = NewtonMeterT
+
+    @makeBaseMeasure TestMM Meter2T "tmm"
+    @relateMeasures MeterT*MeterT = Meter2T
+
+    @test NewtonT(1) * MeterT(1) ≈ NewtonMeterT(1)
+    @test MeterT(1) * NewtonT(1) ≈ NewtonMeterT(1)
+    @test MeterT(1) * MeterT(1) ≈ Meter2T(1)
+
+    @test NewtonMeterT(1) / MeterT(1) ≈ NewtonT(1)
+    @test NewtonMeterT(1) / NewtonT(1) ≈ MeterT(1)
+    @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
+    
+
+
+
+  end
 
 
 

@@ -22,10 +22,10 @@ end
 end
 
 @makeBaseMeasure Area Meter2 "m^2"
-@addUnitOperations Meter Meter Meter2
+@relateMeasures Meter*Meter=Meter2
 
 @makeBaseMeasure Volume Meter3 "m^3"
-@addUnitOperations Meter2 Meter Meter3
+@relateMeasures Meter2*Meter=Meter3
 @makeDerivedMeasure Liter "L" 1e-3 Meter3
 @makeDerivedMeasure Milliliter "mL" 1e-3 Liter
 
@@ -48,39 +48,40 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractFrequency, T<:AbstractTime} = He
   @test Second(10) ≈ Hertz(0.1)
 end
 
-@makeBaseMeasure Velocity MeterPerSecond "m/s"
-@addUnitOperations Meter PerSecond MeterPerSecond # this is ugly...
+@makeBaseMeasure Velocity MeterPerSecond "m/s" #cumbersome...
+@relateMeasures Meter*PerSecond=MeterPerSecond
 
 @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
-@addUnitOperations MeterPerSecond PerSecond MeterPerSecond2 # also ugly
+@relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
 
 @makeBaseMeasure Force Newton "N"
 @makeDerivedMeasure KiloNewton "kN" 1e3 Newton
 @makeDerivedMeasure MilliNewton "mN" 1e-3 Newton
-@addUnitOperations Kilogram MeterPerSecond2 Newton
+@relateMeasures Kilogram*MeterPerSecond2=Newton
 
 @makeBaseMeasure Torque NewtonMeter "N*m"
-@addUnitOperations Newton Meter NewtonMeter
+@relateMeasures Newton*Meter=NewtonMeter
 # NewtonMeter(uf::T) where T<:Unitful.AbstractQuantity = convert(NewtonMeter, uf) #because it is more specific this should take precedence over NewtonMeter(::Number(Unitful))
 @makeDerivedMeasure NewtonMillimeter "N*mm" 1e-3 NewtonMeter
 @makeDerivedMeasure MilliNewtonMeter "mN*m" 1e-3 NewtonMeter
 
 @makeBaseMeasure Pressure Pascal "Pa"
-@addUnitOperations Newton Meter2 Pascal
+@relateMeasures Newton*Meter2=Pascal
 
 @makeBaseMeasure Charge Coulomb "C"
-@addUnitOperations Second Ampere Coulomb
+@relateMeasures Second*Ampere=Coulomb
 
 @makeBaseMeasure ElectricPotential Volt "V"
-# @addUnitOperations I * R = V
-# @addUnitOperations P / I = V
-# @addUnitOperations kg*m^2/s^3/A -- I just need to write a function to parse unit symbols into con/destructive operations
 @makeDerivedMeasure Kilovolt "kV" 1e3 Volt
 
 @makeBaseMeasure Resistance Ohm "Ω"
 @makeDerivedMeasure Milliohm "mΩ" 1e-3 Ohm
 @makeDerivedMeasure Kiloohm "kΩ" 1e3 Ohm
 @makeDerivedMeasure Megaohm "MΩ" 1e6 Ohm
+
+@makeBaseMeasure Power Watt "W"
+@relateMeasures Ampere*Volt=Watt
+@relateMeasures Ampere*Ohm=Volt
 
 @makeBaseMeasure Capacitance Farad "F" 
 @makeDerivedMeasure Millifarad "mF" 1e-3 Farad
