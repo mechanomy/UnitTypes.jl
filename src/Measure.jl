@@ -3,7 +3,7 @@ module Measure
   using TestItems 
   import Unitful
 
-  export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @unitProduct, @unitDivide, @addUnitOperations
+  export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @relateMeasures
   abstract type AbstractMeasure end
 
   """
@@ -33,19 +33,98 @@ module Measure
 
         @makeDerivedMeasure $unitName $unitSymbol 1.0 $abstractName
 
+        # these only need to be defined on the base measure as derived <:
+        # I am putting them in here with $abstractName instead of <:AbstractMeasure in order to get error messages that say + is not defined on <:AbstractLength, etc., rather than the less direct convert() is not defined on <:AbstractLength and <:AbstractDuration
+        # Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} # this only makes sense with derived measures, but if placed in @derive then it leads to duplicates # = T(x.value*x.toBase/T(1.0).toBase) #...this is janky but works to get the destination's toBase...
+
+        # enable range
+        Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
+        Base._colon(start::T, step::U, stop::V) where {T<:$abstractName, U<:$abstractName, V<:$abstractName} = T.(start.value : convert(T,step).value : convert(T,stop).value)
+
+        # enable iteration&broadcasting
+        Base.broadcastable(x::T) where T<:$abstractName = Ref(x) # If a type is intended to act like a "0-dimensional scalar" (a single object) rather than as a container for broadcasting, then the following method should be defined:
+
+        # enable comparisons
         Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
+        Base.:<(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = x.value < convert(T,y).value # other <> ops are defined from this
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should scale these in some fair way, todo
-        # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units
-        Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} = T(x.value*x.toBase/T(1.0).toBase) #...this is janky but works to get the destination's toBase...
+        # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} removed in order to discover what more specific defs are needed = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units; 
+
+        # math
+        Base.:+(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
+        Base.:-(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T( x.value-convert(T,y).value)
+        # Base.:*(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # commented to prevent redefinition warning # = throw(MethodError("Cannot $x * $y, * is not defined yet, define with @relateMeasures"))
+        # Base.:/(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # if appropriate, provided by @relateMeasures # = T( x.value/convert(T,y).value) 
+
+        # */ Number, usually used in scaling things
+        # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
+        Base.:*(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T
+        Base.:*(x::T, y::U) where {T<:Number, U<:$abstractName} = U(x*y.value)
+        Base.:/(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value/y)
       end
     )
   end
-  @testitem "makeBaseMeasure" begin
-    @makeBaseMeasure TestMBU TMBU "tmbu" #this makes it in the TestItemRunner context, not Main
-    mod = Measure.@returnModuleName
-    # @show names(mod)
-    @test isdefined(mod, :AbstractTestMBU)
-    @test isdefined(mod, :TMBU)
+  @testitem "@makeBaseMeasure" begin
+    @makeBaseMeasure MeterTest MeterT "mT" 
+
+    @testset "did the macro create the definitions we expect" begin
+      @test isdefined(@__MODULE__, :AbstractMeterTest)
+      @test isdefined(@__MODULE__, :MeterT)
+    end
+    
+    @testset "constructor" begin
+      @test MeterT(3.4).value == 3.4
+      # @show MeterT(2im).value # should imaginary error?
+    end
+
+    @testset "range" begin
+      b = MeterT(1) : MeterT(0.3) : MeterT(2)
+      @test b[1] ≈ MeterT(1)
+      @test b[2] ≈ MeterT(1.3)
+      @test last(b) ≈ MeterT(1.9)
+
+      c = LinRange(MeterT(10), MeterT(20), 4)
+      @test c[1] ≈ MeterT(10)
+      @test c[2] ≈ MeterT(13+1/3)
+      @test last(c) ≈ MeterT(20)
+    end
+
+    @testset "broadcast" begin
+      @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
+      for m in MeterT.([1,2,3])
+        @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
+      end
+    end
+
+    @testset "comparsions" begin
+      @test MeterT(1.2) < MeterT(3.4)
+      @test MeterT(1.2) <= MeterT(3.4)
+      @test MeterT(3.4) > MeterT(1.2)
+      @test MeterT(3.4) >= MeterT(1.2)
+      @test (MeterT(3.4) == MeterT(1.2)) == false
+      @test (MeterT(3.4) == MeterT(3.4)) == true
+      @test (MeterT(3.4) != MeterT(1.2)) == true
+      @test (MeterT(3.4) != MeterT(3.4)) == false
+      @test isapprox(MeterT(1.2), MeterT(1.2), rtol=1e-3)
+      @test MeterT(1.2) ≈ MeterT(1.2)
+    end
+
+    @testset "ensure prevented from mixing base measures" begin
+      @makeBaseMeasure DensityTest DensityT "den"
+      @test_throws MethodError MeterT(1.2)*DensityT(3.4)
+    end
+
+    @testset "math" begin
+      @test isapprox(MeterT(1.2)+MeterT(0.1), MeterT(1.3), rtol=1e-3)
+      @test isapprox(MeterT(1.2)-MeterT(0.1), MeterT(1.1), rtol=1e-3)
+    end
+
+    @testset "*/Number" begin
+      @test isa(MeterT(1.2)*0.1, MeterT)
+      @test isapprox(MeterT(1.2)*0.1, MeterT(0.12), rtol=1e-3)
+      @test isapprox(0.1*MeterT(1.2), MeterT(0.12), rtol=1e-3)
+      @test isapprox(MeterT(1.2)/0.1, MeterT(12), rtol=1e-3)
+    end
   end
 
   """
@@ -70,6 +149,7 @@ module Measure
   """
   macro makeDerivedMeasure(name, unit, toBase, referenceType)
     # println("makeDerivedMeasure( $name :: $(typeof(name)), $unit :: $(typeof(unit)) )")
+    # @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT" # this better captures the relationship and uses the established conventions
     return esc( 
       quote
         if Base.isconcretetype($referenceType)
@@ -88,94 +168,32 @@ module Measure
           $name(x) = new(x,$toBase,$unit)
         end
         $name(x::T where T<:absName) = convert($name, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+        export $name
+        Base.convert(::Type{$name}, x::U) where {U<:absName} = $name(x.value*x.toBase/$toBase) # supply the convert
+
         # $name(uf::T) where T<:Unitful.AbstractQuantity = convert($name, uf) # add a constructor for Unitful units to prevent struct.value = Unitful...this requires that all modules that use @makeDerived also import Unitful, commenting out for now...
         $name(uf::T) where T<:UnitTypes.Measure.Unitful.AbstractQuantity = convert($name, uf) 
-        export $name
-
-        # Base.:*(x::T, y::U) where {T<:absName, U<:absName} = Name2(x*y)  # this requires $name^2 to exist
       end
     )
   end
 
-  @testitem "Measure constructors" begin
-    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure # Meter not defined yet, so make a temporary for testing
-    @test typeof(TestMeasure(1.2)) <: AbstractMeasure
-    @test typeof(TestMeasure(1.2)) <: TestMeasure
+  @testitem "derivedMeasure" begin
+    @makeBaseMeasure MeterTest MeterT "mT"
+    @makeDerivedMeasure MillimeterT "mmT" 1e-3 MeterT
 
-    @makeDerivedMeasure TestDerivedMeasure "tdm" 0.1 TestMeasure
+    @testset "constructor & convert" begin
+      @test typeof(MillimeterT(1.2)) <: AbstractMeterTest
 
-    @test typeof(TestDerivedMeasure(1.2)) <: AbstractMeasure
-  end
+      @test isa(convert(MeterT, MillimeterT(1200)), MeterT)
+      @test isapprox(convert(MeterT, MillimeterT(1200)), MeterT(1.2))
 
-  #            desired           given                            how
-  Base.convert(::Type{Int32},    x::T) where T<:AbstractMeasure = Int32(round(x.value)); #this might be too open-ended, maybe restrict to T{Int32}?
-  Base.convert(::Type{Int64},    x::T) where T<:AbstractMeasure = Int64(round(x.value));
-  # Base.convert(::Type{T},   x::Number) where T<:AbstractMeasure = T(x) #umm no you can't make random Numbers into Measures...
-  Base.convert(::Type{T}, x::U) where {T<:Number, U<:AbstractMeasure} = convert(T, x.value ) 
-  @testitem "Measure convert to Number" begin
-    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
-    a = convert(Float64, TestMeasure(3.4) )
-    @test isa(a, Float64)
-    @test a == 3.4
+      @test MeterT(MillimeterT(1200)) ≈ MeterT(1.2)
+      @test MillimeterT(MeterT(1.2)) ≈ MillimeterT(1200)
+    end
 
-    b = convert(Int32, TestMeasure(3.4) )
-    @test isa(b, Int32)
-    @test b == 3
-
-    c = convert(Int64, TestMeasure(3.4) )
-    @test isa(c, Int64)
-    @test c == 3
-  end
-
-  Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure, U<:AbstractMeasure} = isapprox(x.value, convert(T,y).value, atol=atol, rtol=rtol)
-  Base.:+(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
-  # Base.:+(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = +(promote(x,y)) #this fails, probably need to make a simpler demo https://docs.julialang.org/en/v1/manual/conversion-and-promotion/#Promotion
-  Base.:-(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value-convert(T,y).value)
-  Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value*convert(T,y).value)
-  Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = T( x.value/convert(T,y).value)
-  Base.:<(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = x.value < convert(T,y).value # other <> ops are defined from this
-  @testitem "Measure +-*/ Measure" begin
-    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
-    @test isapprox(TestMeasure(1.2)+TestMeasure(0.1), TestMeasure(1.3), rtol=1e-3)
-    @test isapprox(TestMeasure(1.2)-TestMeasure(0.1), TestMeasure(1.1), rtol=1e-3)
-    @test TestMeasure(1.2) < TestMeasure(3.4)
-    @test TestMeasure(1.2) <= TestMeasure(3.4)
-    @test TestMeasure(3.4) > TestMeasure(1.2)
-    @test TestMeasure(3.4) >= TestMeasure(1.2)
-    @test (TestMeasure(3.4) == TestMeasure(1.2)) == false
-    @test (TestMeasure(3.4) == TestMeasure(3.4)) == true
-    @test (TestMeasure(3.4) != TestMeasure(1.2)) == true
-    @test (TestMeasure(3.4) != TestMeasure(3.4)) == false
-
-    @makeBaseMeasure Leng Met "met"
-    @makeBaseMeasure Dens Den "den"
-    @test_throws MethodError Met(1.2)*Den(3.4)
-  end
-
-  #working with plain Numbers.
-  # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure, U<:Number} = isapprox(x.value, y, atol=atol, rtol=rtol)
-  # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {U<:AbstractMeasure, T<:Number} = isapprox(x, y.value, atol=atol, rtol=rtol) #I expected this to be implied by prior..
-  # Base.:+(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = x + T(y)
-  # Base.:+(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) + x
-  # Base.:-(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = x - T(y)
-  # Base.:-(y::U, x::T) where {U<:Number, T<:AbstractMeasure} = T(y) - x
-  Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T
-  Base.:*(x::T, y::U) where {T<:Number, U<:AbstractMeasure} = U(x*y.value)
-  Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:Number} = T(x.value/y)
-  @testitem "Measure */Number" begin
-    @makeDerivedMeasure TestMeasure "tm" 1.0 AbstractMeasure
-    # @test isa(TestMeasure(1.2)+0.1, TestMeasure)
-    # @test isa(0.1 + TestMeasure(1.2), TestMeasure)
-    # @test isapprox(TestMeasure(1.2)+0.1, TestMeasure(1.3), rtol=1e-3)
-    # @test isapprox(0.1+TestMeasure(1.2), TestMeasure(1.3), rtol=1e-3)
-
-    # @test isapprox(TestMeasure(1.2)-0.1, TestMeasure(1.1), rtol=1e-3)
-    # @test isapprox(0.1-TestMeasure(1.2), TestMeasure(-1.1), rtol=1e-3)
-
-    @test isa(TestMeasure(1.2)*0.1, TestMeasure)
-    @test isapprox(TestMeasure(1.2)*0.1, TestMeasure(0.12), rtol=1e-3)
-    @test isapprox(0.1*TestMeasure(1.2), TestMeasure(0.12), rtol=1e-3)
-    @test isapprox(TestMeasure(1.2)/0.1, TestMeasure(12), rtol=1e-3)
+    @testset "isapprox" begin
+      @test isapprox(MeterT(1.2), MillimeterT(1200), atol=1e-3)
+    end
   end
 
   """
@@ -184,6 +202,7 @@ module Measure
     # return @sprintf("%3.3f []", m)
     return "$(m.value)$(m.unit)"
   end
+
   function Base.show(io::IO, m::T) where T<:AbstractMeasure
     print(io, measure2String(m))
   end
@@ -196,126 +215,6 @@ module Measure
     @test UnitTypes.Measure.measure2String(TestMeasure(3.4)) == "3.4tm"
     @test string(TestMeasure(3.4)) == "3.4tm"
   end
-
-  # @unitProduct AbstractForce AbstractLength NewtonMeter
-  # @unitProduct Newton Meter NewtonMeter
-  # the commutivity of * allows permuation
-  macro unitProduct(Abs1, Abs2, Operation)
-    return esc(
-      quote
-        if Base.isconcretetype($Abs1)
-          abs1 = supertype($Abs1)
-        else
-          abs1 = $Abs1
-        end
-        if Base.isconcretetype($Abs2)
-          abs2 = supertype($Abs2)
-        else
-          abs2 = $Abs2
-        end
-        # println("unitProduct($($Abs1) = $abs1, $($Abs2) = $abs2, $($Operation))")
-        Base.:*(x::T, y::U) where {T<:abs1, U<:abs2} = $Operation( toBaseFloat(x) * toBaseFloat(y) )
-        if $Abs1 != $Abs2
-          Base.:*(y::U, x::T) where {T<:abs1, U<:abs2} = $Operation( toBaseFloat(y) * toBaseFloat(x) )
-        end
-      end
-    )
-  end
-  @testitem "unitProduct" begin
-    abstract type AbstractTest <: AbstractMeasure end
-    @makeDerivedMeasure TestN "tn" 1.0 AbstractTest 
-    @makeDerivedMeasure TestM "tm" 1.0 AbstractTest 
-    @makeDerivedMeasure TestNM "tnm" 1.0 AbstractTest 
-    
-    @unitProduct TestN TestM TestNM 
-
-    @test TestN(1) * TestM(1) ≈ TestNM(1)
-    @test TestM(1) * TestN(1) ≈ TestNM(1)
-
-    @test isa(TestM(1)*TestN(1), TestNM)
-    @test isa(TestN(1)*TestM(1), TestNM)
-  end
-
-
-  # division is not commutive, a/b != b/a
-  # Base.:/(x::T, y::U) where {T<:NewtonMeter, U<:Newton} = Meter( toBaseFloat(x) / toBaseFloat(y) )
-  # Base.:/(x::T, y::U) where {T<:NewtonMeter, U<:Meter} = Newton( toBaseFloat(x) / toBaseFloat(y) )
-  # @unitDivide NewtonMeter Newton Meter
-  # @unitDivide NewtonMeter Meter Newton
-  # Input / Divsior = Output
-  macro unitDivide(Input, Divisor, Output)
-    return esc(
-      quote
-        absInput = supertype($Input)
-        absDivisor = supertype($Divisor)
-        # println("unitDivide($($Input) = $absInput, $($Divisor) = $absDivisor, $($Output))")
-        Base.:/(x::T, y::U) where {T<:absInput, U<:absDivisor} = $Output( toBaseFloat(x) / toBaseFloat(y) )
-      end
-    )
-  end
-  @testitem "unitDivide" begin
-    @makeBaseMeasure NM TestNM "tnm"
-    @makeBaseMeasure N TestN "tn"
-    @makeBaseMeasure M TestM "tm" 
-    @addUnitOperations TestN TestM TestNM
-    
-    @unitDivide TestNM TestN TestM
-    @test TestNM(1) / TestN(1) ≈ TestM(1)
-    @test isa(TestNM(1)/TestN(1), TestM)
-
-    @unitDivide TestNM TestM TestN
-    @test TestNM(1) / TestM(1) ≈ TestN(1)
-    @test isa(TestNM(1)/TestM(1), TestN)
-
-
-    @test true
-
-    # @show TestN(1)/TestNM(1)
-    @test_throws MethodError TestN(1)/TestNM(1)
-  end
-
-  macro addUnitOperations(In1, In2, Result)
-    return esc(
-      quote
-        absIn1 = supertype($In1) # Meter
-        absIn2 = supertype($In2) # Meter
-        absRes = supertype($Result) # Meter2
-
-        #product
-        Base.:*(x::T, y::U) where {T<:absIn1, U<:absIn2} = $Result( toBaseFloat(x) * toBaseFloat(y) )
-        if absIn1 != absIn2 #add the opposite if they are different
-          Base.:*(x::T, y::U) where {T<:absIn2, U<:absIn1} = $Result( toBaseFloat(x) * toBaseFloat(y) )
-        end
-
-        #divide
-        Base.:/(x::T, y::U) where {T<:absRes, U<:absIn1} = $In2( toBaseFloat(x) / toBaseFloat(y) )
-        if absIn1 != absIn2
-          Base.:/(x::T, y::U) where {T<:absRes, U<:absIn2} = $In1( toBaseFloat(x) / toBaseFloat(y) )
-        end
-
-      end
-    )
-  end
-  @testitem "addUnitOperations" begin
-    @makeBaseMeasure TestNM TNM "tnm"
-    @makeBaseMeasure TestN TN "tn"
-    @makeBaseMeasure TestM TM "tm"
-
-    @addUnitOperations TN TM TNM
-    
-    # @unitProduct TN TM TNM
-    @test TN(1) * TM(1) ≈ TNM(1)
-    @test TM(1) * TN(1) ≈ TNM(1)
-
-    # # @unitDivide TNM TN TM
-    @test TNM(1) / TN(1) ≈ TM(1)
-    @test isa(TNM(1) / TN(1), TM)
-
-    # # @unitDivide TNM TM TN
-    @test TNM(1) / TM(1) ≈ TN(1)
-    @test isa(TNM(1) / TM(1), TN)
-  end
-
 
   """
     @relateMeasures Meter*Newton = NewtonMeter
@@ -346,7 +245,6 @@ module Measure
     end
 
   end
-  export @relateMeasures
 
   @testitem "relateMeasures" begin
     @makeBaseMeasure TestNM NewtonMeterT "tnm"
@@ -369,16 +267,4 @@ module Measure
 
 
   end
-
-
-
-  macro returnModuleName()
-    # println("returnModuleName: $(__module__)")
-    return esc( quote
-      $(__module__)
-    end
-    )
-  end
-
-
 end

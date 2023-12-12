@@ -31,8 +31,8 @@ end
 
 @makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
 @makeBaseMeasure SpecificVolume M3PerKg "m^3/kg"
-Base.convert(::Type{U}, x::T) where {U<:AbstractDensity, T<:AbstractSpecificVolume} = KgPerM3(1/toBaseFloat(x))
-Base.convert(::Type{U}, x::T) where {U<:AbstractSpecificVolume, T<:AbstractDensity} = M3PerKg(1/toBaseFloat(x))
+Base.convert(::Type{KgPerM3}, x::T) where {T<:AbstractSpecificVolume} = KgPerM3(1/toBaseFloat(x))
+Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBaseFloat(x))
 
 @makeBaseMeasure SurfaceDensity KgPerM2 "kg/m^2"
 @makeBaseMeasure CurrentDensity APerM2 "A/m^2"
@@ -40,12 +40,16 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractSpecificVolume, T<:AbstractDensi
 
 @makeBaseMeasure Frequency Hertz "Hz"
 @makeDerivedMeasure PerSecond "s^-1" 1 Hertz
-
-Base.convert(::Type{U}, x::T) where {U<:AbstractTime, T<:AbstractFrequency} = Second(1/toBaseFloat(x))
-Base.convert(::Type{U}, x::T) where {U<:AbstractFrequency, T<:AbstractTime} = Hertz(1/toBaseFloat(x))
-@testitem "Frequency" begin
-  @test Hertz(10) ≈ Second(0.1)
-  @test Second(10) ≈ Hertz(0.1)
+# can relateMeasures be expanded to provide? @relateMeasures 1/Second = Hertz?
+Base.convert(::Type{Second}, x::T) where {T<:AbstractFrequency} = 1/x #Second(1/toBaseFloat(x))
+Base.convert(::Type{Hertz}, x::T) where {T<:AbstractTime} = 1/x #Hertz(1/toBaseFloat(x))
+Base.:/(x::T,y::U) where {T<:Number, U<:AbstractTime} = Hertz(x/toBaseFloat(y)) #1/time
+Base.:/(x::T,y::U) where {T<:Number, U<:AbstractFrequency} = Second(x/toBaseFloat(y)) #1/time
+@testitem "Frequency conversions" begin
+  @test convert(Second, Hertz(10)) ≈ Second(0.1)
+  @test convert(Hertz, Second(0.1)) ≈ Hertz(10)
+  @test 1/Second(10) ≈ Hertz(0.1)
+  @test 1/Hertz(10) ≈ Second(0.1)
 end
 
 @makeBaseMeasure Velocity MeterPerSecond "m/s" #cumbersome...
@@ -61,7 +65,6 @@ end
 
 @makeBaseMeasure Torque NewtonMeter "N*m"
 @relateMeasures Newton*Meter=NewtonMeter
-# NewtonMeter(uf::T) where T<:Unitful.AbstractQuantity = convert(NewtonMeter, uf) #because it is more specific this should take precedence over NewtonMeter(::Number(Unitful))
 @makeDerivedMeasure NewtonMillimeter "N*mm" 1e-3 NewtonMeter
 @makeDerivedMeasure MilliNewtonMeter "mN*m" 1e-3 NewtonMeter
 

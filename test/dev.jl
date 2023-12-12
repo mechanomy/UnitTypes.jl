@@ -1,96 +1,51 @@
 module UnitTypesDev
-
-  abstract type AbsNum end
-  struct MyNum <: AbsNum
-    value::T
-  end
-  abstract type AbsWrap end
-  struct WrapA{T<:AbsNum} <: AbsWrap
-    value::T
-  end
-  struct WrapB{T<:AbsNum} <: AbsWrap
-    value::T
-  end
-
-  macro addConverts( TypeA, TypeB )
-    return esc(
-      quote
-        Base.:+(x::T,y::U) where {T<:supertype($TypeA), U<:AbsNum}
-      end
-    )
-  end
-
-end
-
-#=
-module UnitTypesCompound
   using UnitTypes
 
-  newton = :(Kilogram * Meter / Second ^ 2)
-  @show newton # = newton = :((Kilogram * Meter) / Second ^ 2)
-  @show newton.args # = newton.args = Any[:/, :(Kilogram * Meter), :(Second ^ 2)]
-  # @show isa(newton.args[2], Symbol)
-  # @show typeof(newton.args[2])
-  # @show newton.args[2]
-  # @show newton.args[2].args
 
-  kgpm3 = :(Kilogram / Meter ^ 3)
-  @show kgpm3 # = kgpm3 = :(Kilogram / Meter ^ 3)
-  @show kgpm3.args # = kgpm3.args = Any[:/, :Kilogram, :(Meter ^ 3)]
-  struct WrapA{T<:AbsNum} 
-    value::T
+  # https://docs.julialang.org/en/v1/manual/interfaces/#man-interfaces-broadcasting
+
+  # Base.broadcastable(x::T) where T<:AbstractMeasure = Ref(x) # If a type is intended to act like a "0-dimensional scalar" (a single object) rather than as a container for broadcasting, then the following method should be defined:
+  function devBroadcast()
+    @show a = [1,2,3] .* Meter(4)
+    @show typeof(a)
+    @show typeof(a[1])
+    @show Meter(1) .* [1,2,3]
   end
+  # devBroadcast()
 
-  macro addConverts
-
-end
-
-#=
-module UnitTypesCompound
-  using UnitTypes
-
-  newton = :(Kilogram * Meter / Second ^ 2)
-  @show newton # = newton = :((Kilogram * Meter) / Second ^ 2)
-  @show newton.args # = newton.args = Any[:/, :(Kilogram * Meter), :(Second ^ 2)]
-  # @show isa(newton.args[2], Symbol)
-  # @show typeof(newton.args[2])
-  # @show newton.args[2]
-  # @show newton.args[2].args
-
-  kgpm3 = :(Kilogram / Meter ^ 3)
-  @show kgpm3 # = kgpm3 = :(Kilogram / Meter ^ 3)
-  @show kgpm3.args # = kgpm3.args = Any[:/, :Kilogram, :(Meter ^ 3)]
-  
-  # @show isa(kgpm3.args[1], Symbol)
-  # @show kgpm3.args[1] == :/
-
-  # so in args I have the construction in prefix notation, which I need to map into addUnitOperations
-  println("\nstart parsing")
-  function recurseCompound(com)
-    for ia in eachindex(com.args)
-      if com.args[ia] == :/
-        if typeof(com.args[ia+1]) <: AbstractMeasure && com.args[ia+2] <: AbstractMeasure
-          println("is /, run @unitDivide $(com.args[ia+1]) $(com.args[ia+2])")
-        else
-          println("is /, sort out $(com.args[ia+1]), $(com.args[ia+2])")
-          # recurseCompound(com[ia+1])
-          # recurseCompound(com[ia+2])
-          #...and then how to add the /? somehow I need to get a * b
-        end
-      elseif com.args[ia] == :*
-        if typeof(com.args[ia+1]) <: AbstractMeasure && com.args[ia+2] <: AbstractMeasure
-          println("is /, run @unitProduct $(com.args[ia+1]) $(com.args[ia+2])")
-        else
-          println("is /, sort out $(com.args[ia+1]), $(com.args[ia+2])")
-        end
-      elseif isa(com.args[ia], Expr)
-        println("is Expr $(com.args[ia]), recurse")
-      end
+  # Base.iterate(x::T, state=1) where T<:AbstractMeasure = state > T.count ? nothing : (state*state, state+1) not needed
+  function devIterate()
+    for m in Meter.([1,2,3])
+      @show m
     end
   end
-  recurseCompound(newton)
+  # devIterate()
+
+  # to get ranges it seems I can either implement the lower functions needed to build ranges, or directly add a _colon operator
+#   Base.zero(x::T) where T<:AbstractMeasure = T(0)
+#   # Base.rem(x::T, y::U, r::RoundingMode=RoundToZero) where {T<:AbstractLength, U<:AbstractLength} = x/y
+#   # function Base._colon(start::T, step::U, stop::V) where {T<:AbstractLength, U<:AbstractLength, V<:AbstractLength} # somehow need to ensure that these abstracts are all the same
+#   #   s0 = start.value
+#   #   s1 = convert(T, stop).value
+#   #   st = convert(T, step).value
+#   #   rng = s0 : st : s1
+#   #   return T.(rng)
+#   # end
+# # somehow need to ensure that these abstracts are all the same
+#   Base._colon(start::T, step::U, stop::V) where {T<:AbstractLength, U<:AbstractLength, V<:AbstractLength} = T.(start.value : convert(T,step).value : convert(T,stop).value)
+
+  function devRange()
+    @show b = Meter(1) : Meter(0.3) : Meter(2)
+    @show b[1]
+    @show b[2]
+    @show c = LinRange(Meter(10), Meter(20), 4)
+    @show c[1]
+    @show c[2]
+  end
+  # devRange()
+
 end
-#=#
+
 
 #=
 #print the type tree
@@ -99,54 +54,5 @@ end
   import AbstractTrees
   AbstractTrees.children(d::DataType) = InteractiveUtils.subtypes(d)
   AbstractTrees.print_tree(AbstractMeasure)
-=#
-
-
-#=
-module UnitTypesAlternatives
-  abstract type AbstractLength end
-
-  struct Meter <: AbstractLength
-    value::Number
-    toBase::Number
-    unit::String
-    Meter(x::Number) = new(x, 1, "m")
-  end
-  @show Meter(1.23)
-  @show typeof(Meter(1.23))
-
-  struct Centimeter <: AbstractLength
-    value::Number
-    toBase::Number
-    unit::String
-    Centimeter(x::Number) = new(x, 1e-2, "cm")
-  end
-  @show Centimeter(1.23)
-  @show typeof(Centimeter(1.23))
-  
-  
-  ### alternate of unique constructors
-  struct Length <: AbstractLength
-    value::Number
-    toBase::Number
-    unit::String
-  end 
-
-  Millimeter(x::Number) = Length(x, 1e-3, "mm")
-  @show Millimeter(1.23)
-  @show typeof(Millimeter(1.23))
-
-  ### alternate of embedded types
-  struct Len <: AbstractLength
-    value::Number
-    toBase::Any
-    unit::String
-  end 
-  Nanometer(x::Number) = Len(x, Meter(1e-9), "nm")
-  @show Nanometer(1.23)
-  @show typeof(Nanometer(1.23))
-
-  ### alternates of parametric types
-end ;
 =#
 ;
