@@ -149,7 +149,6 @@ module Measure
   """
   macro makeDerivedMeasure(name, unit, toBase, referenceType)
     # println("makeDerivedMeasure( $name :: $(typeof(name)), $unit :: $(typeof(unit)) )")
-    # @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT" # this better captures the relationship and uses the established conventions
     return esc( 
       quote
         if Base.isconcretetype($referenceType)
@@ -195,6 +194,66 @@ module Measure
       @test isapprox(MeterT(1.2), MillimeterT(1200), atol=1e-3)
     end
   end
+
+  """
+    @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT" # this better captures the relationship and uses the established conventions
+  """
+  macro deriveMeasure(relation, unit="NoUnit")
+    if length(relation.args) == 2 # maybe there's a better initial error check?
+      lhsType = relation.args[1].args[1]
+      lhsFactor = relation.args[1].args[2]
+      rhsType = relation.args[2].args[2].args[1]
+      rhsFactor = relation.args[2].args[2].args[2]
+
+      if !( isdefined(__module__, lhsType) || isdefined(@__MODULE__, lhsType) ) # lhs must be defined in UnitTypes or caller
+        # throw(MethodError(@deriveMeasure, "Cannot derive $rhsType from undefined $lhsType in [$relation]")) #..this doesn't work..
+        throw(ArgumentError("Cannot derive $rhsType from undefined $lhsType in [$relation]"))
+        return
+      end
+
+      if !isdefined(__module__, rhsType) 
+        return esc(
+          quote
+              """
+                UnitType $($rhsType) is derived from $($lhsType), related by $($lhsFactor/$rhsFactor), with supertype $(supertype($lhsType)), and symbol [$($unit)].
+              """
+              struct $rhsType <: supertype($lhsType)
+                value::Number
+                toBase::Number
+                unit::String
+                $rhsType(x::Number) = new(x, $lhsFactor/$rhsFactor, $unit)
+              end
+              export $rhsType
+          end
+        )
+      else
+        @warn "$rhsType is already defined, cannot re-define"
+      end
+    else
+      println("@deriveMeasure given incorrect format of [$relation], skipping")
+    end
+  end
+
+  export @deriveMeasure
+  @testitem "deriveMeasure" begin
+    @makeBaseMeasure MeterTest MeterT "mT"
+    @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT"
+
+    @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT"  # yes this issues, but I don't have the right test for it...
+    @test MillimeterT(1.2).toBase ≈ 1e-3 #test that it was not executed
+    # @test_warn "MillemeterT is already defined, cannot re-define" @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT" # this should be rejected as a redefinition and toBase remain 1e-3 via warning
+    # @test_logs (:warn, "MillemeterT is already defined, cannot re-define") @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT" # this should be rejected as a redefinition and toBase remain 1e-3 via warning
+
+    # display(names(@__MODULE__))
+
+    # @test_throws MethodError @deriveMeasure MeterT2(1) = MillimeterT(5000) "mmT" # this should be rejected as MeterT2 doesn't exist, but the extra macros upset the hard coded indexing
+    # @test_throws MethodError @deriveMeasure(MeterT2(1)=Millimeter(5000), "mmT") # too many macros, messing up the hard-coded indexing
+    # @deriveMeasure MeterT2(1) = MillimeterT(5000) "mmT" # works; this should be rejected as MeterT2 doesn't exist, but the extra macros upset the hard coded indexing
+
+    @deriveMeasure MeterT(1) = MillimeterT2(1000)
+    @test MillimeterT2(1.2).unit == "NoUnit"
+  end
+
 
   """
   """

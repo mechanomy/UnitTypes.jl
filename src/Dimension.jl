@@ -95,10 +95,9 @@ end
 
 end
 
-
 """
- @relateDimensions DiameterT = 2.0*RadiusT
- """
+  @relateDimensions DiameterT = 2.0*RadiusT
+"""
 macro relateDimensions(relation)
   # initially, the format is type1 = factor * type2
   # @relatedDimensions DiameterT = 2*RadiusT becomes relation= :(DiameterT = 2RadiusT) ,  .args= Any[:DiameterT, :(2RadiusT)]
