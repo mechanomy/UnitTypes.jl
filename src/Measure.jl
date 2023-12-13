@@ -1,7 +1,7 @@
 module Measure
   using DocStringExtensions
   using TestItems 
-  import Unitful
+  # import Unitful
 
   export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @relateMeasures
   abstract type AbstractMeasure end
@@ -171,7 +171,7 @@ module Measure
         Base.convert(::Type{$name}, x::U) where {U<:absName} = $name(x.value*x.toBase/$toBase) # supply the convert
 
         # $name(uf::T) where T<:Unitful.AbstractQuantity = convert($name, uf) # add a constructor for Unitful units to prevent struct.value = Unitful...this requires that all modules that use @makeDerived also import Unitful, commenting out for now...
-        $name(uf::T) where T<:UnitTypes.Measure.Unitful.AbstractQuantity = convert($name, uf) 
+        # $name(uf::T) where T<:UnitTypes.Measure.Unitful.AbstractQuantity = convert($name, uf) 
       end
     )
   end
