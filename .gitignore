@@ -65,9 +65,6 @@ temp
 ~$*.SLDDRW
 ~$*.slddrw
 
-# VSCode
-*.code-workspace
-
 # Documenter.jl
 docs/build/*
 

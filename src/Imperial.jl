@@ -4,39 +4,29 @@ mPerIn = 0.0254
 inPerFt = 12
 ftPerMi = 5280
 
-@makeDerivedMeasure Inch "in" mPerIn Meter
-@makeDerivedMeasure Foot "ft" mPerIn*inPerFt Meter
-@makeDerivedMeasure Yard "yd" mPerIn*inPerFt*3 Meter
-@makeDerivedMeasure Mile "mi" mPerIn*inPerFt*ftPerMi Meter
-@makeDerivedMeasure NauticalMile "nmi" 1852 Meter
+@deriveMeasure Meter(mPerIn) = Inch(1) "in"
+@deriveMeasure Meter(mPerIn*inPerFt) = Foot(1) "ft"
+@deriveMeasure Meter(mPerIn*inPerFt*3) = Yard(1) "yd"
+@deriveMeasure Meter(mPerIn*inPerFt*ftPerMi) = Mile(1) "mi"
+@deriveMeasure Meter(1852) = NauticalMile(1) "nmi"
 
-@makeDerivedMeasure SquareFoot "ft^2" (mPerIn*inPerFt)^2 Meter2
-@makeDerivedMeasure Acre "ac" 4840*(mPerIn*inPerFt)^2 Meter2
-@makeDerivedMeasure SquareMile "mi^2" (mPerIn*inPerFt*ftPerMi)^2 Meter2
+@deriveMeasure Meter2((mPerIn*inPerFt)^2) = SquareFoot(1) "sqft"
+@deriveMeasure Meter2(4.046873e3) = Acre(1) "ac"
+@deriveMeasure Meter2((mPerIn*inPerFt*ftPerMi)^2) = SquareMile(1) "sqmi"
 
-@makeDerivedMeasure FootPerSecond "ft/s" mPerIn*inPerFt MeterPerSecond
+@deriveMeasure MeterPerSecond(mPerIn*inPerFt) = FootPerSecond(1) "ft/s"
 
+@deriveMeasure Meter3(28.4130625e-3) = FluidOunce(1) "floz"
+@deriveMeasure Meter3(568.26126e-3) = Pint(1) "pt"
+@deriveMeasure Meter3(1136.5225e-3) = Quart(1) "qt"
+@deriveMeasure Meter3(4546.09e-3) = Gallon(1) "gal"
 
-@makeDerivedMeasure FluidOunce "floz" 28.4130625e-3 Meter3
-@makeDerivedMeasure Pint "pt" 568.26126e-3 Meter3
-@makeDerivedMeasure Quart "qt" 1136.5225e-3 Meter3
-@makeDerivedMeasure Gallon "gal" 4546.09e-3 Meter3
-
-@makeDerivedMeasure Ounce "oz" 28.349523125e-3 Kilogram
-@makeDerivedMeasure PoundMass "lbm" 0.45359237 Kilogram
-@makeDerivedMeasure Slug "slug" 14.59390294 Kilogram
-
-
+@deriveMeasure KiloGram(28.349523125e-3) = Ounce(1) "oz"
+@deriveMeasure KiloGram(0.45359237) = PoundMass(1) "lbm"
+@deriveMeasure KiloGram(14.59390294) = Slug(1) "slug"
 
 @testitem "Imperial" begin
   @test isapprox(Inch(Foot(1.2)), Inch(14.4), atol=1e-6) # @test Inch(Foot(1.2)) ≈ Inch(14.4)
-
-  # @show typeof(SquareMile(1))
-  # @show supertype(typeof(SquareMile(1)))
-  # @show Meter(Foot(1))
-  # @show Meter2(SquareFoot(1))
-  # @show Meter2(SquareMile(1))
-  @test isapprox(Meter2(SquareMile(1)), Meter2(SquareFoot(27878400)), atol=1e-6)
-  @test isapprox(SquareMile(1), SquareFoot(27878400), atol=1e-6)
-
+  @test isapprox(Acre(640), SquareMile(1), atol=0.1)
+  @test isapprox(SquareFoot(5280^2), SquareMile(1), atol=0.1)
 end

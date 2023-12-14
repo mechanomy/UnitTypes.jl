@@ -116,9 +116,13 @@ The limitation is that UnitTypes does not have a catch-all unit representation.
 Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units, ie Celsius to Fahrenheit.
 See [SIDerived.jl](./src/SIDerived.jl) and [Imperial.jl](./src/Imperial.jl) for examples.
 
+## Docs
 
-## Copyright
-Copyright (c) 2023 - [Mechanomy LLC](https://mechanomy.com)
+```@meta
+CurrentModule=UnitTypes
+```
 
-## License
-Released under [MIT](./license.md).
+```@autodocs
+Modules=[UnitTypes]
+```
+

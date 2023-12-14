@@ -3,7 +3,16 @@ export AbstractDimension, @makeDimension, @relateDimensions
 abstract type AbstractDimension end 
 
 """
-Make a new dimension `dimName` of `measure`; also creates 'Abstract`dimName`'
+  $TYPEDSIGNATURES
+
+  Make a new dimension `dimName` of `measure`; also creates 'Abstract`dimName`'
+
+  ```julia
+    @makeDimension Diameter Meter 
+
+    d = Diameter(MilliMeter(3.4))
+    r = Radius(d)
+  ```
 """
 macro makeDimension(dimName, measure) # a dimension is a measurement applied to a certain context
   abstractName = Symbol("Abstract"*String(dimName)) #AbstractDiameter
@@ -32,7 +41,7 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
   )
 end
 @testitem "makeDimension" begin
-  @makeDerivedMeasure TestMeas1 "tm1" 1.0 Meter
+  @deriveMeasure Meter(1) = TestMeas1(1) "tm1"
   @makeDimension TestDim1 TestMeas1 
 
   @test isa(TestDim1(TestMeas1(3.4)), TestDim1) # default constructor 
@@ -45,13 +54,13 @@ end
   @test typeof(tdm1.measure) <: AbstractMeasure
 
   # now make sure that I can't convert between Dimensions
-  @makeDerivedMeasure TestMeas2 "tm2" 2.0 Meter
+  @deriveMeasure Meter(2) = TestMeas2(1) "tm2"
   @makeDimension TestDim2 TestMeas2 
 
   @test isa(convert(TestMeas1,TestMeas2(3.4)), TestMeas1)
   @test isa(TestDim1(TestMeas2(3.4)), TestDim1)  # if it can convert from TestMeas2 to TestMeas1, this should work since both are based on Meter
 
-  @makeDerivedMeasure TestMeas3 "ts3" 1.0 Second #these should fail, showing that the <:AbstractLength is working
+  @deriveMeasure Second(1) = TestMeas3(1) "tm2" #these should fail, showing that the <:AbstractLength is working
   @test_throws MethodError convert(TestMeas1,TestMeas3(3.4))  
   @test_throws MethodError TestDim1(TestMeas3(3.4))
 
@@ -96,10 +105,15 @@ end
 end
 
 """
-  @relateDimensions DiameterT = 2.0*RadiusT
+  $TYPEDSIGNATURES
+
+  Defines various Base. functions that facilitate the given relationship.
+  All types must already be defined and written in the form `type1 = factor * type2`, as in:
+  ```julia
+    @relateDimensions Diameter = 2.0*Radius
+  ```
 """
 macro relateDimensions(relation)
-  # initially, the format is type1 = factor * type2
   # @relatedDimensions DiameterT = 2*RadiusT becomes relation= :(DiameterT = 2RadiusT) ,  .args= Any[:DiameterT, :(2RadiusT)]
   # for now just map this literally
   if length(relation.args) == 2 && isa(relation.args[2], Expr)
@@ -108,15 +122,6 @@ macro relateDimensions(relation)
     operator = relation.args[2].args[1] # *
     factor = relation.args[2].args[2] # 2.0
     
-    #can I get the supertype of a type parameter?
-    # @show type1
-    # @show eval(Expr(:call, type1(3.4)))
-    # @show esc(:($type1(3.4)))
-    # esc(:($type1(3.4).measure)# retrieve abstract measure
-    # @show a = :($type1(3.4))
-    # @show a = eval(Expr(:call, $type1, 3.4 ))
-    # @show a = eval(Expr(:call, type1, 3.4 ))
-    # @show a = eval(Expr(:call, :($type1(3.4)) ))
     return esc(
       quote
 
@@ -143,11 +148,6 @@ macro relateDimensions(relation)
         Base.:-(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = T(x.measure - eval(Expr(:call, $operator, y.measure, $factor))) # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = T(x.measure - y.measure*2)
         Base.:-(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = T(x.measure - eval(Expr(:call, $operator, y.measure, 1/$factor))) # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2)
 
-        # a = $type1(3.4)
-        # b = $type1(3.4).measure
-        # c = typeof($type1(3.4).measure)
-        # d = supertype(typeof($type1(3.4).measure))
-        # @show a b c d
         AbsMeasure = supertype(typeof($type1(3.4).measure)) # determine the supertype of the measure; is there a way to eval this without adding to the package namespace?
         Base.:+(x::T, y::U) where {T<:supertype($type1), U<:AbsMeasure} = T(x.measure+y) # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
         Base.:+(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type1)} = U(x+y.measure) # Base.:+(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x+y.measure)
@@ -158,12 +158,10 @@ macro relateDimensions(relation)
         Base.:-(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type1)} = U(x-y.measure) # Base.:-(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x-y.measure)
         Base.:-(x::T, y::U) where {T<:supertype($type2), U<:AbsMeasure} = T(x.measure-y) # Base.:-(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure-y)
         Base.:-(x::T, y::U) where {T<:AbsMeasure, U<:supertype($type2)} = U(x-y.measure) # Base.:-(x::T, y::U) where {T<:AbstractLengthTest, U<:AbstractDiameterT} = U(x-y.measure)
-
-
       end
     )
   else
-    println("not implemented")
+    throw(ArgumentError("@relateDimensions is unable to parse [$relation]"))
   end
 
 end
@@ -223,7 +221,7 @@ end
   # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2) #maintain Radius
   @test rm - dm ≈ RadiusT(MeterT(0))
 
-  @makeDerivedMeasure MillimeterT "mmt" 1e-3 MeterT
+  @deriveMeasure MeterT(1) = MillimeterT(1000) "mmt"
   m = MillimeterT(1200)
 
   # # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
@@ -259,24 +257,23 @@ Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(A
 end
 
 """
-  create a string from Dimension `c` with format Module.DimensionName(value unit)
+  $TYPEDSIGNATURES
+  Returns a string representing dimenson `c` with format Module.DimensionName(value unit).
 """
 function dimension2String(c::T)::String where T<:AbstractDimension
   return "$(split(string(T),"{")[1])($(c.measure))" # 
 end
-# =
 @testitem "dimension2String" begin
-  @makeDerivedMeasure TestLength1 "tl1" 1.0 Meter
+  @deriveMeasure Meter(1) = TestLength1(10) "tl1"
   @makeDimension TestDim1 TestLength1
   d11 = TestDim1{TestLength1}(1.2)
 
   @test occursin("TestDim1(1.2tl1)",UnitTypes.dimension2String(d11))
   @test occursin("TestDim1(1.2tl1)",string(d11))
 end
-# =#
 
 """
-  @show functionality via `dimension2String()`.
+  @show functionality for Dimensions via `dimension2String()`.
 """
 function Base.show(io::IO, c::T) where T<:AbstractDimension
   print(io, dimension2String(c))

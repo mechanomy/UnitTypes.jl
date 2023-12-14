@@ -31,7 +31,7 @@ end
   @test TestLength(TestLengthMilli(1000)) ≈ TestLength(1.0)
 end
 
-@makeBaseMeasure Mass Kilogram "kg"
+@makeBaseMeasure Mass KiloGram "kg"
 @testitem "Test conversions" begin
   @makeDerivedMeasure TestMass "te" 1.0 AbstractMass
   @makeDerivedMeasure TestMassMilli "mte" 0.001 TestMass

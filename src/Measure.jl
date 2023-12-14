@@ -1,9 +1,8 @@
 module Measure
   using DocStringExtensions
   using TestItems 
-  # import Unitful
 
-  export AbstractMeasure, @makeDerivedMeasure, @makeBaseMeasure, toBaseFloat, @relateMeasures
+  export AbstractMeasure, @makeBaseMeasure, @makeDerivedMeasure, @deriveMeasure, @relateMeasures, toBaseFloat
   abstract type AbstractMeasure end
 
   """
@@ -54,7 +53,9 @@ module Measure
         Base.:+(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
         Base.:-(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T( x.value-convert(T,y).value)
         # Base.:*(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # commented to prevent redefinition warning # = throw(MethodError("Cannot $x * $y, * is not defined yet, define with @relateMeasures"))
-        # Base.:/(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # if appropriate, provided by @relateMeasures # = T( x.value/convert(T,y).value) 
+        # Base.:/(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # if appropriate, provided by @relateMeasures # = T( x.value/convert(T,y).value)
+        # Base.:/(x::T, y::U) where {T<:$abstractName, u<:$abstractName} = toBaseFloat(x)/toBaseFloat(y) # any danger to returning float here?
+
 
         # */ Number, usually used in scaling things
         # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
@@ -130,7 +131,9 @@ module Measure
   """
     $TYPEDSIGNATURES
 
-    Makes a new Measure derived from some other Measure.
+    Makes a new Measure derived from some other, usually abstract Measure.
+    In most cases prefer @deriveMeasure for readability.
+
     For example, `@makeDerivedMeasure Centimeter "cm" 0.01 Meter` defines the Centimeter as 0.01 of a Meter
     * `name` - the name of the derived unit
     * `unit` - the derived unit's abbreviation or symbol
@@ -143,9 +146,7 @@ module Measure
     `@makeDerivedMeasure NewtonMillimeter "N*mm" 1e-3 NewtonMeter`
     `@makeDerivedMeasure MilliNewtonMeter "mN*m" 1e-3 NewtonMeter`
     and then the composition
-    `@addUnitOperations Newton Meter NewtonMeter`
-
-
+    `@relateMeasures Newton*Meter=NewtonMeter`
   """
   macro makeDerivedMeasure(name, unit, toBase, referenceType)
     # println("makeDerivedMeasure( $name :: $(typeof(name)), $unit :: $(typeof(unit)) )")
@@ -158,13 +159,13 @@ module Measure
         end
 
         """
-          This type represents units of $($name).
+          This UnitType represents units of $($name).
         """
         struct $name <: absName
           value::Number
           toBase::Number
           unit::String
-          $name(x) = new(x,$toBase,$unit)
+          $name(x::Number) = new(x,$toBase,$unit)
         end
         $name(x::T where T<:absName) = convert($name, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
         export $name
@@ -196,7 +197,15 @@ module Measure
   end
 
   """
-    @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT" # this better captures the relationship and uses the established conventions
+    $TYPEDSIGNATURES
+
+    Derives a new Measure from an existing base measure.
+    This is preferred over @makeDerivedMeasure for better readability.
+    The left hand side of the equation must already exist, while the right hand side should be undefined, with the trailing string providing the unit symbol.
+
+    ```julia
+    @deriveMeasure Meter(1) = Millimeter(1000) "mm" 
+    ```
   """
   macro deriveMeasure(relation, unit="NoUnit")
     if length(relation.args) == 2 # maybe there's a better initial error check?
@@ -224,6 +233,9 @@ module Measure
                 $rhsType(x::Number) = new(x, $lhsFactor/$rhsFactor, $unit)
               end
               export $rhsType
+              $rhsType(x::T where T<:supertype($lhsType)) = convert($rhsType, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+              Base.convert(::Type{$rhsType}, x::U) where {U<:supertype($lhsType)} = $rhsType(x.value*x.toBase/($lhsFactor/$rhsFactor)) # convert(MilliMeter, Meter())
+              Base.convert(::Type{$lhsType}, x::$rhsType) = $lhsType(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
           end
         )
       else
@@ -233,14 +245,15 @@ module Measure
       println("@deriveMeasure given incorrect format of [$relation], skipping")
     end
   end
-
-  export @deriveMeasure
   @testitem "deriveMeasure" begin
     @makeBaseMeasure MeterTest MeterT "mT"
     @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT"
 
-    @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT"  # yes this issues, but I don't have the right test for it...
-    @test MillimeterT(1.2).toBase ≈ 1e-3 #test that it was not executed
+    @test MillimeterT(MeterT(1.2)) ≈ MillimeterT(1200)
+    @test MeterT(MillimeterT(1200)) ≈ MeterT(1.200)
+
+    # @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT"  # yes this issues, but I don't have the right test for it...
+    # @test MillimeterT(1.2).toBase ≈ 1e-3 #test that it was not executed
     # @test_warn "MillemeterT is already defined, cannot re-define" @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT" # this should be rejected as a redefinition and toBase remain 1e-3 via warning
     # @test_logs (:warn, "MillemeterT is already defined, cannot re-define") @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT" # this should be rejected as a redefinition and toBase remain 1e-3 via warning
 
@@ -254,18 +267,26 @@ module Measure
     @test MillimeterT2(1.2).unit == "NoUnit"
   end
 
-
   """
+    $TYPEDSIGNATURES
+    Returns a string representing measure `m` in the format "1.23mm".
   """
   function measure2String(m::T)::String where T<:AbstractMeasure
     # return @sprintf("%3.3f []", m)
     return "$(m.value)$(m.unit)"
   end
 
+  """
+    @show functionality for Measures via `measure2String()`.
+  """
   function Base.show(io::IO, m::T) where T<:AbstractMeasure
     print(io, measure2String(m))
   end
   
+  """
+    $TYPEDSIGNATURES
+    Returns measure `m` as a float in the base unit.
+  """
   function toBaseFloat(m::T) where T<:AbstractMeasure
     return m.value * m.toBase
   end
@@ -276,7 +297,12 @@ module Measure
   end
 
   """
-    @relateMeasures Meter*Newton = NewtonMeter
+    $TYPEDSIGNATURES
+    Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
+    All types must already be defined and only one * is supported on the left side, while the right should the resultant type.
+    ```julia
+      @relateMeasures Meter*Newton = NewtonMeter
+    ```
   """
   macro relateMeasures(relation)
     # an alternate format would be: @relateMeasures Meter(1)*Centimeter(100)=Meter2(1), adding conversion...
@@ -294,10 +320,8 @@ module Measure
               Base.:*(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
               Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type2)} = $type1( toBaseFloat(x) / toBaseFloat(y) )
             end
-          # elseif 
-          # @addUnitOperations P / I = V
           else
-            println("Operator $($operator) unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter")
+            throw(ArgumentError("Operator $($operator) unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
           end
         end
       )
@@ -321,9 +345,5 @@ module Measure
     @test NewtonMeterT(1) / MeterT(1) ≈ NewtonT(1)
     @test NewtonMeterT(1) / NewtonT(1) ≈ MeterT(1)
     @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
-    
-
-
-
   end
 end
