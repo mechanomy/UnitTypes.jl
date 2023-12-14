@@ -1,6 +1,8 @@
 # UnitTypes.jl
 This package provides physical units as Julia types.
 
+[Repo](https://github.com/mechanomy/UnitTypes.jl)
+
 ```julia
 julia> using UnitTypes
 
@@ -42,17 +44,20 @@ Macros are used to introduce and create relationships around new types:
 
 ## Design
 UnitTypes introduces an abstract type hierarchy of:
-* AbstractMeasure
-`Meter`, `Millimeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/src/SIDerived.jl)
-`Inch`, `Foot`, `Mile`, ..., See [src/Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/src/Imperial.jl)
 
-* `AbstractDimension` - src/Dimension.jl
-`AbstractDiameter`, `AbstractRadius`, ...
-`AbstractDuration`, ...
+### `AbstractMeasure`
+* `Meter`, `Millimeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl)
+* `Inch`, `Foot`, `Mile`, ..., See [src/Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/Imperial.jl)
 
-See [src/typeTree.txt](https://github.com/mechanomy/UnitTypes.jl/src/typeTree.txt) for a full list of the pre-defined types.
+### `AbstractDimension` 
+* `AbstractDiameter`, `AbstractRadius`, ...
+* `AbstractDuration`, ...,
+See [src/CommonDimensions.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/CommonDimensions.jl) for more.
 
-**Please open an issue or PR to add more units.**
+And see [src/typeTree.txt](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/typeTree.txt) for a full list of the pre-defined types.
+
+Please [open an issue](https://github.com/mechanomy/UnitTypes.jl/issues/new/choose) or PR to add more units to the base module.
+
 
 As said, the idea is that a Measure is some quantity bearing units, while a Dimension is some context-specific application of a Measure.
 Within a Dimension multiple Measures may logically be used as long as they are dimensionally consistent.
@@ -114,7 +119,7 @@ But this performant representation hurts readability, and while the unit represe
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
 The limitation is that UnitTypes does not have a catch-all unit representation.
 Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units, ie Celsius to Fahrenheit.
-See [SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/src/SIDerived.jl) and [Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/src/Imperial.jl) for examples.
+See [SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl) and [Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/Imperial.jl) for examples.
 
 ## Docs
 

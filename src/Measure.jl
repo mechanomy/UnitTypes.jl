@@ -224,7 +224,7 @@ module Measure
         return esc(
           quote
               """
-                UnitType $($rhsType) is derived from $($lhsType), related by $($lhsFactor/$rhsFactor), with supertype $(supertype($lhsType)), and symbol [$($unit)].
+                UnitType [`$($rhsType)`](@ref) is derived from [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
               """
               struct $rhsType <: supertype($lhsType)
                 value::Number

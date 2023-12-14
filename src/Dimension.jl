@@ -8,6 +8,7 @@ abstract type AbstractDimension end
   Make a new dimension `dimName` of `measure`; also creates 'Abstract`dimName`'
 
   ```julia
+
     @makeDimension Diameter Meter 
 
     d = Diameter(MilliMeter(3.4))
