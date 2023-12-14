@@ -1,0 +1,65 @@
+@charset "UTF-8";
+
+// this documenter-dark is modified from documenter-light, as the shipping version is too dark and green.
+// Documenter & DocumenterTools do not say how the theme can be chosen, only that it can be compiled, so this is a workaround for now
+
+//copying some parameters from https://github.com/JuliaDocs/Documenter.jl/blob/master/assets/html/scss/documenter-dark.scss
+$themename: "documenter-dark"; // CSS file must be called `$(themename).css`
+
+// @import "darkly/variables";
+
+$documenter-is-dark-theme: true;
+
+
+// <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Aldrich">
+// <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Actor">
+
+@import "https://fonts.googleapis.com/css?family=Aldrich";
+@import "https://fonts.googleapis.com/css?family=Actor";
+$family-sans-serif: 'Actor', 'Lato Medium', -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", "Helvetica", "Arial", sans-serif; 
+$family-monospace: 'JuliaMono', 'SFMono-Regular', 'Menlo', 'Consolas', 'Liberation Mono', 'DejaVu Sans Mono', monospace;
+
+// $documenter-sidebar-background: #555;
+// $body-background-color: #656;
+
+$link: #0069ff; //override the Dcumenter.jl/assets/html/scss/documenter/_variables.scss default
+
+$info: #209cee;
+$success: #22c35b;
+$warning: #ffdd57;
+$danger: #da0b00;
+$compat: #1db5c9;
+
+// slightly increase contrast over default l: 48%
+$grey: hsl(0, 0%, 42%);
+
+@import "documenter/utilities";
+@import "documenter/variables";
+
+@import "bulma/utilities/all";
+@import "bulma/base/all";
+
+@import "documenter/overrides";
+
+@import "bulma/elements/all";
+@import "bulma/form/all";
+@import "bulma/components/all";
+@import "bulma/grid/all";
+@import "bulma/layout/all";
+
+@import "documenter/elements";
+@import "documenter/components/all";
+@import "documenter/patches";
+@import "documenter/layout/all";
+
+@import "documenter/ansicolors";
+
+// highlight.js color scheme override for the julia> prompt
+code.language-julia-repl > span.hljs-meta {
+  color: $ansi-green;
+  font-weight: bolder;
+}
+
+// Workaround to compile in highlightjs theme, so that we could have different themes for both
+@import "highlightjs/default"
+
