@@ -43,14 +43,14 @@ Macros are used to introduce and create relationships around new types:
 ## Design
 UnitTypes introduces an abstract type hierarchy of:
 * AbstractMeasure
-`Meter`, `Millimeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](src/SIDerived.jl)
-`Inch`, `Foot`, `Mile`, ..., See [src/Imperial.jl](src/Imperial.jl)
+`Meter`, `Millimeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/src/SIDerived.jl)
+`Inch`, `Foot`, `Mile`, ..., See [src/Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/src/Imperial.jl)
 
 * `AbstractDimension` - src/Dimension.jl
 `AbstractDiameter`, `AbstractRadius`, ...
 `AbstractDuration`, ...
 
-See [src/typeTree.txt](src/typeTree.txt) for a full list of the pre-defined types.
+See [src/typeTree.txt](https://github.com/mechanomy/UnitTypes.jl/src/typeTree.txt) for a full list of the pre-defined types.
 
 **Please open an issue or PR to add more units.**
 
@@ -103,7 +103,7 @@ Closest candidates are:
   goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} where {T, U}) 
 ```
 
-As Unitful is the dominant unit package and has wide use and support, we provide a separate package [ExchangeUnitful](https://github.com/mechanomy/ExchangeUnitful.jl) to enable interoperation with Unitful.
+As Unitful is the most widely used unit package, we provide a separate package [ExchangeUnitful](https://github.com/mechanomy/ExchangeUnitful.jl) to enable interoperation with Unitful.
 
 ### DynamicQuantities.jl
 [DynamicQuantities](https://github.com/SymbolicML/DynamicQuantities.jl) is newer and faster than Unitful because it "defines a simple statically-typed Quantity type for storing physical units."
@@ -114,7 +114,7 @@ But this performant representation hurts readability, and while the unit represe
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
 The limitation is that UnitTypes does not have a catch-all unit representation.
 Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units, ie Celsius to Fahrenheit.
-See [SIDerived.jl](./src/SIDerived.jl) and [Imperial.jl](./src/Imperial.jl) for examples.
+See [SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/src/SIDerived.jl) and [Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/src/Imperial.jl) for examples.
 
 ## Docs
 

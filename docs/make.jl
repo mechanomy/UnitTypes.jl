@@ -11,12 +11,12 @@ using UnitTypes
 # @show  root = joinpath(dirname(pathof(UnitTypes)), "..", "docs")
 # @show  root = joinpath("..", "docs")
 
+@show pkgPath = joinpath(dirname(pathof(UnitTypes)), "..") # this includes UnitTypes/src, so ..
 # =
 makedocs(
   sitename="UnitTypes.jl",
   modules=[UnitTypes],
-  # root = joinpath(dirname(pathof(UnitTypes)), "..", "docs"),
-  root = joinpath( "..", "docs"),
+  root = joinpath(pkgPath, "docs"),
   source = "src",
   build = "build",
   clean=true,
@@ -27,12 +27,10 @@ makedocs(
   )
 
 # compile custom theme scss in to css, copying over the default themes
-DocumenterTools.Themes.compile("docs/src/assets/themes/documenter-mechanomy.scss", "docs/build/assets/themes/documenter-dark.css")
-DocumenterTools.Themes.compile("docs/src/assets/themes/documenter-mechanomy.scss", "docs/build/assets/themes/documenter-light.css")
-
+DocumenterTools.Themes.compile(joinpath(pkgPath,"docs","src","assets","themes","documenter-mechanomy.scss"), joinpath(pkgPath,"docs","build","assets","themes","documenter-dark.css") )
+DocumenterTools.Themes.compile(joinpath(pkgPath,"docs","src","assets","themes","documenter-mechanomy.scss"), joinpath(pkgPath,"docs","build","assets","themes","documenter-light.css") )
 deploydocs(
-  # root = joinpath(dirname(pathof(UnitTypes)), "..", "docs"),
-  root = joinpath("..", "docs"),
+  root = joinpath(pkgPath, "docs"),
   target = "build",
   dirname = "",
   repo = "github.com/mechanomy/UnitTypes.jl.git",
