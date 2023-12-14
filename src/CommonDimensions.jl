@@ -1,18 +1,18 @@
 
 @makeDimension Diameter Meter
 @makeDimension Radius Meter
-Diameter( r::Radius ) = Diameter(r.measure*2)
-Radius(d::Diameter) = Radius(d.measure/2)
-Base.convert(::Type{Radius}, x::Diameter) = Radius(x)
-Base.convert(::Type{Diameter}, x::Radius) = Diameter(x)
+Diameter( r::AbstractRadius ) = Diameter(r.measure*2)
+Radius(d::AbstractDiameter) = Radius(d.measure/2)
+Base.convert(::Type{Radius}, x::AbstractDiameter) = Radius(x)
+Base.convert(::Type{Diameter}, x::AbstractRadius) = Diameter(x)
 
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Diameter, U<:Radius} = isapprox(convert(Diameter, y), x, atol=atol, rtol=rtol)
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:Radius, U<:Diameter} = isapprox(convert(Diameter, x), y, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameter, U<:AbstractRadius} = isapprox(convert(Diameter, y), x, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractRadius, U<:AbstractDiameter} = isapprox(convert(Diameter, x), y, atol=atol, rtol=rtol)
 
-Base.:+(d::Diameter, r::Radius) = Diameter(d.measure + r.measure*2)
-Base.:+(r::Radius, d::Diameter) = Radius(r.measure + d.measure/2) 
-Base.:-(d::Diameter, r::Radius) = Diameter(d.measure - r.measure*2)
-Base.:-(r::Radius, d::Diameter) = Radius(r.measure - d.measure/2)
+Base.:+(d::AbstractDiameter, r::AbstractRadius) = Diameter(d.measure + r.measure*2)
+Base.:+(r::AbstractRadius, d::AbstractDiameter) = Radius(r.measure + d.measure/2) 
+Base.:-(d::AbstractDiameter, r::AbstractRadius) = Diameter(d.measure - r.measure*2)
+Base.:-(r::AbstractRadius, d::AbstractDiameter) = Radius(r.measure - d.measure/2)
 
 # =
 @testitem "CommonDimensions.jl: DiameterRadius" begin

@@ -38,71 +38,91 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
       Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
       Base._colon(start::T, step::U, stop::V) where {T<:$abstractName, U<:$abstractName, V<:$abstractName} = T.(start.measure:step.measure:stop.measure) # start may have a convert issue...
       Base.broadcastable(x::T) where T<:$abstractName = Ref(x) # If a type is intended to act like a "0-dimensional scalar" (a single object) rather than as a container for broadcasting, then the following method should be defined:
+
+      #these all return a Measure, discarding the Dimension because...we can't dispatch on return type...
+      Base.:+(x::$abstractName, y::$abstractName) = x.measure + y.measure
+      Base.:+(x::$abstractName, y::supertype($measure)) = x.measure + y #return Measure, leave Dimension behind
+      Base.:+(x::supertype($measure), y::$abstractName) = x + y.measure
+      Base.:-(x::$abstractName, y::$abstractName) = x.measure - y.measure
+      Base.:-(x::$abstractName, y::supertype($measure)) = x.measure - y
+      Base.:-(x::supertype($measure), y::$abstractName) = x - y.measure
+      Base.:/(x::$abstractName, y::Real) = x.measure/y 
+      Base.:*(x::$abstractName, y::Real) = x.measure*y 
+      Base.:*(x::Real, y::$abstractName) = x*y.measure
     end
   )
 end
 @testitem "makeDimension" begin
-  @deriveMeasure Meter(1) = TestMeas1(1) "tm1"
-  @makeDimension TestDim1 TestMeas1 
+  @deriveMeasure Meter(1) = MetT(1) "mt"
+  @makeDimension DimT MetT 
 
-  @test isa(TestDim1(TestMeas1(3.4)), TestDim1) # default constructor 
-  @test isa(TestDim1(3.4), TestDim1) # $dimName(x::Number) = $dimName($measure(x)) 
-  @test isa(TestDim1{TestMeas1}(3.4), TestDim1)
+  @test isa(DimT(MetT(3.4)), DimT) # default constructor 
+  @test isa(DimT(3.4), DimT) # $dimName(x::Number) = $dimName($measure(x)) 
+  @test isa(DimT{MetT}(3.4), DimT)
 
-  tdm1 = TestDim1(3.4)
+  tdm1 = DimT(3.4)
   @test typeof(tdm1) <: AbstractDimension
   @test !(typeof(tdm1) <: AbstractMeasure)
   @test typeof(tdm1.measure) <: AbstractMeasure
 
   # now make sure that I can't convert between Dimensions
-  @deriveMeasure Meter(2) = TestMeas2(1) "tm2"
-  @makeDimension TestDim2 TestMeas2 
+  @deriveMeasure Meter(2) = MetT2(1) "mt2"
+  @makeDimension TestDim2 MetT2 
 
-  @test isa(convert(TestMeas1,TestMeas2(3.4)), TestMeas1)
-  @test isa(TestDim1(TestMeas2(3.4)), TestDim1)  # if it can convert from TestMeas2 to TestMeas1, this should work since both are based on Meter
+  @test isa(convert(MetT,MetT2(3.4)), MetT)
+  @test isa(DimT(MetT2(3.4)), DimT)  # if it can convert from MetT2 to MetT, this should work since both are based on Meter
 
-  @deriveMeasure Second(1) = TestMeas3(1) "tm2" #these should fail, showing that the <:AbstractLength is working
-  @test_throws MethodError convert(TestMeas1,TestMeas3(3.4))  
-  @test_throws MethodError TestDim1(TestMeas3(3.4))
+  @deriveMeasure Second(1) = MetT3(1) "mt2" #these should fail, showing that the <:AbstractLength is working
+  @test_throws MethodError convert(MetT,MetT3(3.4))  
+  @test_throws MethodError DimT(MetT3(3.4))
 
-  @test TestDim1(3.4) ≈ TestDim1(3.4) #Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
-  @test TestDim1(3.4) ≈ TestDim1(TestMeas1(3.4))
-  @test TestDim1(3.4) ≈ TestDim1(TestMeas2(1.7)) # having different internal Measures
+  @test DimT(3.4) ≈ DimT(3.4) #Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
+  @test DimT(3.4) ≈ DimT(MetT(3.4))
+  @test DimT(3.4) ≈ DimT(MetT2(1.7)) # having different internal Measures
   @test isapprox( 3.400, 3.405, atol=0.1)
-  @test isapprox( TestDim1(3.400), TestDim1(3.405), atol=0.1 )
+  @test isapprox( DimT(3.400), DimT(3.405), atol=0.1 )
 
-  @test_throws MethodError TestDim2(1.7) ≈ TestDim1(3.4) # there is no conversion between testDim2 and testDim1
-  @test_throws MethodError convert(TestMeas1, TestDim1(3.4)) # just use .measure instead of convert
-  @test_throws MethodError TestMeas1(TestDim1(3.4)) # just use .measure instead of convert
+  @test_throws MethodError TestDim2(1.7) ≈ DimT(3.4) # there is no conversion between testDim2 and DimT
+  @test_throws MethodError convert(MetT, DimT(3.4)) # just use .measure instead of convert
+  @test_throws MethodError MetT(DimT(3.4)) # just use .measure instead of convert
 
-  @test TestDim1(1.7) < TestDim1(3.4)
-  @test TestDim1(3.5) > TestDim1(3.4)
-  @test TestDim1(convert(TestMeas1,TestMeas2(1.7))) > TestDim1(TestMeas1(3.0))
-  @test TestDim1(TestMeas2(1.7)) > TestDim1(convert(TestMeas2,TestMeas1(3.0)))
+  @test DimT(1.7) < DimT(3.4)
+  @test DimT(3.5) > DimT(3.4)
+  @test DimT(convert(MetT,MetT2(1.7))) > DimT(MetT(3.0))
+  @test DimT(MetT2(1.7)) > DimT(convert(MetT2,MetT(3.0)))
 
   #disable for now
   # # td12 > td11 isn't working:
-  # @show td11 = TestDim1(TestMeas1(3.0)) # 3.0tm1
-  # @show td12 = TestDim1(TestMeas2(1.7)) # 1.7tm2
-  # # @show td12 > td11 #error, cannot convert TestDim1{TestMeas2} to TestDim1{TestMeas1}
+  # @show td11 = DimT(MetT(3.0)) # 3.0tm1
+  # @show td12 = DimT(MetT2(1.7)) # 1.7tm2
+  # # @show td12 > td11 #error, cannot convert DimT{MetT2} to DimT{MetT}
   # @show td12.measure > td11.measure # true, 3.4 > 3.0
-  # @show td12.measure > convert(TestDim1, td11).measure # this should be l27 above...
+  # @show td12.measure > convert(DimT, td11).measure # this should be l27 above...
 
-  # @test isa([1,2,3] .* TestDim1(TestMeas1(4)), Vector{TestDim1(TestMeas1)})
+  # @test isa([1,2,3] .* DimT(MetT(4)), Vector{DimT(MetT)})
 
-  for m in TestDim1.([1,2,3])
-    @test m≈TestDim1(TestMeas1(1)) || m≈TestDim1(TestMeas1(2)) || m≈TestDim1(TestMeas1(3))
+  for m in DimT.([1,2,3])
+    @test m≈DimT(MetT(1)) || m≈DimT(MetT(2)) || m≈DimT(MetT(3))
   end
-  b = TestDim1(TestMeas1(1)) : TestDim1(TestMeas1(0.3)) : TestDim1(TestMeas1(2))
-  @test b[1] ≈ TestDim1(TestMeas1(1))
-  @test b[2] ≈ TestDim1(TestMeas1(1.3))
-  @test last(b) ≈ TestDim1(TestMeas1(1.9))
+  b = DimT(MetT(1)) : DimT(MetT(0.3)) : DimT(MetT(2))
+  @test b[1] ≈ DimT(MetT(1))
+  @test b[2] ≈ DimT(MetT(1.3))
+  @test last(b) ≈ DimT(MetT(1.9))
 
-  # @show c = LinRange(TestDim1(TestMeas1(10)), TestDim1(TestMeas1(20)), 4)
-  # @test c[1] ≈ TestDim1(TestMeas1(10))
-  # @test c[2] ≈ TestDim1(TestMeas1(13+1/3))
-  # @test last(c) ≈ TestDim1(TestMeas1(20))
+  # @show c = LinRange(DimT(MetT(10)), DimT(MetT(20)), 4)
+  # @test c[1] ≈ DimT(MetT(10))
+  # @test c[2] ≈ DimT(MetT(13+1/3))
+  # @test last(c) ≈ DimT(MetT(20))
 
+  @test DimT(MetT(1)) + DimT(MetT2(2)) ≈ MetT(5)
+  @test DimT(MetT(1)) + MetT(2) ≈ MetT(3)
+  @test MetT(2) + DimT(MetT(1)) ≈ MetT(3)
+  @test DimT(MetT(5)) - DimT(MetT2(2)) ≈ MetT(1)
+  @test DimT(MetT(1)) - MetT(2) ≈ MetT(-1)
+  @test MetT(2) - DimT(MetT(1)) ≈ MetT(1)
+  @test DimT(MetT(1)) / 2 ≈ MetT(1/2)
+  @test DimT(MetT(1)) * 2 ≈ MetT(2)
+  @test 2 * DimT(MetT(1)) ≈ MetT(2)
 end
 
 """
@@ -266,11 +286,11 @@ function dimension2String(c::T)::String where T<:AbstractDimension
 end
 @testitem "dimension2String" begin
   @deriveMeasure Meter(1) = TestLength1(10) "tl1"
-  @makeDimension TestDim1 TestLength1
-  d11 = TestDim1{TestLength1}(1.2)
+  @makeDimension DimT TestLength1
+  d11 = DimT{TestLength1}(1.2)
 
-  @test occursin("TestDim1(1.2tl1)",UnitTypes.dimension2String(d11))
-  @test occursin("TestDim1(1.2tl1)",string(d11))
+  @test occursin("DimT(1.2tl1)",UnitTypes.dimension2String(d11))
+  @test occursin("DimT(1.2tl1)",string(d11))
 end
 
 """
