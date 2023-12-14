@@ -34,6 +34,9 @@ Closest candidates are:
   goFaster(::T) where T<:AbstractAcceleration
 ```
 
+## Docs
+[Docs](https://mechanomy.github.io/UnitTypes.jl/dev/)
+
 ## Introducing new types
 Macros are used to introduce and create relationships around new types:
 * `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume,
