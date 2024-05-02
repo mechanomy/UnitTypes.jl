@@ -56,11 +56,11 @@ module Measure
         # Base.:/(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # if appropriate, provided by @relateMeasures # = T( x.value/convert(T,y).value)
         # Base.:/(x::T, y::U) where {T<:$abstractName, u<:$abstractName} = toBaseFloat(x)/toBaseFloat(y) # any danger to returning float here?
 
-
         # */ Number, usually used in scaling things
         # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
         Base.:*(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T
         Base.:*(x::T, y::U) where {T<:Number, U<:$abstractName} = U(x*y.value)
+        # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed?
         Base.:/(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value/y)
       end
     )
@@ -316,9 +316,11 @@ module Measure
           if Symbol($operator) == Symbol("*") # @relateMeasures Newton*Meter = NewtonMeter
             Base.:*(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
             Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type1)} = $type2( toBaseFloat(x) / toBaseFloat(y) )
-            if supertype($type1) != supertype($type2) # add inverse only when supertypes differ
+            if supertype($type1) != supertype($type2) # add inverse only for when supertypes differ
               Base.:*(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
               Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type2)} = $type1( toBaseFloat(x) / toBaseFloat(y) )
+            else # type1 == type2
+              Base.sqrt(x::T) where T<:supertype($type12) = $type1( sqrt(toBaseFloat(x)) ) # I can define sqrt(m^2) -> m, but I cannot define x^0.5 b/c the exponent might not lead to a known or integer unit..
             end
           else
             throw(ArgumentError("Operator $($operator) unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
@@ -345,5 +347,6 @@ module Measure
     @test NewtonMeterT(1) / MeterT(1) ≈ NewtonT(1)
     @test NewtonMeterT(1) / NewtonT(1) ≈ MeterT(1)
     @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
+    @test sqrt(Meter2T(4)) ≈ MeterT(2)
   end
 end

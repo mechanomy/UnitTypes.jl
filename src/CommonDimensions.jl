@@ -14,7 +14,6 @@ Base.:+(r::AbstractRadius, d::AbstractDiameter) = Radius(r.measure + d.measure/2
 Base.:-(d::AbstractDiameter, r::AbstractRadius) = Diameter(d.measure - r.measure*2)
 Base.:-(r::AbstractRadius, d::AbstractDiameter) = Radius(r.measure - d.measure/2)
 
-# =
 @testitem "CommonDimensions.jl: DiameterRadius" begin
   @testset "conversion" begin
     @test convert(Radius, Diameter(Meter(3.4))) ≈ Radius(Meter(1.7))
@@ -28,7 +27,6 @@ Base.:-(r::AbstractRadius, d::AbstractDiameter) = Radius(r.measure - d.measure/2
     @test Radius(Meter(1.7)) ≈ Diameter(Meter(3.4)) 
   end
 end
-# =#
 
 # @makeDimension Length  Meter #omit to avoid similarlity to SIBase.jl/Length
 @makeDimension Height Meter

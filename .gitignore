@@ -69,3 +69,6 @@ temp
 docs/build/*
 
 desktop.ini
+
+# 
+*.code-workspace
