@@ -62,6 +62,8 @@ module Measure
         Base.:*(x::T, y::U) where {T<:Number, U<:$abstractName} = U(x*y.value)
         # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed?
         Base.:/(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value/y)
+
+        # Base.abs()
       end
     )
   end
@@ -129,10 +131,10 @@ module Measure
   end
 
   """
-    $TYPEDSIGNATURES
+    `macro makeDerivedMeasure(name, unit, toBase, referenceType)`
 
     Makes a new Measure derived from some other, usually abstract Measure.
-    In most cases prefer @deriveMeasure for readability.
+    In most cases prefer @deriveMeasure for better readability.
 
     For example, `@makeDerivedMeasure Centimeter "cm" 0.01 Meter` defines the Centimeter as 0.01 of a Meter
     * `name` - the name of the derived unit
@@ -197,6 +199,7 @@ module Measure
   end
 
   """
+    `macro deriveMeasure(relation, unit="NoUnit")`
     $TYPEDSIGNATURES
 
     Derives a new Measure from an existing base measure.
@@ -271,7 +274,7 @@ module Measure
     $TYPEDSIGNATURES
     Returns a string representing measure `m` in the format "1.23mm".
   """
-  function measure2String(m::T)::String where T<:AbstractMeasure
+  function measure2String(m::AbstractMeasure)::String
     # return @sprintf("%3.3f []", m)
     return "$(m.value)$(m.unit)"
   end
@@ -279,15 +282,15 @@ module Measure
   """
     @show functionality for Measures via `measure2String()`.
   """
-  function Base.show(io::IO, m::T) where T<:AbstractMeasure
+  function Base.show(io::IO, m::AbstractMeasure)
     print(io, measure2String(m))
   end
   
-  """
+  ```
     $TYPEDSIGNATURES
     Returns measure `m` as a float in the base unit.
-  """
-  function toBaseFloat(m::T) where T<:AbstractMeasure
+  ``` 
+  function toBaseFloat(m::AbstractMeasure) :: Float64
     return m.value * m.toBase
   end
   @testitem "Measure measure2string()" begin

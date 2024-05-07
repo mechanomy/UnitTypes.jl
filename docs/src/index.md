@@ -21,7 +21,7 @@ false
 
 This allows you to easily write functions with arguments restricted to variables having certain types.
 ```julia
-julia> function goFaster(a::T) where T<:AbstractAcceleration end
+julia> function goFaster(a::AbstractAcceleration) end
 ```
 
 This leads to correctness and very clear error messages.
@@ -33,36 +33,25 @@ julia> goFaster(v)
 ERROR: MethodError: no method matching goFaster(::MeterPerSecond)
 
 Closest candidates are:
-  goFaster(::T) where T<:AbstractAcceleration
+  goFaster(::AbstractAcceleration)
 ```
 
-## Introducing new types
-Macros are used to introduce and create relationships around new types:
-* `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume,
-* `@deriveMeasure NewtonMeter(1) = MilliNewtonMeter(1000) "mN*m` - introduces a new name for a Measure, often a prefix like Millimeter or an alternate name like Inch, 
-* `@makeDimension Diameter Meter` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
 ## Design
 UnitTypes introduces an abstract type hierarchy of:
 
 ### `AbstractMeasure`
-* `Meter`, `Millimeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl)
+* `Meter`, `MilliMeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl)
 * `Inch`, `Foot`, `Mile`, ..., See [src/Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/Imperial.jl)
 
 ### `AbstractDimension` 
 * `AbstractDiameter`, `AbstractRadius`, ...
 * `AbstractDuration`, ...,
-See [src/CommonDimensions.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/CommonDimensions.jl) for more.
 
-And see [src/typeTree.txt](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/typeTree.txt) for a full list of the pre-defined types.
-
-Please [open an issue](https://github.com/mechanomy/UnitTypes.jl/issues/new/choose) or PR to add more units to the base module.
-
-
-As said, the idea is that a Measure is some quantity bearing units, while a Dimension is some context-specific application of a Measure.
+In organizing types around AbstractMeasure and AbstractDimension, the idea is that a Measure is some quantity bearing units, while a Dimension is some context-specific application of a Measure.
 Within a Dimension multiple Measures may logically be used as long as they are dimensionally consistent.
 For instance, a circle may be described by its radius, diameter, or circumference, concepts that can be interchangeably converted, using any Measure of extent (<:AbstractLength).
-A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference arguments, as the type system provides conversion between the argument and the function's internal convention.
+A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference types, as the type system provides conversion between the argument and the function's internal representation.
 
 Concrete Dimensions look like
 ```julia
@@ -78,16 +67,27 @@ struct Meter <: AbstractLength
   unit::String
 end
 ```
+## Introducing new types
+Macros are used to introduce and create relationships around new types:
+* `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 for Volume,
+* `@deriveMeasure NewtonMeter(1) = MilliNewtonMeter(1000) "mN*m` - introduces a new name for a Measure, often a prefix like MilliMeter or an alternate name like Inch, 
+* `@makeDimension Diameter Meter` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
-Measures.jl and the macros define the necessary convert()s and other operators.
-Please open an issue _with a minimal working example_ if you run into conversion errors.
+The [typeTree](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/typeTree.txt) lists all of the currently-defined default types.
+See [CommonDimensions](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/CommonDimensions.jl) for more example definitions.
 
 ## Logical operations
 Using units correctly requires distinguishing between valid and invalid operations, which in some cases means not allowing convenient operations.
 Inches can be added, as can inch and millimeter, but only when computing area does inch*inch make sense.
 Inch * 3 is convenient while 3 / Inch is unlikely to be desirable.
 
-With use and issues, these coherence rules will become more clear and explained by example.
+At any time, `.value` can be used to access the within-type numerical value, while `.toBase` provides the conversion factor to the unit's base quantity.
+If `a = MilliMeter(1)`, `a.value => 1` while `a.toBase => 1000` and `Meter(a).value => 0.001`
+For `b = Inch(144)`, `b.value = 144`, while `b.toBase => 0.0254` since Meter is the base unit of all Lengths.
+
+The macros in Measures.jl and Dimension.jl define the basic convert()s and operators necessary for common tasks, but additional definitions may be necessary.
+Please [open an issue](https://github.com/mechanomy/UnitTypes.jl/issues/new/choose)/PR to add more units or functions to the base module.
+Please open an issue _with a minimal working example_ if you discover conversion errors.
 
 ## Comparison with other packages
 
@@ -117,7 +117,7 @@ But this performant representation hurts readability, and while the unit represe
 
 ### UnitTypes.jl
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
-The limitation is that UnitTypes does not have a catch-all unit representation.
+The limitation is that _UnitTypes does not have a catch-all unit representation_.
 Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units, ie Celsius to Fahrenheit.
 See [SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl) and [Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/Imperial.jl) for examples.
 
