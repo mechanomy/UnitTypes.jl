@@ -17,6 +17,7 @@ abstract type AbstractDimension end
 """
 macro makeDimension(dimName, measure) # a dimension is a measurement applied to a certain context
   abstractName = Symbol("Abstract"*String(dimName)) #AbstractDiameter
+
   esc(
     quote
       #create an abstractType of this dimension

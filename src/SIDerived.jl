@@ -36,6 +36,10 @@ Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBas
 @makeBaseMeasure CurrentDensity APerM2 "A/m^2"
 @makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
+# time
+@deriveMeasure Second(60) = Minute(1) "min"
+@deriveMeasure Minute(60) = Hour(1) "hr"
+
 @makeBaseMeasure Frequency Hertz "Hz"
 @deriveMeasure Hertz(1) = PerSecond(1) "s^-1"
 
@@ -53,6 +57,16 @@ end
 
 @makeBaseMeasure Velocity MeterPerSecond "m/s" #cumbersome...
 @relateMeasures Meter*PerSecond=MeterPerSecond
+Base.:/(x::T,y::U) where {T<:AbstractLength, U<:AbstractTime} = Meter(x) * PerSecond(1/toBaseFloat(y)) 
+@testitem "hand holding PerSecond" begin
+  @test Meter(1) / Second(1) ≈ MeterPerSecond(1)
+  @test MilliMeter(1) / Minute(1) ≈ MeterPerSecond(1/1000 / 60/1)
+  @test Jules(1) / Second(1) ≈ Ampere(1)
+  # @test 1u"m" / 1u"s" ≈ 1u"m/s"
+  # @test m(1) / s(1) ≈ MeterPerSecond(1) # m not defined
+end
+
+
 
 @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
 @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
@@ -69,6 +83,9 @@ end
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @relateMeasures Newton*Meter2=Pascal
+@deriveMeasure Pascal(1e3) = KiloPascal(1e3) "KPa"
+@deriveMeasure Pascal(1e6) = MegaPascal(1e3) "MPa"
+@deriveMeasure Pascal(1e9) = GigaPascal(1e3) "GPa"
 
 @makeBaseMeasure Charge Coulomb "C"
 @relateMeasures Second*Ampere=Coulomb

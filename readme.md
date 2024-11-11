@@ -1,6 +1,7 @@
 # UnitTypes.jl
 This package provides physical units as Julia types.
 
+<!-- https://news.ycombinator.com/item?id=38742021 -->
 ```julia
 julia> using UnitTypes
 
@@ -40,7 +41,7 @@ Closest candidates are:
 ## Introducing new types
 Macros are used to introduce and create relationships around new types:
 * `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume,
-* `@deriveMeasure NewtonMeter(1) = MilliNewtonMeter(1000) "mN*m` - introduces a new name for a Measure, often a prefix like Millimeter or an alternate name like Inch, 
+* `@deriveMeasure NewtonMeter(1) = MilliNewtonMeter(1000) "mN*m` - introduces a new name for a Measure, often a prefix like Millimeter or an alternate name like Inch,
 * `@makeDimension Diameter Meter` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
 ## Design
@@ -103,7 +104,7 @@ julia> goSlower(a)
 ERROR: MethodError: no method matching goSlower(::Quantity{Int64, 𝐋 , Unitful.FreeUnits{(mm,), 𝐋 , nothing}})
 
 Closest candidates are:
-  goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} where {T, U}) 
+  goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} where {T, U})
 ```
 
 As Unitful is the dominant unit package and has wide use and support, we provide a separate package [ExchangeUnitful](https://github.com/mechanomy/ExchangeUnitful.jl) to enable interoperation with Unitful.

@@ -2,11 +2,11 @@ module Measure
   using DocStringExtensions
   using TestItems 
 
-  export AbstractMeasure, @makeBaseMeasure, @makeDerivedMeasure, @deriveMeasure, @relateMeasures, toBaseFloat
+  export AbstractMeasure, @makeBaseMeasure, @makeDerivedMeasure, @deriveMeasure, @relateMeasures, toBaseFloat, @u_str
   abstract type AbstractMeasure end
 
   """
-    $TYPEDSIGNATURES
+    `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)`
 
     Make a new base measure which has no multiplicative relationship to an existing unit.
     For example, in `@makeBaseMeasure Length Meter "m"`:
@@ -20,11 +20,14 @@ module Measure
     * `toBase::Number` == 1 for base measures
     * `unit::String` the unit to be displayed
 
-    See also [toBaseFloat()](toBaseFloat).
+    Internally, this calls @makeDerivedMeasure to make the basic type, then overloads common functions (==, <, ≈, +, -, *, /, :) to enable common operations.
+
+    To get the measure's value in the base unit as a float, see [toBaseFloat()](toBaseFloat).
   """
   macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)
     # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
     abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
+
     return esc(
       quote
         export $abstractName #AbstractLength
@@ -128,6 +131,10 @@ module Measure
       @test isapprox(0.1*MeterT(1.2), MeterT(0.12), rtol=1e-3)
       @test isapprox(MeterT(1.2)/0.1, MeterT(12), rtol=1e-3)
     end
+
+    @testset "unit constructor" begin
+      @test mT(1.2) ≈ MeterT(1.2)
+    end
   end
 
   """
@@ -149,9 +156,24 @@ module Measure
     `@makeDerivedMeasure MilliNewtonMeter "mN*m" 1e-3 NewtonMeter`
     and then the composition
     `@relateMeasures Newton*Meter=NewtonMeter`
+
+    The created unit type is a member of whichever module contains the macro call:
+    ```julia
+    module MyMod
+      `@makeDerivedMeasure MilliNewtonMeter "mN*m" 1e-3 NewtonMeter`
+    end
+
+    mnm = MyMod.MilliNewtonMeter(3.4)
+    ```
+    This means that other modules will not have access to MilliNewtonMeter via UnitTypes, but only if they import/using MyMod.
+    
   """
   macro makeDerivedMeasure(name, unit, toBase, referenceType)
     # println("makeDerivedMeasure( $name :: $(typeof(name)), $unit :: $(typeof(unit)) )")
+
+    usym = Symbol(unit) # convert from string into symbol
+    skip = occursin(r"[*/^-]", unit) # skip ading if this unit is composed, handle those in @relateMeasures
+
     return esc( 
       quote
         if Base.isconcretetype($referenceType)
@@ -175,6 +197,11 @@ module Measure
 
         # $name(uf::T) where T<:Unitful.AbstractQuantity = convert($name, uf) # add a constructor for Unitful units to prevent struct.value = Unitful...this requires that all modules that use @makeDerived also import Unitful, commenting out for now...
         # $name(uf::T) where T<:UnitTypes.Measure.Unitful.AbstractQuantity = convert($name, uf) 
+
+        # use the unit label as a funcional unit label: mm(1) => MilliMeter(1)
+        if !$skip
+          $usym(num::Number) = $name(num)
+        end
       end
     )
   end
@@ -196,6 +223,15 @@ module Measure
     @testset "isapprox" begin
       @test isapprox(MeterT(1.2), MillimeterT(1200), atol=1e-3)
     end
+
+    @testset "unit label" begin
+      @test mmT(1.2) ≈ MillimeterT(1.2)
+      @makeDerivedMeasure MSquare "mmT^2" 1 MeterT
+      # @show names(UnitTypes, all=true)
+      # @show names(parentmodule(mmT), all=true)
+      # @show mmT^2(3.4)
+      # @show Symbol("mmT^2")(3.4)
+    end
   end
 
   """
@@ -216,6 +252,9 @@ module Measure
       lhsFactor = relation.args[1].args[2]
       rhsType = relation.args[2].args[2].args[1]
       rhsFactor = relation.args[2].args[2].args[2]
+
+      usym = Symbol(unit) # convert from string into symbol
+      skip = occursin(r"[*/^-]", unit) # skip ading if this unit is composed, handle those in @relateMeasures
 
       if !( isdefined(__module__, lhsType) || isdefined(@__MODULE__, lhsType) ) # lhs must be defined in UnitTypes or caller
         # throw(MethodError(@deriveMeasure, "Cannot derive $rhsType from undefined $lhsType in [$relation]")) #..this doesn't work..
@@ -239,6 +278,11 @@ module Measure
               $rhsType(x::T where T<:supertype($lhsType)) = convert($rhsType, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
               Base.convert(::Type{$rhsType}, x::U) where {U<:supertype($lhsType)} = $rhsType(x.value*x.toBase/($lhsFactor/$rhsFactor)) # convert(MilliMeter, Meter())
               Base.convert(::Type{$lhsType}, x::$rhsType) = $lhsType(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
+
+              # use the unit label as a funcional unit label: mm(1) => MilliMeter(1)
+              if !$skip
+                $usym(num::Number) = $rhsType(num)
+              end
           end
         )
       else
@@ -268,6 +312,8 @@ module Measure
 
     @deriveMeasure MeterT(1) = MillimeterT2(1000)
     @test MillimeterT2(1.2).unit == "NoUnit"
+
+    @test mT(3.4) ≈ mmT(3400)
   end
 
   """
@@ -331,7 +377,6 @@ module Measure
         end
       )
     end
-
   end
 
   @testitem "relateMeasures" begin
@@ -351,5 +396,39 @@ module Measure
     @test NewtonMeterT(1) / NewtonT(1) ≈ MeterT(1)
     @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
     @test sqrt(Meter2T(4)) ≈ MeterT(2)
+
+    @test tn(1)*tm(2) ≈ tnm(2)
+
+    # @makeBaseMeasure TestMMM Meter3T "tm^3"
+    # @show eval(Symbol("tm^3"))(3.4)
   end
+
+  """
+    Macro to provide the Unitful-like 1.2u"cm" inline unit assignment.
+    ```julia
+    a = 1.2u"cm" 
+    ```
+    This function relies on cm(1.2) existing as an alias for CentiMeter(1.2).
+    
+    The macro works by converting the unit string into a function, which is called on (1) and returned.
+    This return is implicitly multiplied/concatenated with the rest of the source expression, calling the defined multiply method.
+  """
+  macro u_str(unit::String)
+    usym = Symbol(unit) # convert string into a Symbol
+    return esc(:($usym(1))) # return unit(1) which is implicitly * with the leading number
+  end
+
+  @testitem "u_str" begin
+    @makeBaseMeasure TestNM NewtonMeterT "tnm"
+    @makeBaseMeasure TestN NewtonT "tn"
+    @makeBaseMeasure TestM MeterT "tm"
+    @relateMeasures NewtonT*MeterT = NewtonMeterT
+
+    @test 1.2u"tm" ≈ MeterT(1.2)
+    @test 1.0u"tm" * 2.0u"tn" ≈ NewtonMeterT(2.0)
+    @test 2.0u"tnm" / 1.0u"tn" ≈ MeterT(2.0)
+  end
+
+
+
 end
