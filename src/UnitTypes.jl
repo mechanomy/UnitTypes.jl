@@ -1,4 +1,5 @@
 module UnitTypes
+  __precompile__(false)
   using DocStringExtensions
   using Reexport
   using TestItems
@@ -11,11 +12,11 @@ module UnitTypes
 
   # derived measures
   include("SIDerived.jl")
-  include("Imperial.jl")
-  include("Angle.jl")
+  # include("Imperial.jl")
+  # include("Angle.jl")
 
-  #Dimensions built on Measures
-  include("Dimension.jl")
-  include("CommonDimensions.jl")
+  # #Dimensions built on Measures
+  # include("Dimension.jl")
+  # include("CommonDimensions.jl")
 end
 

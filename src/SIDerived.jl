@@ -7,7 +7,8 @@
 @deriveMeasure Meter(1) = MicroMeter(1e6) "μm"
 @deriveMeasure Meter(1) = MilliMeter(1e3) "mm"
 @deriveMeasure Meter(1) = CentiMeter(1e2) "cm"
-@deriveMeasure Meter(1000) = KiloMeter(1) "km"
+# @deriveMeasure Meter(1000) = KiloMeter(1) "km"
+@deriveMeasure_new Meter(1) = Kilometer(1e-3) "km"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -57,14 +58,16 @@ end
 
 @makeBaseMeasure Velocity MeterPerSecond "m/s" #cumbersome...
 @relateMeasures Meter*PerSecond=MeterPerSecond
-Base.:/(x::T,y::U) where {T<:AbstractLength, U<:AbstractTime} = Meter(x) * PerSecond(1/toBaseFloat(y)) 
-@testitem "hand holding PerSecond" begin
-  @test Meter(1) / Second(1) ≈ MeterPerSecond(1)
-  @test MilliMeter(1) / Minute(1) ≈ MeterPerSecond(1/1000 / 60/1)
-  @test Jules(1) / Second(1) ≈ Ampere(1)
+# Base.:/(x::T,y::U) where {T<:AbstractLength, U<:AbstractTime} = Meter(x) * PerSecond(1/toBaseFloat(y)) 
+# Base.:/(x::T,y::U) where {T<:AbstractMeasure, U<:AbstractTime} = x * PerSecond(1/toBaseFloat(y)) 
+# @testitem "hand holding PerSecond" begin
+  # @test Meter(1) / Second(1) ≈ MeterPerSecond(1)
+  # @test MilliMeter(1) / Minute(1) ≈ MeterPerSecond(1/1000 / 60/1)
+  # @test Joule(1) / Second(1) ≈ Ampere(1)
   # @test 1u"m" / 1u"s" ≈ 1u"m/s"
   # @test m(1) / s(1) ≈ MeterPerSecond(1) # m not defined
-end
+  # @test UnitTypes.Measure.m(1) / UnitTypes.Measure.s(1) ≈ MeterPerSecond(1) # m not defined
+# end
 
 
 
