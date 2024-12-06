@@ -238,10 +238,10 @@ module UnitTypesDev
     # @show kgT_mT_per_sT_power2(1.4)
     @show UnitTypes.Measure.unitAbbreviations 
     @show 1.2u"kgT*mT/sT^2"
-    @show 1.6u"km"
+    @show 1.6u"km" # this appears to work
 
   end
-  dev241125()
+  # dev241125()
 
 
 end

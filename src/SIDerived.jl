@@ -7,8 +7,7 @@
 @deriveMeasure Meter(1) = MicroMeter(1e6) "μm"
 @deriveMeasure Meter(1) = MilliMeter(1e3) "mm"
 @deriveMeasure Meter(1) = CentiMeter(1e2) "cm"
-# @deriveMeasure Meter(1000) = KiloMeter(1) "km"
-@deriveMeasure_new Meter(1) = Kilometer(1e-3) "km"
+@deriveMeasure Meter(1) = Kilometer(1e-3) "km"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)

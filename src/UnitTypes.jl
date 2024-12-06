@@ -12,11 +12,11 @@ module UnitTypes
 
   # derived measures
   include("SIDerived.jl")
-  # include("Imperial.jl")
-  # include("Angle.jl")
+  include("Imperial.jl")
+  include("Angle.jl")
 
   # #Dimensions built on Measures
-  # include("Dimension.jl")
-  # include("CommonDimensions.jl")
+  include("Dimension.jl")
+  include("CommonDimensions.jl")
 end
 
