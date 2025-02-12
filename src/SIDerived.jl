@@ -7,7 +7,7 @@
 @deriveMeasure Meter(1) = MicroMeter(1e6) "μm"
 @deriveMeasure Meter(1) = MilliMeter(1e3) "mm"
 @deriveMeasure Meter(1) = CentiMeter(1e2) "cm"
-@deriveMeasure Meter(1) = Kilometer(1e-3) "km"
+@deriveMeasure Meter(1) = KiloMeter(1e-3) "km"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -19,6 +19,7 @@ end
   @test MilliMeter(1)*Meter(3) / MilliMeter(1) ≈ Meter(3)
 end
 
+# @deriveMeasure Meter(1)*Meter(1) = Meter2(1) "m^2"
 @makeBaseMeasure Area Meter2 "m^2"
 @relateMeasures Meter*Meter=Meter2
 

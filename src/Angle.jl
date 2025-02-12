@@ -13,7 +13,7 @@
   @test Degree(1) + Degree(2) ≈ Degree(3)
   @test Radian(1)*2 ≈ Radian(2)
   @test Degree(1)*2 ≈ Degree(2)
-# todo: -Degree(45)
+  @test -Degree(45) ≈ Degree(-45)
 end
 
 Base.promote_rule(::Type{Radian}, ::Type{Degree}) = Radian #promote to Radian in general

@@ -6,7 +6,7 @@ module Measure
   abstract type AbstractMeasure end
 
 
-  unitAbbreviations = []
+  unitAbbreviations = [] # ("m", :Meter)
 
   """
     `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)`
@@ -156,6 +156,12 @@ module Measure
     end
   end
 
+  Base.:-(x::T where T<:AbstractMeasure) = x * -1 # leading negation
+  @testitem "leadingNegation" begin
+    a = Meter(1)
+    @test -a ≈ Meter(-1)
+  end
+
   """
     `macro deriveMeasure(relation, unit="NoUnit")`
     $TYPEDSIGNATURES
@@ -174,28 +180,41 @@ module Measure
     # println("deriveMeasure($(string(relation)), $unit)")
     # display(dump(relation))
 
-    # &= doesn't do short-circuit evaluation, need &&
-    isSimple = isa(relation, Expr)
-    isSimple = isSimple && isa(relation.args[1],Expr)
-    isSimple = isSimple && isa(relation.args[1].args[1], Symbol) # Gram
-    isSimple = isSimple && string(relation.args[1].args[1]) != "/" # but / is also a Symbol!
-    isSimple = isSimple && string(relation.args[1].args[1]) != "*" 
-    isSimple = isSimple && string(relation.args[1].args[1]) != "+" 
-    isSimple = isSimple && string(relation.args[1].args[1]) != "-" 
+  #   # &= doesn't do short-circuit evaluation, need &&
+  #   isSimple = isa(relation, Expr)
+  #   isSimple = isSimple && isa(relation.args[1],Expr)
+  #   isSimple = isSimple && isa(relation.args[1].args[1], Symbol) # Gram
+  #   isSimple = isSimple && string(relation.args[1].args[1]) != "/" # but / is also a Symbol!
+  #   isSimple = isSimple && string(relation.args[1].args[1]) != "*" 
+  #   isSimple = isSimple && string(relation.args[1].args[1]) != "+" 
+  #   isSimple = isSimple && string(relation.args[1].args[1]) != "-" 
 
-    isSimple = isSimple && isa(relation.args[2],Expr) 
-    isSimple = isSimple && isa(relation.args[2].args[2].args[1], Symbol)  # MegaGram
-    # isSimple = isSimple && typeof(relation.args[2].args[2].args[2]) <: Number # 1e-6
-  # @show isSimple
+  #   isSimple = isSimple && isa(relation.args[2],Expr) 
+  #   isSimple = isSimple && isa(relation.args[2].args[2].args[1], Symbol)  # MegaGram
+  #   # isSimple = isSimple && typeof(relation.args[2].args[2].args[2]) <: Number # 1e-6
+  # # @show isSimple
 
-    # A compound relation looks like
-    #  :((KiloGram(1) * Meter(1)) / Second(1) ^ 2 = FigNewton(1)
-    isCompound = !isSimple && length(relation.args) == 2 
-    isCompound = isCompound && isa(relation.args[1],Expr) 
-    isCompound = isCompound && isa(relation.args[1].args[2].args[2].args[1],Symbol) # rhs should always be a symbol
-    # isCompound &= isa(relation.args[2],Expr) 
-    # isCompound &= isa(relation.args[2].args[2].args[1], Symbol) 
-    # isCompound = length(relation.args) == 2 && isa(relation.args[1],Expr) && isa(relation.args[1].args[2],Expr) && isa(relation.args[1].args[2].args[1], Symbol) 
+  #   # A compound relation looks like
+  #   #  :((KiloGram(1) * Meter(1)) / Second(1) ^ 2 = FigNewton(1)
+  #   isCompound = !isSimple && length(relation.args) == 2 
+  #   isCompound = isCompound && isa(relation.args[1],Expr) 
+  #   isCompound = isCompound && isa(relation.args[1].args[2].args[2].args[1],Symbol) # rhs should always be a symbol
+  #   # isCompound &= isa(relation.args[2],Expr) 
+  #   # isCompound &= isa(relation.args[2].args[2].args[1], Symbol) 
+  #   # isCompound = length(relation.args) == 2 && isa(relation.args[1],Expr) && isa(relation.args[1].args[2],Expr) && isa(relation.args[1].args[2].args[1], Symbol) 
+
+    isdef = 0
+    isun = 0
+    for em in eachmatch(r"(?<name>[A-Za-z0-9]*)\(.*\)", string(relation))
+      if isdefined(__module__, Symbol(em["name"]) )
+        isdef += 1
+      else
+        isun += 1
+      end
+      # @show em["name"] isdef isun
+    end
+    isSimple = isdef == 1 && isun == 1
+    isCompound = isdef > 1 && isun == 1
 
     if isSimple
       lhsType = relation.args[1].args[1]
@@ -247,7 +266,7 @@ module Measure
         # if isdefined(parentmodule(@__MODULE__), Symbol(subs)) || isdefined(@__MODULE__, Symbol(subs)) #|| isdefined(__module__, Symbol(subs)) 
         if isdefined(__module__, Symbol(subs))
           # println("$subs is defined")
-          inst = __module__.eval(Meta.parse(subs)) # get the type of str, within the enclosing module
+          inst = __module__.eval(Meta.parse(subs)) # get the type of str, within the enclosing module #cf https://discourse.julialang.org/t/metaprogramming-obtain-actual-type-from-symbol-for-field-inheritance/84912/3?u=bcon
           ufs = replace(ufs, subs=>inst(1).unit)
         # else
         #   println("$subs is not defined")
@@ -303,6 +322,9 @@ module Measure
     @deriveMeasure MeterT(1) = MillimeterT2(1000)
     @test MillimeterT2(1.2).unit == "NoUnit"
 
+    @deriveMeasure MeterT(π) = DegreeT(1) "dt"
+    @test typeof(DegreeT(1)) <: AbstractLengthT
+
     # re macroexpand() see https://github.com/JuliaLang/julia/issues/56733
     @test_warn "MillimeterT is already defined, cannot re-define" macroexpand(@__MODULE__, :( @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT"  ))
     @test_throws ArgumentError macroexpand(@__MODULE__, :( @deriveMeasure MeterT2(1) = MillimeterT(5000) "mmT") )
@@ -318,7 +340,12 @@ module Measure
     @test 4*FigNewton(1.3) ≈ FigNewton(5.2)
     @test 1.5u"FN" ≈ FigNewton(1.5)
     @test 1.5u"kgT*mT/sT^2" ≈ FigNewton(1.5)
-    # end
+
+    # because the lhs has a variable number of */, the depth of the expression tree is not known.
+
+    @deriveMeasure MeterT(1)*MeterT(1) = MeterSq(1) "msq"
+    @show 1u"msq"
+
   end
 
   """
@@ -403,7 +430,7 @@ module Measure
   end
 
   """
-    Macro to provide the Unitful-like 1.2u"cm" inline unit assignment.
+    Macro to provide the 1.2u"cm" inline unit assignment.
     ```julia
     a = 1.2u"cm" 
     ```

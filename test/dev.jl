@@ -1,247 +1,246 @@
 module UnitTypesDev
   using UnitTypes
 
-  # make unit labels functions? mm(1.2) is /functional/...  this is an easy add to the existing macros
-  # ..and it makes it easy to avoid a list of units and instead do return mm(1) to get Meter(1)
-  # but this will fail in the literal mapping of m/s => m/s(3.4), unless having m(), /, and s(3.4) defined it then does the math between the units...
-  # how about making lengthy function names,  Kg*m/s^2 -> Kg_m_per_s_power2? It breaks if the units are reordered, but that may be able to be gotten around.  The nice thing is that this is much more likely to be unique and by not relying on the order of operations rules I can directly go from unit to function
+  struct DefinedUnit # this is not very different from the actual macro definition, only that this doesn't need to be instantiated to be accessed..?
+    name::String
+    abbreviation::String
+    unit::Type
+  end
+  definedUnits = [DefinedUnit("Meter","m",Meter), DefinedUnit("Second","s", Second)]#,  DefinedUnit("Gram","g",Gram) ]
 
-  function dev241111()
-    # Expanding deriveMeasure to include compound expressions requires taking KiloGram(1)*Meter(1)/Second(1)^2 = FigNewton(1) and
-    # ] identify new unit: FigNewton "FN"
-    # ] parse and construct the lhs
-    # ] create the unit
+  function isDefined(unit::Symbol)
+    # @show definedUnits
+    for du in definedUnits
+      if Symbol(du.name) == unit
+        return true
+      # else
+      #   println("$unit is un")
+      end
+    end
+    return false
+  end
 
-    # @show a = Meta.parse("KiloGram(1)*Meter(1)/Second(1)^2 = FigNewton(1) \"FN\"")
-    @show a = Meta.parse("KiloGram*Meter/Second^2 = FigNewton(1)")
-    ## deriveMeasure
-    @show a.args[1]
-    @show underFunctionName = replace(string(a.args[1]), " "=>"", "("=>"", ")"=>"", "/"=>"_per_", "*"=>"_", "^"=>"_power")
-    @show fn = Symbol(underFunctionName)
-    eval( :( $fn(n::Number) = Newton(n) )) # establish the function
-    @show KiloGram_Meter_per_Second_power2(1.2) # testing
-    # so if the compound string to function name is stable, then @deriveMeasure KiloGram*Meter/Second^2 goes to K...()
-    # but how do I expand u"Kg*m/s^2" into KiloGram?
-    # I think I have to create a second Kg_m_per_s_power2() = KiloGram_m_per_s_power2() when I have access to the unit strings...
-    # While I could walk through ast, safer is to stick to the string:
-    ## u_str
-    @show b = split(underFunctionName, "_")
-    cunit = ""
-    for str in b
-      if isdefined(UnitTypes, Symbol(str)) # is str currently defined? omit per, power, handle later
-        ut = eval(Meta.parse(str)) # get the type of str
-        if ut <: AbstractMeasure # is the type a UnitType::AbstractMeasure?
-          global cunit = cunit * ut(1).unit * "*" # get the unit string from the UnitType, assume multiplication
-        end
-      else
-        if str == "per"
-          global cunit = cunit[1:length(cunit)-1] # remove *
-          global cunit = cunit * "/"
-        elseif occursin("power",str)
-          global cunit = cunit[1:length(cunit)-1] # remove *
-          m = match(r"\d+", str)
-          global cunit = cunit * "^" * m.match
+  macro deriveDFS(relation, unit="NoUnit")
+    println("\n")
+    # display(dump(relation))
+
+    function recursiveIsdef(mod, rel, ndef, nund) # walk through an Expr, counting defined & undefineds to determine isCompound
+      println("")
+      if rel isa Symbol && Base.isidentifier(rel)
+        # if isdefined(mod, rel) # this is true for π, when what I really want isdefined as a UnitTypes 
+        # if  <: AbstractMeasure , how to make the symbol into a type name? https://discourse.julialang.org/t/parse-string-to-datatype/7118/7 recommends a name->type table to bypass eval(parse), and this would allow me to skip the eval() in Measure.jl where I get the units.  I already have this in unitAbbreviations?
+        # if rel in names(mod)
+        @show rel
+        if isDefined(rel)
+          ndef+=1
+          println("$rel is defined Symbol, ndef $ndef")
         else
-          println("$str not understood")
+          nund+=1
+          println("$rel is undefined Symbol, nund $nund")
         end
+        return (ndef, nund)
+      elseif rel isa Expr
+        for arg in rel.args
+          a = recursiveIsdef(mod, arg, ndef, nund)
+          ndef += a[1]
+          nund += a[2]
+          # println("recursive return, ndef $ndef, nund $nund")
+        end
+        return (ndef, nund)
+      else
+        println("else $rel is " * string(typeof(rel)))
+        return (0,0)
       end
     end
-    @show cunit
 
-    # KiloGramMeterPerSecondPower2(n) = FigNewton(1)
+    if relation.head == Symbol("=")
+      @show lhs = recursiveIsdef(__module__, relation.args[1],0,0)
+      @show rhs = recursiveIsdef(__module__, relation.args[2],0,0)
+    end
   end
-  # dev241111()
+  # @deriveDFS Meter(1)*Meter(π) = MeterSq(1) "msq"
+  # @deriveDFS Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
+  # @deriveDFS Meter(mPerIn*inPerFt) = Foot(1) "ft"
+
+  macro deriveExprs(relation, unit="NoUnit")
+    println("\n")
+    # @show dump(relation) # the parsed Expr
 
 
-  #=
-  macro deriveMeasure_new(relation, unit="NoUnit")
-    # println("deriveMeasure_new($(string(relation)), $unit)")
-    # @show a = Meta.parse("KiloGram*Meter/Second^2 = FigNewton(1.2)")
-    # display(relation)
+    rhs = skipSymbolBlock(relation.args[2])
+    # @show dump(rhs)
+    # rhs will always have the same format (unless a symbol or variable is used for the argument)
+    rhsSymbol = rhs.args[1]
+    rhsFactor = rhs.args[2]
+    rhsAbstractName = Symbol("Abstract"*String(rhsSymbol)) #AbstractLength
+    rhsUnit = unit
 
-    isSimple = isa(relation, Expr)
-    isSimple = isSimple && isa(relation.args[1],Expr)
-    isSimple = isSimple && isa(relation.args[1].args[1], Symbol) # Gram
-    isSimple = isSimple && typeof(relation.args[1].args[2]) <: Number # 1.2
-    isSimple = isSimple && isa(relation.args[2],Expr) 
-    isSimple = isSimple && isa(relation.args[2].args[2].args[1], Symbol)  # MegaGram
-    isSimple = isSimple && typeof(relation.args[2].args[2].args[2]) <: Number # 1e-6
+    qts = [ quote # Make the new type
+        abstract type $rhsAbstractName <: AbstractMeasure end
+        export $rhsAbstractName #AbstractLength
 
-    #  :((KiloGram(1) * Meter(1)) / Second(1) ^ 2 = FigNewton(1)
-    isCompound = !isSimple && length(relation.args) == 2 
-    isCompound = isCompound && isa(relation.args[1],Expr) # &= doesn't do short-circuit evaluation
-    isCompound = isCompound && isa(relation.args[1].args[2].args[2].args[1],Symbol) 
-    # isCompound &= isa(relation.args[2],Expr) 
-    # isCompound &= isa(relation.args[2].args[2].args[1], Symbol) 
-
-    # isCompound = length(relation.args) == 2 && isa(relation.args[1],Expr) && isa(relation.args[1].args[2],Expr) && isa(relation.args[1].args[2].args[1], Symbol) 
-
-    if isSimple
-      # println("simple")
-      lhsType = relation.args[1].args[1]
-      lhsFactor = relation.args[1].args[2]
-      rhsType = relation.args[2].args[2].args[1]
-      rhsFactor = relation.args[2].args[2].args[2]
-
-      usym = Symbol(unit) # convert from string into symbol
-
-      if !( isdefined(__module__, lhsType) || isdefined(@__MODULE__, lhsType) ) # lhs must be defined in UnitTypes or caller
-        # throw(MethodError(@deriveMeasure, "Cannot derive $rhsType from undefined $lhsType in [$relation]")) #..this doesn't work..
-        throw(ArgumentError("Cannot derive $rhsType from undefined $lhsType in [$relation]"))
-        return
-      end
-
-      if !isdefined(__module__, rhsType) 
-        return esc(
-          quote
-              """
-                UnitType [`$($rhsType)`](@ref) is a compound unit created by [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
-              """
-              struct $rhsType <: supertype($lhsType)
-                value::Number
-                toBase::Number
-                unit::String
-                $rhsType(x::Number) = new(x, $lhsFactor/$rhsFactor, $unit)
-              end
-              export $rhsType
-              $rhsType(x::T where T<:supertype($lhsType)) = convert($rhsType, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-              Base.convert(::Type{$rhsType}, x::U) where {U<:supertype($lhsType)} = $rhsType(x.value*x.toBase/($lhsFactor/$rhsFactor)) # convert(MilliMeter, Meter())
-              Base.convert(::Type{$lhsType}, x::$rhsType) = $lhsType(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
-
-              # use the unit label as a funcional unit label: mm(1) => MilliMeter(1)
-              $usym(num::Number) = $rhsType(num)
-              # export $usym
-          end
-        )
-      else
-        @warn "$rhsType is already defined, cannot re-define"
-      end
-    elseif isCompound
-      println("derived compound")
-      rhsSymbol = relation.args[2].args[2].args[1] # FigNewton
-      rhsFactor = relation.args[2].args[2].args[2] # 1.2
-
-      abstractName = Symbol("Abstract"*String(rhsSymbol)) #AbstractLength
-      usym = Symbol(unit) # convert from string into symbol
-      
-      # constructing the unit function from the full type names
-      underFunctionString = replace(string(relation.args[1]), " "=>"", r"\(\d\)"=>"", "("=>"", ")"=>"", "/"=>"_per_", "*"=>"_", "^"=>"_power")  # args[1] = :((KiloGram * Meter) / Second ^ 2) => KiloGram_Meter_per_Second_power2
-      underFunctionSymbol = Symbol(underFunctionString)
-
-      # construct an alias with the unit abbreviations:
-      # this is inelegant: split the underFunctionString by _ and if the substring is <: abstractMeasure, instantiate to get the unit and add that to the unitFunctionString
-      unitFunctionString = underFunctionString
-      for subs in split(underFunctionString, "_")
-        println("got $subs")
-        # @show Symbol(subs)
-        # @show getfield(UnitTypesDev, Symbol(subs))
-        if isdefined(UnitTypesDev, Symbol(subs))
-          println("is defined, now replace")
-          inst = eval(Meta.parse(subs)) # get the type of str
-          # @show inst(1.5).unit
-          unitFunctionString = replace(unitFunctionString, subs=>inst(1).unit)
+        # """
+        #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
+        # """
+        struct $rhsSymbol <: $rhsAbstractName # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
+          value::Number
+          toBase::Number
+          unit::String
+          $rhsSymbol(x::Number) = new(x, 1/$rhsFactor, $unit)
         end
-      end
-      @show unitFunctionSymbol = Symbol(unitFunctionString)
+        export $rhsSymbol
 
-      if !isdefined(__module__, rhsSymbol)
-        return esc(
-          quote # Make the new type
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$rhsAbstractName, U<:$rhsAbstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+        Base.:*(x::T, y::U) where {T<:$rhsAbstractName, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
+        Base.:*(x::T, y::U) where {T<:Number, U<:$rhsAbstractName} = U(x*y.value) # enables @show fn = 4*FN(1.3)
+      end ]
+    println("rhs new unit has symbol[$rhsSymbol] factor[$rhsFactor] unit[$rhsUnit] and abstract[$rhsAbstractName]")
 
-            abstract type $abstractName <: AbstractMeasure end
-            export $abstractName #AbstractLength
+    # lhs has variable structure depending on the derivation
+    lhs = skipSymbolBlock(relation.args[1])
+    @show dump(lhs)
 
-            # """
-            #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
-            # """
-            struct $rhsSymbol <: $abstractName # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
-              value::Number
-              toBase::Number
-              unit::String
-              $rhsSymbol(x::Number) = new(x, 1/$rhsFactor, $unit)
-            end
-            export $rhsSymbol
+    @show op = lhs.args[1]
+    @show lhsSymbolA = lhs.args[2].args[1]
+    @show lhsFactorA = lhs.args[2].args[2]
+    @show lhsSymbolB = lhs.args[3].args[1]
+    @show lhsFactorB = lhs.args[3].args[2]
 
-            # make the compound conversion function:
-            $underFunctionSymbol(n::Number) = $rhsSymbol(n)  # KiloGram_Meter_per_Second_power2(n::Number) = FigNewton(n)
-            $unitFunctionSymbol(n::Number) = $underFunctionSymbol(n)
-
-            # also make the abbreviated unit conversion: FN(num)
-            $usym(num::Number) = $rhsSymbol(num)
-          end
-        )
-      else
-        @warn "$rhsSymbol is already defined, cannot re-define"
-      end
-    #   @show KiloGram_Meter_per_Second_power2(1.2) # testing
+    # if lhsSymbolA isdefined or is in unitAbbreviations...
+    # @show op, typeof(op), op == :*
+    if op == :*
+      push!(qts, quote 
+        Base.:*(x::$lhsSymbolA, y::$lhsSymbolB) = $rhsSymbol(x.value/$lhsFactorA * y.value/$lhsFactorB * $rhsFactor)
+        Base.:*(x::$lhsSymbolB, y::$lhsSymbolA) = $rhsSymbol(x.value/$lhsFactorA * y.value/$lhsFactorB * $rhsFactor)
+      end) 
     else
-      println("neither")
+      println("noop, $op")
+    end
+
+    # display(qts)
+    return esc( Expr(:block, qts...))
+
+    # @deriveExprs MilliMeterT(25.4) = InchT(1) "inT"
+    # @deriveExprs Meter(1)*Meter(1) = MeterSq(1) "msq"
+
+
+    if relation isa Expr
+      # defineExpr(relation)
+      # :(@defineExpr $(esc(relation)))
+      eexp = relation
+      println("defineExpr($(eexp.head) isa $(typeof(eexp.head))")
+      
+      if eexp.head == :(=)
+        println("yes is = ")
+
+        # the rhs must not be defined, define it here before creating the creating conversions on the lhs:
+        println("\ndefining rhs:")
+        rhs = skipSymbolBlock(eexp.args[2])
+        # println("defining $(rhs.args[1])")
+
+
+        @show dump(rhs)
+        rhsSymbol = rhs.args[1]
+        rhsFactor = rhs.args[2]
+        abstractName = Symbol("Abstract"*String(rhsSymbol)) #AbstractLength
+        unit = "justMade"
+
+        #now I can't just return with the rhs definition because in the same quote I also need to define any lhs additions
+        println("\nchecking lhs:")
+        # working on the lhs, I need to ensure that all Exprs within it exist and have */
+        lhs = skipSymbolBlock(eexp.args[1])
+        # @show dump(lhs)
+        # defineExpr(lhs)
+
+      elseif eexp.head == :call # if not = but a call, we're on the lhs and working on the unit's construction
+        # Expr
+        #   head: Symbol call
+        #   args: Array{Any}((3,))
+        #     1: Symbol *
+        #     2: Expr
+        #       head: Symbol call
+        #       args: Array{Any}((2,))
+        #         1: Symbol Meter
+        #         2: Int64 1
+        #     3: Expr
+        #       head: Symbol call
+        #       args: Array{Any}((2,))
+        #         1: Symbol Meter
+        #         2: Int64 1
+
+        @show isTerminalExprA = eexp.args[2].head == :call && eexp.args[2].args[1] isa Symbol && typeof(eexp.args[2].args[2])<:Number
+        @show isTerminalExprB = eexp.args[3].head == :call && eexp.args[3].args[1] isa Symbol && typeof(eexp.args[3].args[2])<:Number
+        @show isLeaf = eexp.args[1] == :(*) && isTerminalExprA && isTerminalExprB
+        if isLeaf
+          @show typea = __module__.eval(eexp.args[2].args[1]) # avoid eval?
+          @show typeb = __module__.eval(eexp.args[3].args[1])
+
+          # hasmethod(*, Tuple{Meter,Meter}) = true,
+          # hasmethod(*, Tuple{:Meter,:Meter}) = false,
+          hasMultiply = hasmethod(*, Tuple{typea, typeb})
+          hasDivide = hasmethod(/, Tuple{typea, typeb})
+          hasExponent = hasmethod(^, Tuple{typea, typeb})
+
+          if eexp.args[1] === :(*) && !hasMultiply
+            println("defining * for $typea, $typeb")
+
+          elseif eexp.args[1] === :(/) && !hasDivide
+            println("defining / for $typea, $typeb")
+
+          elseif eexp.args[1] === :(^) && !hasExponent
+            println("defining ^ for $typea, $typeb")
+
+          else
+            println("operation already defined for $typea, $typeb")
+          end
+          #the lhs is now defined 
+        else
+          println("else not leaf")
+        end
+      else
+        println("else not =")
+      end
+
+      else
+        println("Unhandled relation type: $(typeof(relation))")
+        display(dump(relation))
+      end
+  end
+
+  function skipSymbolBlock(eexp)
+    if eexp.head == :block
+      return eexp.args[2]
+    else
+      return eexp
     end
   end
 
-  macro w_str(unit::String)
-    isCompound = contains(unit, r"[*/^]")
-    isSimple = !isCompound
-    if isSimple
-      println("$unit isSimple")
-      usym = Symbol(unit) # convert string into a Symbol
-      return esc(:($usym(1))) # return unit(1) which is implicitly * with the leading number
-    end
-    if isCompound
-  # this is not used as UnitTypes already provides it
-      println("$unit isCompound")
-      @show underFunctionString = replace(string(unit), " "=>"", r"\(\d\)"=>"", "("=>"", ")"=>"", "/"=>"_per_", "*"=>"_", "^"=>"_power")  # args[1] = :((KiloGram * Meter) / Second ^ 2) => KiloGram_Meter_per_Second_power2
-      @show underFunctionSymbol = Symbol(underFunctionString)
-      return esc(:($underFunctionSymbol(1))) # return unit(1) which is implicitly * with the leading number
-    end
-    # else
-    #   unit = replace(unit, "*"=>"_", "/"=>"_per_", "^"=>"_power") # assumes functions like Kg_m_per_s_power2()::Newton exist, these are added by relateMeasures
-    # end
-  end
+  # @deriveExprs CentiMeter(1)*Meter(π) = MeterSq(1) "msq"
+  # @deriveExprs Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
 
-  @deriveMeasure_new KiloGram(1) = MegaGram(1e-3) "MG"
-  @deriveMeasure_new KiloGram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
-  @show names(UnitTypesDev, all=true) # checking that AbstractFigNewton is created
+  # @deriveExprs Meter(1)*Degree(1) = MeterSq(1) "msq"
+  # @show MeterSq(1.2)
+  # @show Meter(1)*Degree(2)
+  
+  @deriveExprs Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
+  @deriveExprs Meter(1)*Meter(1) = MeterSq(1) "msq"
+  @deriveExprs MeterSq(1)*Meter(1) = MeterTri(1) "mtr"
+  # @deriveExprs MeterTri(1)*Meter(1) = MeterQuad(1) "mqu"
+  # @show MeterQuad(1.2)
+  # @show MeterSq(1)*Meter(1)
+  # @show Meter(1)*MeterSq(1)
+  # @deriveExprs MeterSq(1)*MeterSq(1) = MeterQuad(1) "mqu"
 
-  Base.:*(x::T, y::U) where {T<:AbstractFigNewton, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
-  Base.:*(x::T, y::U) where {T<:Number, U<:AbstractFigNewton} = U(x*y.value) # enables @show fn = 4*FN(1.3)
-  function dev241112()
-    # @show fn = MegaGram(1.2) # testing
-    # @show KiloGram(MegaGram(1.2))
-    # @show MG(1.3)
-    # @show 1.4u"MG"
 
-    # @show fn = KiloGram_Meter_per_Second_power2(1.2) 
-    # @show fn = FN(1.3)*3
-    # @show fn = 4*FN(1.3)
-    # @show 1.5u"FN"
-    @show 1.5w"kg*m/s^2"
+
+  macro defineLHS( expr )
+    # since macros have one return and @deriveExprs() wants to define every missing expr on the lhs, call this from deriveExprs
+    
+    @show dump(expr)
 
   end
-  # dev241112()
-  =#
-
-  # abstract type expression is not at top level if these are made in a function
-  @makeBaseMeasure MassT KiloGramT "kgT"
-  @makeBaseMeasure LengthT MeterT "mT"
-  @makeBaseMeasure TimeT SecondT "sT"
-
-  @deriveMeasure_new KiloGramT(1)*MeterT(1)/SecondT(1)^2 = FigNewton(1) "FN"
-  function dev241125()
-    @show FigNewton(1.2)
-    # @show kg_m_per_s_power2(2.3) # not defined
-    @show KiloGramT_MeterT_per_SecondT_power2(1.3)
-    # @show kgT_mT_per_sT_power2(1.4) not defined
-    # so did it make anything? where is kgT_mT_per_sT_power2()?
-    # println(names(UnitTypesDev, all=true)) 
-    # println(names(UnitTypes, all=true))
-    # @show kgT_mT_per_sT_power2(1.4)
-    @show UnitTypes.Measure.unitAbbreviations 
-    @show 1.2u"kgT*mT/sT^2"
-    @show 1.6u"km" # this appears to work
-
-  end
-  # dev241125()
+  # @defineLHS Meter(1)*KiloGram(1.2)
+  # @defineLHS(Expr(*, Expr(:call,Meter,1), Expr(:call,KiloGram,1.2)) )
 
 
 end
