@@ -73,7 +73,7 @@ end
   @test isa(convert(MetT,MetT2(3.4)), MetT)
   @test isa(DimT(MetT2(3.4)), DimT)  # if it can convert from MetT2 to MetT, this should work since both are based on Meter
 
-  @makeMeasure Second(1) = MetT3(1) "mt2" #these should fail, showing that the <:AbstractLength is working
+  @makeMeasure Second(1) = MetT3(1) "mt3" #these should fail, showing that the <:AbstractLength is working
   @test_throws MethodError convert(MetT,MetT3(3.4))  
   @test_throws MethodError DimT(MetT3(3.4))
 

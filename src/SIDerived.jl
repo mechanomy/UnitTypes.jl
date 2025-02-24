@@ -1,7 +1,7 @@
 # following https://en.wikipedia.org/wiki/International_System_of_Units for names, definitions, and symbols
 
 # Length powers
-@makeMeasure Meter(1) = Femtometer(1e15) "fm"
+@makeMeasure Meter(1) = FemtoMeter(1e15) "fm"
 @makeMeasure Meter(1) = PicoMeter(1e12) "pm"
 @makeMeasure Meter(1) = NanoMeter(1e9) "nm"
 @makeMeasure Meter(1) = MicroMeter(1e6) "μm"
@@ -19,7 +19,6 @@ end
   @test MilliMeter(1)*Meter(3) / MilliMeter(1) ≈ Meter(3)
 end
 
-# @makeMeasure Meter(1)*Meter(1) = Meter2(1) "m^2"
 @makeBaseMeasure Area Meter2 "m^2"
 @relateMeasures Meter*Meter=Meter2
 
@@ -38,8 +37,10 @@ Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBas
 @makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
 # time
+@makeMeasure Second(1) = MilliSecond(1000) "ms"
 @makeMeasure Second(60) = Minute(1) "min"
 @makeMeasure Minute(60) = Hour(1) "hr"
+@makeMeasure Hour(24) = Day(1) "days"
 
 @makeBaseMeasure Frequency Hertz "Hz"
 @makeMeasure Hertz(1) = PerSecond(1) "s^-1"
@@ -56,20 +57,8 @@ Base.:/(x::T,y::U) where {T<:Number, U<:AbstractFrequency} = Second(x/toBaseFloa
   @test 1/Hertz(10) ≈ Second(0.1)
 end
 
-@makeBaseMeasure Velocity MeterPerSecond "m/s" #cumbersome...
+@makeBaseMeasure Velocity MeterPerSecond "m/s" 
 @relateMeasures Meter*PerSecond=MeterPerSecond
-# Base.:/(x::T,y::U) where {T<:AbstractLength, U<:AbstractTime} = Meter(x) * PerSecond(1/toBaseFloat(y)) 
-# Base.:/(x::T,y::U) where {T<:AbstractMeasure, U<:AbstractTime} = x * PerSecond(1/toBaseFloat(y)) 
-# @testitem "hand holding PerSecond" begin
-  # @test Meter(1) / Second(1) ≈ MeterPerSecond(1)
-  # @test MilliMeter(1) / Minute(1) ≈ MeterPerSecond(1/1000 / 60/1)
-  # @test Joule(1) / Second(1) ≈ Ampere(1)
-  # @test 1u"m" / 1u"s" ≈ 1u"m/s"
-  # @test m(1) / s(1) ≈ MeterPerSecond(1) # m not defined
-  # @test UnitTypes.Measure.m(1) / UnitTypes.Measure.s(1) ≈ MeterPerSecond(1) # m not defined
-# end
-
-
 
 @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
 @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2

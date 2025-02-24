@@ -269,7 +269,7 @@ module Measure
     @makeMeasure MeterT(0.0254) = InchT(1) "inT"
 
     @testset "simple relations" begin
-      # @test MeterT(1) + MilliMeterT(1000) ≈ MeterT(2)
+      @test MeterT(1) + MilliMeterT(1000) ≈ MeterT(2)
 
       @test MeterT(1.2) ≈ MilliMeterT(1200)
       @test MilliMeterT(1200) ≈ MeterT(1.2)

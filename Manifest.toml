@@ -144,9 +144,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.TestItemRunner]]
 deps = ["Pkg", "TOML", "Test", "TestItems", "UUIDs"]
-git-tree-sha1 = "29647c5398be04a1d697265ba385bdf3f623c993"
+git-tree-sha1 = "068c8f3e8d2f3b5948a85f11412f047cbab4e6c0"
 uuid = "f8b46487-2199-4994-9208-9a1283c18c0a"
-version = "1.0.5"
+version = "1.1.0"
 
 [[deps.TestItems]]
 git-tree-sha1 = "42fd9023fef18b9b78c8343a4e2f3813ffbcefcb"
