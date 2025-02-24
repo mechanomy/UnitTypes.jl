@@ -1,13 +1,13 @@
 # following https://en.wikipedia.org/wiki/International_System_of_Units for names, definitions, and symbols
 
 # Length powers
-@deriveMeasure Meter(1) = Femtometer(1e15) "fm"
-@deriveMeasure Meter(1) = PicoMeter(1e12) "pm"
-@deriveMeasure Meter(1) = NanoMeter(1e9) "nm"
-@deriveMeasure Meter(1) = MicroMeter(1e6) "μm"
-@deriveMeasure Meter(1) = MilliMeter(1e3) "mm"
-@deriveMeasure Meter(1) = CentiMeter(1e2) "cm"
-@deriveMeasure Meter(1) = KiloMeter(1e-3) "km"
+@makeMeasure Meter(1) = Femtometer(1e15) "fm"
+@makeMeasure Meter(1) = PicoMeter(1e12) "pm"
+@makeMeasure Meter(1) = NanoMeter(1e9) "nm"
+@makeMeasure Meter(1) = MicroMeter(1e6) "μm"
+@makeMeasure Meter(1) = MilliMeter(1e3) "mm"
+@makeMeasure Meter(1) = CentiMeter(1e2) "cm"
+@makeMeasure Meter(1) = KiloMeter(1e-3) "km"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -19,14 +19,14 @@ end
   @test MilliMeter(1)*Meter(3) / MilliMeter(1) ≈ Meter(3)
 end
 
-# @deriveMeasure Meter(1)*Meter(1) = Meter2(1) "m^2"
+# @makeMeasure Meter(1)*Meter(1) = Meter2(1) "m^2"
 @makeBaseMeasure Area Meter2 "m^2"
 @relateMeasures Meter*Meter=Meter2
 
 @makeBaseMeasure Volume Meter3 "m^3"
 @relateMeasures Meter2*Meter=Meter3
-@deriveMeasure Meter3(1) = Liter(1e3) "L"
-@deriveMeasure Liter(1) = MilliLiter(1e3) "mL"
+@makeMeasure Meter3(1) = Liter(1e3) "L"
+@makeMeasure Liter(1) = MilliLiter(1e3) "mL"
 
 @makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
 @makeBaseMeasure SpecificVolume M3PerKg "m^3/kg"
@@ -38,11 +38,11 @@ Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBas
 @makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
 # time
-@deriveMeasure Second(60) = Minute(1) "min"
-@deriveMeasure Minute(60) = Hour(1) "hr"
+@makeMeasure Second(60) = Minute(1) "min"
+@makeMeasure Minute(60) = Hour(1) "hr"
 
 @makeBaseMeasure Frequency Hertz "Hz"
-@deriveMeasure Hertz(1) = PerSecond(1) "s^-1"
+@makeMeasure Hertz(1) = PerSecond(1) "s^-1"
 
 # can relateMeasures be expanded to provide? @relateMeasures 1/Second = Hertz?
 Base.convert(::Type{Second}, x::T) where {T<:AbstractFrequency} = 1/x #Second(1/toBaseFloat(x))
@@ -75,41 +75,41 @@ end
 @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
 
 @makeBaseMeasure Force Newton "N"
-@deriveMeasure Newton(1e3) = KiloNewton(1) "kN"
-@deriveMeasure Newton(1) = MilliNewton(1e3) "mN"
+@makeMeasure Newton(1e3) = KiloNewton(1) "kN"
+@makeMeasure Newton(1) = MilliNewton(1e3) "mN"
 @relateMeasures KiloGram*MeterPerSecond2=Newton
 
 @makeBaseMeasure Torque NewtonMeter "N*m"
 @relateMeasures Newton*Meter=NewtonMeter
-@deriveMeasure NewtonMeter(1) = NewtonMilliMeter(1e3) "N*mm"
-@deriveMeasure NewtonMeter(1) = MilliNewtonMeter(1e3) "mN*m"
+@makeMeasure NewtonMeter(1) = NewtonMilliMeter(1e3) "N*mm"
+@makeMeasure NewtonMeter(1) = MilliNewtonMeter(1e3) "mN*m"
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @relateMeasures Newton*Meter2=Pascal
-@deriveMeasure Pascal(1e3) = KiloPascal(1e3) "KPa"
-@deriveMeasure Pascal(1e6) = MegaPascal(1e3) "MPa"
-@deriveMeasure Pascal(1e9) = GigaPascal(1e3) "GPa"
+@makeMeasure Pascal(1e3) = KiloPascal(1e3) "KPa"
+@makeMeasure Pascal(1e6) = MegaPascal(1e3) "MPa"
+@makeMeasure Pascal(1e9) = GigaPascal(1e3) "GPa"
 
 @makeBaseMeasure Charge Coulomb "C"
 @relateMeasures Second*Ampere=Coulomb
 
 @makeBaseMeasure ElectricPotential Volt "V"
-@deriveMeasure Volt(1000) = KiloVolt(1) "KV"
+@makeMeasure Volt(1000) = KiloVolt(1) "KV"
 
 @makeBaseMeasure Resistance Ohm "Ω"
-@deriveMeasure Ohm(1) = MilliOhm(1000) "Ω"
-@deriveMeasure Ohm(1000) = KiloOhm(1) "kΩ"
-@deriveMeasure Ohm(1e6) = MegaOhm(1) "MΩ"
+@makeMeasure Ohm(1) = MilliOhm(1000) "Ω"
+@makeMeasure Ohm(1000) = KiloOhm(1) "kΩ"
+@makeMeasure Ohm(1e6) = MegaOhm(1) "MΩ"
 
 @makeBaseMeasure Power Watt "W"
 @relateMeasures Ampere*Volt=Watt
 @relateMeasures Ampere*Ohm=Volt
 
 @makeBaseMeasure Capacitance Farad "F" 
-@deriveMeasure Farad(1) = MilliFarad(1e3) "mF"
-@deriveMeasure Farad(1) = MicroFarad(1e6) "μF"
-@deriveMeasure Farad(1) = NanoFarad(1e9) "nF"
-@deriveMeasure Farad(1) = PicoFarad(1e12) "pF"
+@makeMeasure Farad(1) = MilliFarad(1e3) "mF"
+@makeMeasure Farad(1) = MicroFarad(1e6) "μF"
+@makeMeasure Farad(1) = NanoFarad(1e9) "nF"
+@makeMeasure Farad(1) = PicoFarad(1e12) "pF"
 
 @makeBaseMeasure Conductance Siemens "Ω^-1"
 Base.convert(::Type{U}, x::T) where {U<:AbstractResistance, T<:AbstractConductance} = Ohm(1/toBaseFloat(x))
@@ -120,7 +120,7 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistan
 @makeBaseMeasure MagneticFluxDensity Tesla "T"
 
 @makeBaseMeasure Inductance Henry "H"
-@deriveMeasure Henry(1) = MilliHenry(1e3) "mH"
+@makeMeasure Henry(1) = MilliHenry(1e3) "mH"
 
 @makeBaseMeasure LuminousFlux Lumen "lm"
 @makeBaseMeasure Illuminance Lux "lx"

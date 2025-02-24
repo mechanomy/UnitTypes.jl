@@ -1,71 +1,9 @@
 module UnitTypesDev
   using UnitTypes
 
-  struct DefinedUnit # this is not very different from the actual macro definition, only that this doesn't need to be instantiated to be accessed..?
-    name::String
-    abbreviation::String
-    unit::Type
-  end
-  definedUnits = [DefinedUnit("Meter","m",Meter), DefinedUnit("Second","s", Second)]#,  DefinedUnit("Gram","g",Gram) ]
-
-  function isDefined(unit::Symbol)
-    # @show definedUnits
-    for du in definedUnits
-      if Symbol(du.name) == unit
-        return true
-      # else
-      #   println("$unit is un")
-      end
-    end
-    return false
-  end
-
-  macro deriveDFS(relation, unit="NoUnit")
-    println("\n")
-    # display(dump(relation))
-
-    function recursiveIsdef(mod, rel, ndef, nund) # walk through an Expr, counting defined & undefineds to determine isCompound
-      println("")
-      if rel isa Symbol && Base.isidentifier(rel)
-        # if isdefined(mod, rel) # this is true for π, when what I really want isdefined as a UnitTypes 
-        # if  <: AbstractMeasure , how to make the symbol into a type name? https://discourse.julialang.org/t/parse-string-to-datatype/7118/7 recommends a name->type table to bypass eval(parse), and this would allow me to skip the eval() in Measure.jl where I get the units.  I already have this in unitAbbreviations?
-        # if rel in names(mod)
-        @show rel
-        if isDefined(rel)
-          ndef+=1
-          println("$rel is defined Symbol, ndef $ndef")
-        else
-          nund+=1
-          println("$rel is undefined Symbol, nund $nund")
-        end
-        return (ndef, nund)
-      elseif rel isa Expr
-        for arg in rel.args
-          a = recursiveIsdef(mod, arg, ndef, nund)
-          ndef += a[1]
-          nund += a[2]
-          # println("recursive return, ndef $ndef, nund $nund")
-        end
-        return (ndef, nund)
-      else
-        println("else $rel is " * string(typeof(rel)))
-        return (0,0)
-      end
-    end
-
-    if relation.head == Symbol("=")
-      @show lhs = recursiveIsdef(__module__, relation.args[1],0,0)
-      @show rhs = recursiveIsdef(__module__, relation.args[2],0,0)
-    end
-  end
-  # @deriveDFS Meter(1)*Meter(π) = MeterSq(1) "msq"
-  # @deriveDFS Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
-  # @deriveDFS Meter(mPerIn*inPerFt) = Foot(1) "ft"
-
-  macro deriveExprs(relation, unit="NoUnit")
+  macro relateMeasures(relation, unit="NoUnit")
     println("\n")
     # @show dump(relation) # the parsed Expr
-
 
     rhs = skipSymbolBlock(relation.args[2])
     # @show dump(rhs)
@@ -93,35 +31,76 @@ module UnitTypesDev
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$rhsAbstractName, U<:$rhsAbstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
         Base.:*(x::T, y::U) where {T<:$rhsAbstractName, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
         Base.:*(x::T, y::U) where {T<:Number, U<:$rhsAbstractName} = U(x*y.value) # enables @show fn = 4*FN(1.3)
+
       end ]
     println("rhs new unit has symbol[$rhsSymbol] factor[$rhsFactor] unit[$rhsUnit] and abstract[$rhsAbstractName]")
 
     # lhs has variable structure depending on the derivation
     lhs = skipSymbolBlock(relation.args[1])
-    @show dump(lhs)
 
-    @show op = lhs.args[1]
-    @show lhsSymbolA = lhs.args[2].args[1]
-    @show lhsFactorA = lhs.args[2].args[2]
-    @show lhsSymbolB = lhs.args[3].args[1]
-    @show lhsFactorB = lhs.args[3].args[2]
+    if length(lhs.args) == 2 # Meter(10) => [Symbol Meter][Int64 10]
+      # @show dump(lhs) #:
+      # Expr
+      #   head: Symbol call
+      #   args: Array{Any}((2,))
+      #     1: Symbol Meter
+      #     2: Int64 10
 
-    # if lhsSymbolA isdefined or is in unitAbbreviations...
-    # @show op, typeof(op), op == :*
-    if op == :*
+      lhsSymbol = lhs.args[1]
+      lhsFactor = lhs.args[2]
+
       push!(qts, quote 
-        Base.:*(x::$lhsSymbolA, y::$lhsSymbolB) = $rhsSymbol(x.value/$lhsFactorA * y.value/$lhsFactorB * $rhsFactor)
-        Base.:*(x::$lhsSymbolB, y::$lhsSymbolA) = $rhsSymbol(x.value/$lhsFactorA * y.value/$lhsFactorB * $rhsFactor)
-      end) 
-    else
-      println("noop, $op")
+        Base.convert(::Type{$rhsSymbol}, x::U) where {U<:supertype($lhsSymbol)} = $rhsSymbol(x.value*x.toBase/($lhsFactor/$rhsFactor)) # convert(MilliMeter, Meter())
+        Base.convert(::Type{$lhsSymbol}, x::$rhsSymbol) = $lhsSymbol(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
+      end)
+
+      return esc(Expr(:block, qts...))
     end
 
-    # display(qts)
-    return esc( Expr(:block, qts...))
+    if length(lhs.args) == 3 # CentiMeter(1)*KiloNewton(1) => [Symbol *][Expr ..][Expr ..]
+      # @show dump(lhs) #:
+      # Expr
+      #   head: Symbol call
+      #   args: Array{Any}((3,))
+      #     1: Symbol *
+      #     2: Expr
+      #       head: Symbol call
+      #       args: Array{Any}((2,))
+      #         1: Symbol KiloNewton
+      #         2: Int64 1
+      #     3: Expr
+      #       head: Symbol call
+      #       args: Array{Any}((2,))
+      #         1: Symbol CentiMeter
+      #         2: Int64 1
+      @show op = lhs.args[1]
+      @show lhsSymbolA = lhs.args[2].args[1]
+      @show lhsFactorA = lhs.args[2].args[2]
+      @show lhsSymbolB = lhs.args[3].args[1]
+      @show lhsFactorB = lhs.args[3].args[2]
 
-    # @deriveExprs MilliMeterT(25.4) = InchT(1) "inT"
-    # @deriveExprs Meter(1)*Meter(1) = MeterSq(1) "msq"
+      # if lhsSymbolA isdefined or is in unitAbbreviations...
+      # @show op, typeof(op), op == :*
+      if op == :*
+        push!(qts, quote 
+          Base.:*(a::$lhsSymbolA, b::$lhsSymbolB) = $rhsSymbol(a.value*a.toBase * b.value*b.toBase) # 2kN * 3cm = 2*1000 * 3*0.01 = 60 Nm
+          Base.:*(b::$lhsSymbolB, a::$lhsSymbolA) = a * b
+        end) 
+      # elseif op == :/
+      #   push!(qts, quote 
+      #     Base.:/(a::$lhsSymbolA, b::$lhsSymbolB) = $rhsSymbol(a.value/$lhsFactorA / b.value/$lhsFactorB * $rhsFactor)
+      #     Base.:/(b::$lhsSymbolB, a::$lhsSymbolA) = $rhsSymbol(b.value/$lhsFactorB / a.value/$lhsFactorB * $rhsFactor)
+      #   end) 
+      else
+        println("noop, $op")
+      end
+
+      # display(qts)
+      return esc( Expr(:block, qts...))
+    end
+
+    # @relateMeasures MilliMeterT(25.4) = InchT(1) "inT"
+    # @relateMeasures Meter(1)*Meter(1) = MeterSq(1) "msq"
 
 
     if relation isa Expr
@@ -215,32 +194,34 @@ module UnitTypesDev
     end
   end
 
-  # @deriveExprs CentiMeter(1)*Meter(π) = MeterSq(1) "msq"
-  # @deriveExprs Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
+  @relateMeasures KiloNewton(1)*CentiMeter(1) = FigNewtonMeter(10) "fNm"
+  @show KiloNewton(1)*CentiMeter(1) ≈ FigNewtonMeter(10)
+  @show CentiMeter(1)*KiloNewton(1) ≈ FigNewtonMeter(10)
 
-  # @deriveExprs Meter(1)*Degree(1) = MeterSq(1) "msq"
+  @relateMeasures Meter(10) = DeciMeter(1) "dm" # decimeter is new
+  # @show DeciMeter(3) + Meter(1)
+
+  # @relateMeasures CentiMeter(1)*Meter(π) = MeterSq(1) "msq"
+  # @relateMeasures Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
+
+  # @relateMeasures Meter(1)*Degree(1) = MeterSq(1) "msq"
   # @show MeterSq(1.2)
   # @show Meter(1)*Degree(2)
   
-  @deriveExprs Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
-  @deriveExprs Meter(1)*Meter(1) = MeterSq(1) "msq"
-  @deriveExprs MeterSq(1)*Meter(1) = MeterTri(1) "mtr"
-  # @deriveExprs MeterTri(1)*Meter(1) = MeterQuad(1) "mqu"
+  # not implemented @relateMeasures Gram(1)*Meter(1)/Second(1)^2 = FigNewton(1) "FN"
+
+
+  # @relateMeasures KiloNewton(2)*CentiMeter(3) = FigNewtonMeter(2000*(3/100)) "fNm" I'd like this to work...
+  # @relateMeasures Meter(1)*Meter(1) = MeterSq(1) "msq"
+  # @relateMeasures MeterSq(1)*Meter(1) = MeterTri(1) "mtr"
+  # @relateMeasures MeterSq(1)/Second(1) = MeterSqPerSec(1) "msq/s"
+  
+  # @relateMeasures MeterTri(1)*Meter(1) = MeterQuad(1) "mqu"
   # @show MeterQuad(1.2)
   # @show MeterSq(1)*Meter(1)
   # @show Meter(1)*MeterSq(1)
-  # @deriveExprs MeterSq(1)*MeterSq(1) = MeterQuad(1) "mqu"
+  # @relateMeasures MeterSq(1)*MeterSq(1) = MeterQuad(1) "mqu"
 
-
-
-  macro defineLHS( expr )
-    # since macros have one return and @deriveExprs() wants to define every missing expr on the lhs, call this from deriveExprs
-    
-    @show dump(expr)
-
-  end
-  # @defineLHS Meter(1)*KiloGram(1.2)
-  # @defineLHS(Expr(*, Expr(:call,Meter,1), Expr(:call,KiloGram,1.2)) )
 
 
 end

@@ -1,25 +1,23 @@
 @makeBaseMeasure Angle Radian "rad"
-@deriveMeasure Radian(π) = Degree(180) "°"
+@makeMeasure Radian(π) = Degree(180) "°"
 
 @testitem "Angle Radian Degree definitions" begin
-  @test Radian(π) ≈ Radian(π)
-  @test Degree(180) ≈ Degree(180.0)
   @test Radian(π) ≈ Degree(180)
-
   @test Radian(Degree(180)) ≈ Radian(π)
   @test Degree(Radian(π)) ≈ Degree(180)
 
-  @test Radian(1) + Radian(2) ≈ Radian(3)
   @test Degree(1) + Degree(2) ≈ Degree(3)
+  @test Degree(3) - Degree(1) ≈ Degree(2)
+
   @test Radian(1)*2 ≈ Radian(2)
   @test Degree(1)*2 ≈ Degree(2)
   @test -Degree(45) ≈ Degree(-45)
 end
 
-Base.promote_rule(::Type{Radian}, ::Type{Degree}) = Radian #promote to Radian in general
-@testitem "Angle promotion" begin
-  @test promote_type(Radian, Degree) == Radian # what's the use case that I should be testing?
-end
+# Base.promote_rule(::Type{Radian}, ::Type{Degree}) = Radian #promote to Radian in general
+# @testitem "Angle promotion" begin
+#   @test promote_type(Radian, Degree) == Radian # what's the use case that I should be testing?
+# end
 
 Base.sin(x::Radian) = sin(x.value)
 Base.sin(x::Degree) = sin(convert(Radian, x))

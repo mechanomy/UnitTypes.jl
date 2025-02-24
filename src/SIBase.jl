@@ -7,4 +7,4 @@
 
 # errata:
 @makeBaseMeasure Percentage Percent "%" # not a physical unit...
-@deriveMeasure Percent(1) = BasisPoints(100) "bps"
+@makeMeasure Percent(1) = BasisPoints(100) "bps"

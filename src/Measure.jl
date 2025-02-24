@@ -2,7 +2,7 @@ module Measure
   using DocStringExtensions
   using TestItems 
 
-  export AbstractMeasure, @makeBaseMeasure, @deriveMeasure, @relateMeasures, toBaseFloat, @u_str
+  export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, @u_str
   abstract type AbstractMeasure end
 
 
@@ -11,7 +11,7 @@ module Measure
   """
     `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)`
 
-    Make a new base measure which has no multiplicative relationship to an existing unit.
+    Make a new base measure which has no relationship to an existing unit.
     For example, in `@makeBaseMeasure Length Meter "m"`:
     * `quantityName` is the name of the measure, 'Length' above.
     * `unitName` is the name of the unit which will be used to make measures bearing that unit, 'Meter' above.
@@ -42,16 +42,14 @@ module Measure
           This UnitType represents a basic measure of $($unitName) with units $($unitSymbol).
         """
         struct $unitName <: $abstractName
-          value::Number
-          toBase::Number
-          unit::String
-          $unitName(x::Number) = new(x,1.0,$unitSymbol)
+          value::Number # the value on creation as measured in the unit
+          toBase::Number # the conversion factor to the base unit, s.t. value * toBase = value in base unit
+          unit::String # string represenation of the unit
+          $unitName(x::Number) = new(x,1.0,$unitSymbol) # 1.0 b/c this is @makeBaseMeasure
         end
         $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
         export $unitName
-        Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase/1.0) # supply the convert
-
-
+        Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
 
         # these only need to be defined on the base measure as derived <:
         # I am putting them in here with $abstractName instead of <:AbstractMeasure in order to get error messages that say + is not defined on <:AbstractLength, etc., rather than the less direct convert() is not defined on <:AbstractLength and <:AbstractDuration
@@ -72,7 +70,7 @@ module Measure
 
         # math
         Base.:+(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
-        Base.:-(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T( x.value-convert(T,y).value)
+        Base.:-(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value-convert(T,y).value)
         # Base.:*(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # commented to prevent redefinition warning # = throw(MethodError("Cannot $x * $y, * is not defined yet, define with @relateMeasures"))
         # Base.:/(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # if appropriate, provided by @relateMeasures # = T( x.value/convert(T,y).value)
         # Base.:/(x::T, y::U) where {T<:$abstractName, u<:$abstractName} = toBaseFloat(x)/toBaseFloat(y) # any danger to returning float here?
@@ -88,8 +86,10 @@ module Measure
       end
     )
   end
+
   @testitem "@makeBaseMeasure" begin
-    @makeBaseMeasure MeterTest MeterT "mT" 
+    @makeBaseMeasure MeterTest MeterT "metT" 
+    @makeMeasure MeterT(1) = MilliMeterT(1000) "miliT" # u_str needs symbol uniqueness! when this was "mmT", it seemed to conflict with the @makeMeasure test definition of "mmT" and this conflict showed up as LoadError: UndefVarError: `MiliT` not defined in `Main.var"##233"`
 
     @testset "did the macro create the definitions we expect" begin
       @test isdefined(@__MODULE__, :AbstractMeterTest)
@@ -142,6 +142,8 @@ module Measure
     @testset "math" begin
       @test isapprox(MeterT(1.2)+MeterT(0.1), MeterT(1.3), rtol=1e-3)
       @test isapprox(MeterT(1.2)-MeterT(0.1), MeterT(1.1), rtol=1e-3)
+      @test MeterT(1) + MilliMeterT(1000) ≈ MeterT(2)
+      @test MeterT(2) - MilliMeterT(1000) ≈ MeterT(1)
     end
 
     @testset "*/Number" begin
@@ -152,7 +154,7 @@ module Measure
     end
 
     @testset "unit constructor" begin
-      @test 1.2u"mT" ≈ MeterT(1.2)
+      @test 1.2u"metT" ≈ MeterT(1.2)
     end
   end
 
@@ -163,189 +165,142 @@ module Measure
   end
 
   """
-    `macro deriveMeasure(relation, unit="NoUnit")`
+    `macro makeMeasure(relation, unit="NoUnit")`
     $TYPEDSIGNATURES
 
-    Derives a new Measure from an existing base measure.
+    Creates a new Measure from an existing base measure.
     The left hand side of the equation must already exist, while the right hand side should be undefined, with the trailing string providing the unit symbol.
 
     ```julia
-    @deriveMeasure Meter(1) = MilliMeter(1000) "mm" 
-    @deriveMeasure KiloGram(1)*Meter(1)/Second(1)^2 = Newton(1) "N"
+    @makeMeasure Meter(1) = MilliMeter(1000) "mm" 
     ```
 
     The resulting types are defined in the containing module, not in UnitTypes, as seen by `println(names(MyModule, all=true))`.
   """
-  macro deriveMeasure(relation, unit="NoUnit")
-    # println("deriveMeasure($(string(relation)), $unit)")
+  macro makeMeasure(relation, unit="NoUnit")
+    # println("makeMeasure($(string(relation)), $unit)")
     # display(dump(relation))
+    
+    # Make the new type
+    rhs = skipSymbolBlock(relation.args[2])
+    # @show dump(rhs)
 
-  #   # &= doesn't do short-circuit evaluation, need &&
-  #   isSimple = isa(relation, Expr)
-  #   isSimple = isSimple && isa(relation.args[1],Expr)
-  #   isSimple = isSimple && isa(relation.args[1].args[1], Symbol) # Gram
-  #   isSimple = isSimple && string(relation.args[1].args[1]) != "/" # but / is also a Symbol!
-  #   isSimple = isSimple && string(relation.args[1].args[1]) != "*" 
-  #   isSimple = isSimple && string(relation.args[1].args[1]) != "+" 
-  #   isSimple = isSimple && string(relation.args[1].args[1]) != "-" 
+    # rhs will always have the same format (unless a symbol or variable is used for the argument)
+    rhsSymbol = rhs.args[1]
+    rhsFactor = rhs.args[2]
+    rhsUnit = unit
 
-  #   isSimple = isSimple && isa(relation.args[2],Expr) 
-  #   isSimple = isSimple && isa(relation.args[2].args[2].args[1], Symbol)  # MegaGram
-  #   # isSimple = isSimple && typeof(relation.args[2].args[2].args[2]) <: Number # 1e-6
-  # # @show isSimple
-
-  #   # A compound relation looks like
-  #   #  :((KiloGram(1) * Meter(1)) / Second(1) ^ 2 = FigNewton(1)
-  #   isCompound = !isSimple && length(relation.args) == 2 
-  #   isCompound = isCompound && isa(relation.args[1],Expr) 
-  #   isCompound = isCompound && isa(relation.args[1].args[2].args[2].args[1],Symbol) # rhs should always be a symbol
-  #   # isCompound &= isa(relation.args[2],Expr) 
-  #   # isCompound &= isa(relation.args[2].args[2].args[1], Symbol) 
-  #   # isCompound = length(relation.args) == 2 && isa(relation.args[1],Expr) && isa(relation.args[1].args[2],Expr) && isa(relation.args[1].args[2].args[1], Symbol) 
-
-    isdef = 0
-    isun = 0
-    for em in eachmatch(r"(?<name>[A-Za-z0-9]*)\(.*\)", string(relation))
-      if isdefined(__module__, Symbol(em["name"]) )
-        isdef += 1
-      else
-        isun += 1
-      end
-      # @show em["name"] isdef isun
+    if isdefined(__module__, rhsSymbol) 
+      @warn "$rhsSymbol is already defined, cannot re-define"
+      return
     end
-    isSimple = isdef == 1 && isun == 1
-    isCompound = isdef > 1 && isun == 1
 
-    if isSimple
-      lhsType = relation.args[1].args[1]
-      lhsFactor = relation.args[1].args[2]
-      rhsType = relation.args[2].args[2].args[1]
-      rhsFactor = relation.args[2].args[2].args[2]
+    for abb in unitAbbreviations
+      if abb[1] == unit && abb[1] != "NoUnit"
+        if relation.args[2].args[1] isa LineNumberNode
+          @warn "$unit is already used by $(abb[2]), suggest choosing a unique unit at $(relation.args[2].args[1].file):$(relation.args[2].args[1].line)"
+        else
+          @warn "$unit is already used by $(abb[2]), suggest choosing a unique unit"
+        end
+      end
+    end
 
-      global unitAbbreviations = push!(unitAbbreviations, (unit, rhsType))  # ("m", :Meter)
+    # lhs has variable structure depending on variable/symbol usage:
+    lhs = skipSymbolBlock(relation.args[1])
 
-      if !( isdefined(__module__, lhsType) || isdefined(@__MODULE__, lhsType) ) # lhs must be defined in UnitTypes or caller
-        # throw(MethodError(@deriveMeasure, "Cannot derive $rhsType from undefined $lhsType in [$relation]")) #..this doesn't work..
-        throw(ArgumentError("Cannot derive $rhsType from undefined $lhsType in [$relation]"))
+    if length(lhs.args) == 2 # Meter(10) => [Symbol Meter][Int64 10]
+      # @show dump(lhs) #:
+      # Expr
+      #   head: Symbol call
+      #   args: Array{Any}((2,))
+      #     1: Symbol Meter
+      #     2: Int64 10
+
+      lhsSymbol = lhs.args[1]
+      lhsFactor = lhs.args[2]
+
+      if !( isdefined(__module__, lhsSymbol) || isdefined(@__MODULE__, lhsSymbol) ) # lhs must be defined in UnitTypes or caller
+        throw(ArgumentError("Cannot derive $rhsSymbol from undefined $lhsSymbol in [$relation]"))
         return
       end
 
-      if !isdefined(__module__, rhsType) 
-        return esc(
-          quote
-              """
-                UnitType [`$($rhsType)`](@ref) is a compound unit created by [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
-              """
-              struct $rhsType <: supertype($lhsType)
-                value::Number
-                toBase::Number
-                unit::String
-                $rhsType(x::Number) = new(x, $lhsFactor/$rhsFactor, $unit)
-              end
-              export $rhsType
-              $rhsType(x::T where T<:supertype($lhsType)) = convert($rhsType, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-              Base.convert(::Type{$rhsType}, x::U) where {U<:supertype($lhsType)} = $rhsType(x.value*x.toBase/($lhsFactor/$rhsFactor)) # convert(MilliMeter, Meter())
-              Base.convert(::Type{$lhsType}, x::$rhsType) = $lhsType(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
-          end
-        )
-      else
-        @warn "$rhsType is already defined, cannot re-define"
-      end
-    elseif isCompound
-      rhsSymbol = relation.args[2].args[2].args[1] # FigNewton
-      rhsFactor = relation.args[2].args[2].args[2] # 1.2
+      global unitAbbreviations = push!(unitAbbreviations, (rhsUnit, rhsSymbol))  # ("m", :Meter) append to list
 
-      abstractName = Symbol("Abstract"*String(rhsSymbol)) #AbstractLength
-      
-      # constructing the unit function from the full type names
-      underFunctionString = replace(string(relation.args[1]), " "=>"", r"\(\d\)"=>"", "("=>"", ")"=>"", "/"=>"_per_", "*"=>"_", "^"=>"_power")  # args[1] = :((KiloGram * Meter) / Second ^ 2) => KiloGram_Meter_per_Second_power2
-      underFunctionSymbol = Symbol(underFunctionString)
+      # Make the new type
+      qts = [ quote 
+        # abstract type $rhsAbstractName <: AbstractMeasure end # this is wrong, needs to be supertype(lhs) if simple
+        # export $rhsAbstractName #AbstractLength
+        lhsAbstract = supertype($lhsSymbol)
 
-      ufs = replace(string(relation.args[1]), " "=>"", r"\(\d\)"=>"", "("=>"", ")"=>"")
-      for subs in split(underFunctionString, "_")
-        # if isdefined(parentmodule(@__MODULE__), Symbol(subs)) || isdefined(@__MODULE__, Symbol(subs)) #|| isdefined(__module__, Symbol(subs)) 
-        if isdefined(__module__, Symbol(subs))
-          # println("$subs is defined")
-          inst = __module__.eval(Meta.parse(subs)) # get the type of str, within the enclosing module #cf https://discourse.julialang.org/t/metaprogramming-obtain-actual-type-from-symbol-for-field-inheritance/84912/3?u=bcon
-          ufs = replace(ufs, subs=>inst(1).unit)
-        # else
-        #   println("$subs is not defined")
+        # """
+        #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
+        # """
+        struct $rhsSymbol <: lhsAbstract # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
+          value::Number
+          toBase::Number
+          unit::String
+          $rhsSymbol(x::Number) = new(x, $lhsFactor/$rhsFactor, $rhsUnit)
         end
-      end # ufs is correct, but since this is in the quote how can I get it interpolated into a function name?
-      global unitAbbreviations = push!(unitAbbreviations, (ufs, rhsSymbol))  # "m"
-      global unitAbbreviations = push!(unitAbbreviations, (unit, rhsSymbol))  # "m"
+        export $rhsSymbol
 
-      if !isdefined(__module__, rhsSymbol)
-        return esc(
-          quote # Make the new type
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+        Base.:*(x::T, y::U) where {T<:lhsAbstract, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
+        Base.:*(x::T, y::U) where {T<:Number, U<:lhsAbstract} = U(x*y.value) # enables @show fn = 4*FN(1.3)
 
-            abstract type $abstractName <: AbstractMeasure end
-            export $abstractName #AbstractLength
+        # println("rhs new unit has symbol[$rhsSymbol] factor[$rhsFactor] unit[$rhsUnit] and abstract[$rhsAbstractName]")
 
-            # """
-            #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
-            # """
-            struct $rhsSymbol <: $abstractName # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
-              value::Number
-              toBase::Number
-              unit::String
-              $rhsSymbol(x::Number) = new(x, 1/$rhsFactor, $unit)
-            end
-            export $rhsSymbol
+        $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+        Base.convert(::Type{$rhsSymbol}, x::U) where {U<:lhsAbstract} = $rhsSymbol(x.value*x.toBase * $rhsFactor/$lhsFactor) # convert(MilliMeter, 1in) = 1in*.0254m/in * 1000mm/1m
+        Base.convert(::Type{$lhsSymbol}, x::$rhsSymbol) = $lhsSymbol(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
+        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+      end ]
 
-            # make the compound conversion function:
-            $underFunctionSymbol(n::Number) = $rhsSymbol(n)  # KiloGram_Meter_per_Second_power2(n::Number) = FigNewton(n)
-
-            # isapprox between AbstractFigNewtons
-            Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
-
-            Base.:*(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
-            Base.:*(x::T, y::U) where {T<:Number, U<:$abstractName} = U(x*y.value) # enables @show fn = 4*FN(1.3)
-          end
-        )
-      else
-        @warn "$rhsSymbol is already defined, cannot re-define"
-      end
+      # display(qts)
+      return esc( Expr(:block, qts...))
     else
-      @warn "$relation is neither simple or compound"
+      throw(ArgumentError("Left hand side has unexpected format, cannot alias $rhsSymbol, try simplifying."))
     end
   end
-  @testitem "deriveMeasure" begin
+
+  @testitem "makeMeasure" begin
     @makeBaseMeasure LengthT MeterT "mT"
+    @makeMeasure MeterT(1) = MilliMeterT(1000) "mmT"
+    @makeMeasure MeterT(1) = MilliMeterT2(1000)
+    @makeMeasure MeterT(0.0254) = InchT(1) "inT"
 
-    # simple relations
-    @deriveMeasure MeterT(1) = MillimeterT(1000) "mmT"
-    @test MillimeterT(MeterT(1.2)) ≈ MillimeterT(1200)
-    @test MeterT(MillimeterT(1200)) ≈ MeterT(1.200)
-    @test typeof(1.4u"mmT") <: AbstractLengthT
+    @testset "simple relations" begin
+      # @test MeterT(1) + MilliMeterT(1000) ≈ MeterT(2)
 
-    @deriveMeasure MeterT(1) = MillimeterT2(1000)
-    @test MillimeterT2(1.2).unit == "NoUnit"
+      @test MeterT(1.2) ≈ MilliMeterT(1200)
+      @test MilliMeterT(1200) ≈ MeterT(1.2)
+      @test typeof(1.4u"mmT") <: AbstractLengthT
 
-    @deriveMeasure MeterT(π) = DegreeT(1) "dt"
-    @test typeof(DegreeT(1)) <: AbstractLengthT
+      @test MilliMeterT2(1.2).unit == "NoUnit"
+    end
 
-    # re macroexpand() see https://github.com/JuliaLang/julia/issues/56733
-    @test_warn "MillimeterT is already defined, cannot re-define" macroexpand(@__MODULE__, :( @deriveMeasure MeterT(1) = MillimeterT(5000) "mmT"  ))
-    @test_throws ArgumentError macroexpand(@__MODULE__, :( @deriveMeasure MeterT2(1) = MillimeterT(5000) "mmT") )
+    @testset "convert" begin
+      @test convert(MeterT, MilliMeterT(1000)) ≈ MeterT(1)
+      @test convert(MilliMeterT, MeterT(1)) ≈ MilliMeterT(1000)
+      @test MilliMeterT(MeterT(1.2)) ≈ MilliMeterT(1200)
+      @test MeterT(MilliMeterT(1200)) ≈ MeterT(1.200)
+      @test convert(MeterT, InchT(10)) ≈ MeterT(0.254)
+    end
 
-    # compound relation
-    # @testset "compound relation" begin # if I surround these with this begin/end, kgT, mT, sT aren't added to Main.var##236##, so it's like @__MODULE__ can't see out of the testset s.t. isdefined(kgT) = false above. feels like a bug
-    @makeBaseMeasure MassT KiloGramT "kgT"
-    @makeBaseMeasure TimeT SecondT "sT"
-    @deriveMeasure KiloGramT(1)*MeterT(1)/SecondT(1)^2 = FigNewton(1) "FN"
-    # display(UnitTypes.Measure.unitAbbreviations)
-    @test KiloGramT_MeterT_per_SecondT_power2(1.2) ≈ FigNewton(1.2)
-    @test isapprox(FigNewton(1.3)*3, FigNewton(3.9), atol=1e-3)
-    @test 4*FigNewton(1.3) ≈ FigNewton(5.2)
-    @test 1.5u"FN" ≈ FigNewton(1.5)
-    @test 1.5u"kgT*mT/sT^2" ≈ FigNewton(1.5)
+    @testset "erroneous definition" begin
+      # re macroexpand() see https://github.com/JuliaLang/julia/issues/56733
+      @test_warn "MilliMeterT is already defined, cannot re-define" macroexpand(@__MODULE__, :( @makeMeasure MeterT(1) = MilliMeterT(5000) "mmT"  ))
+      @test_warn "mmT is already used by MilliMeterT, suggest choosing a unique unit" macroexpand(@__MODULE__, :( @makeMeasure MeterT(1) = MMeterT(5000) "mmT"  ))
+      @test_throws ArgumentError macroexpand(@__MODULE__, :( @makeMeasure MeterTNot(1) = MilliMeterT3(5000) "mmT3"  )) # error on LHS not existing
+      @test_throws ArgumentError macroexpand(@__MODULE__, :( @makeMeasure MeterT(1)*Seconds(3) = MilliMeterTS(5000) "mmTS"  )) # error on compound relations
+    end
+  end
 
-    # because the lhs has a variable number of */, the depth of the expression tree is not known.
-
-    @deriveMeasure MeterT(1)*MeterT(1) = MeterSq(1) "msq"
-    @show 1u"msq"
-
+  function skipSymbolBlock(eexp)
+    if eexp.head == :block
+      return eexp.args[2]
+    else
+      return eexp
+    end
   end
 
   """
@@ -391,42 +346,63 @@ module Measure
       type1 = relation.args[1].args[2] # TN
       type2 = relation.args[1].args[3] # TM
       type12 = relation.args[2].args[2] # TNM
-      return esc(
-        quote
-          if Symbol($operator) == Symbol("*") # @relateMeasures Newton*Meter = NewtonMeter
-            Base.:*(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
-            Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type1)} = $type2( toBaseFloat(x) / toBaseFloat(y) )
-            if supertype($type1) != supertype($type2) # add inverse only for when supertypes differ
+
+      qts = [ quote end ] # build expressions in quotes
+      if operator == :*
+        push!(qts, quote 
+          Base.:*(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
+          Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type1)} = $type2( toBaseFloat(x) / toBaseFloat(y) )
+          if supertype($type1) != supertype($type2) # add inverse only for when supertypes differ
               Base.:*(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = $type12( toBaseFloat(x) * toBaseFloat(y) )
               Base.:/(x::T, y::U) where {T<:supertype($type12), U<:supertype($type2)} = $type1( toBaseFloat(x) / toBaseFloat(y) )
-            else # type1 == type2
+          else # type1 == type2
               Base.sqrt(x::T) where T<:supertype($type12) = $type1( sqrt(toBaseFloat(x)) ) # I can define sqrt(m^2) -> m, but I cannot define x^0.5 b/c the exponent might not lead to a known or integer unit..
-            end
-          else
-            throw(ArgumentError("Operator $($operator) unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
           end
-        end
-      )
+        end)
+      elseif operator == :/
+        push!(qts, quote
+          Base.:/(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = $type12( toBaseFloat(x) / toBaseFloat(y) ) # F/mm2 = AForce/AArea = Pressure(/)
+          Base.:*(x::T, y::U) where {T<:supertype($type12), U<:supertype($type2)} = $type1( toBaseFloat(x) * toBaseFloat(y) ) # Pa*mm2 = F
+          Base.:*(x::T, y::U) where {T<:supertype($type2), U<:supertype($type12)} = y*x # mm2*Pa = F
+        end)
+      else
+        throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
+      end
+
+      return esc( Expr(:block, qts...))
+    else
+      throw(ArgumentError("@relateMeasures given incorrect format"))
     end
   end
 
   @testitem "relateMeasures" begin
-    @makeBaseMeasure TestNM NewtonMeterT "tnm"
-    @makeBaseMeasure TestN NewtonT "tn"
+    # multiplicative same
     @makeBaseMeasure TestM MeterT "tm"
-    @relateMeasures NewtonT*MeterT = NewtonMeterT
-
     @makeBaseMeasure TestMM Meter2T "tmm"
     @relateMeasures MeterT*MeterT = Meter2T
+    @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
+    @test sqrt(Meter2T(4)) ≈ MeterT(2)
 
+    # multiplicative different
+    @makeBaseMeasure TestNM NewtonMeterT "tnm"
+    @makeBaseMeasure TestN NewtonT "tn"
+    @relateMeasures NewtonT*MeterT = NewtonMeterT
     @test NewtonT(1) * MeterT(1) ≈ NewtonMeterT(1)
     @test MeterT(1) * NewtonT(1) ≈ NewtonMeterT(1)
     @test MeterT(1) * MeterT(1) ≈ Meter2T(1)
-
     @test NewtonMeterT(1) / MeterT(1) ≈ NewtonT(1)
     @test NewtonMeterT(1) / NewtonT(1) ≈ MeterT(1)
-    @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
-    @test sqrt(Meter2T(4)) ≈ MeterT(2)
+
+    # division 
+    @makeBaseMeasure TestPa PascalT "tPa"
+    @relateMeasures NewtonT / Meter2T = PascalT
+    @test NewtonT(1)/Meter2T(1) ≈ PascalT(1)
+    @test PascalT(1)*Meter2T(1) ≈ NewtonT(1)
+    @test Meter2T(1)*PascalT(1) ≈ NewtonT(1)
+
+    #non-operator
+    @makeBaseMeasure TestFigN TestFigNM "fnm"
+    @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures TestN%TestM = TestFigNM  )) 
   end
 
   """
@@ -440,20 +416,12 @@ module Measure
     This return is implicitly multiplied/concatenated with the rest of the source expression, calling the defined multiply method.
   """
   macro u_str(unit::String)
-    # # if contains(unit, r"[*/^]")
-    #   usym = Symbol(unit) # convert string into a Symbol
-    # # else
-    # #   unit = replace(unit, "*"=>"_", "/"=>"_per_", "^"=>"_power") # assumes functions like Kg_m_per_s_power2()::Newton exist, these are added by relateMeasures
-    # # end
-    # return esc(:($usym(1))) # return unit(1) which is implicitly * with the leading number
-
     for abb in unitAbbreviations
       if abb[1] == unit
         return __module__.eval(:($(abb[2])(1)))
       end
     end
     @warn "did not find $unit in unitAbbreviations, returning 0"
-    return 0
   end
 
   @testitem "u_str" begin
