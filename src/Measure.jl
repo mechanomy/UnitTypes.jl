@@ -229,7 +229,7 @@ module Measure
         lhsAbstract = supertype($lhsSymbol)
 
         """
-        #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsSymbol)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsSymbol))`](@ref), and unit `$($unit)`.
+        #   UnitType `$($rhsSymbol)` is derived from [`$($lhsSymbol)`](@ref), related by `$($lhsFactor)/$($rhsFactor)`, with supertype [`$(supertype($lhsSymbol))`](@ref), and unit `$($unit)`.
         # """
         struct $rhsSymbol <: lhsAbstract # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
           value::Number
