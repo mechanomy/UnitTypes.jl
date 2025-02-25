@@ -1,68 +1,60 @@
-==================================================
-using UnitTypes
-import InteractiveUtils
-import AbstractTrees
-AbstractTrees.children(d::DataType) = InteractiveUtils.subtypes(d)
-AbstractTrees.print_tree(AbstractMeasure)
-==================================================
-
 AbstractMeasure
 ├─ AbstractAcceleration
 │  └─ MeterPerSecond2
-├─ AbstractAngle     
+├─ AbstractAngle
 │  ├─ Degree
 │  └─ Radian
-├─ AbstractArea       
+├─ AbstractArea
 │  ├─ Acre
 │  ├─ Meter2
-│  ├─ SquareFoot      
-│  └─ SquareMile      
+│  ├─ SquareFoot
+│  └─ SquareMile
 ├─ AbstractCapacitance
-│  ├─ Farad      
-│  ├─ MicroFarad 
-│  ├─ MilliFarad 
-│  ├─ NanoFarad  
-│  └─ PicoFarad  
+│  ├─ Farad
+│  ├─ MicroFarad
+│  ├─ MilliFarad
+│  ├─ NanoFarad
+│  └─ PicoFarad
 ├─ AbstractCharge
 │  └─ Coulomb
 ├─ AbstractConductance
-│  └─ Siemens     
+│  └─ Siemens
 ├─ AbstractCurrent
 │  └─ Ampere
 ├─ AbstractCurrentDensity
-│  └─ APerM2      
+│  └─ APerM2
 ├─ AbstractDensity
 │  └─ KgPerM3
 ├─ AbstractElectricPotential
 │  ├─ KiloVolt
-│  └─ Volt      
+│  └─ Volt
 ├─ AbstractForce
-│  ├─ KiloNewton      
-│  ├─ MilliNewton     
+│  ├─ KiloNewton
+│  ├─ MilliNewton
 │  └─ Newton
-├─ AbstractFrequency  
+├─ AbstractFrequency
 │  ├─ Hertz
-│  └─ PerSecond       
+│  └─ PerSecond
 ├─ AbstractIlluminance
 │  └─ Lux
 ├─ AbstractInductance
 │  ├─ Henry
-│  └─ MilliHenry    
+│  └─ MilliHenry
 ├─ AbstractIntensity
-│  └─ Candela    
+│  └─ Candela
 ├─ AbstractLength
-│  ├─ CentiMeter       
-│  ├─ Femtometer       
+│  ├─ CentiMeter
+│  ├─ FemtoMeter
 │  ├─ Foot
 │  ├─ Inch
-│  ├─ KiloMeter        
+│  ├─ KiloMeter
 │  ├─ Meter
-│  ├─ MicroMeter       
+│  ├─ MicroMeter
 │  ├─ Mile
-│  ├─ MilliMeter       
-│  ├─ NanoMeter        
-│  ├─ NauticalMile     
-│  ├─ PicoMeter        
+│  ├─ MilliMeter
+│  ├─ NanoMeter
+│  ├─ NauticalMile
+│  ├─ PicoMeter
 │  └─ Yard
 ├─ AbstractLuminousFlux
 │  └─ Lumen
@@ -71,15 +63,21 @@ AbstractMeasure
 ├─ AbstractMagneticFlux
 │  └─ Weber
 ├─ AbstractMagneticFluxDensity
-│  └─ Tesla    
+│  └─ Tesla
 ├─ AbstractMass
-│  ├─ KiloGram  
-│  ├─ Ounce     
-│  ├─ PoundMass 
-│  └─ Slug      
+│  ├─ KiloGram
+│  ├─ Ounce
+│  ├─ PoundMass
+│  └─ Slug
+├─ AbstractPercentage
+│  ├─ BasisPoints
+│  └─ Percent
 ├─ AbstractPower
 │  └─ Watt
 ├─ AbstractPressure
+│  ├─ GigaPascal
+│  ├─ KiloPascal
+│  ├─ MegaPascal
 │  └─ Pascal
 ├─ AbstractResistance
 │  ├─ KiloOhm
@@ -91,8 +89,15 @@ AbstractMeasure
 ├─ AbstractSurfaceDensity
 │  └─ KgPerM2
 ├─ AbstractTemperature
-│  └─ Kelvin
+│  ├─ Celsius
+│  ├─ Fahrenheit
+│  ├─ Kelvin
+│  └─ Rankine
 ├─ AbstractTime
+│  ├─ Day
+│  ├─ Hour
+│  ├─ MilliSecond
+│  ├─ Minute
 │  └─ Second
 ├─ AbstractTorque
 │  ├─ MilliNewtonMeter
@@ -109,25 +114,3 @@ AbstractMeasure
    ├─ MilliLiter
    ├─ Pint
    └─ Quart
-
-==================================================
-using UnitTypes
-import InteractiveUtils
-import AbstractTrees
-AbstractTrees.children(d::DataType) = InteractiveUtils.subtypes(d)
-AbstractTrees.print_tree(AbstractDimension)
-==================================================
-
-AbstractDimension
-├─ AbstractDepth
-│  └─ Depth
-├─ AbstractDiameter
-│  └─ Diameter
-├─ AbstractDuration
-│  └─ Duration
-├─ AbstractHeight
-│  └─ Height
-├─ AbstractRadius
-│  └─ Radius
-└─ AbstractWidth
-   └─ Width
