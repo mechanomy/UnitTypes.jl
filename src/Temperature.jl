@@ -1,6 +1,8 @@
 #temperature: https://en.wikipedia.org/wiki/Conversion_of_scales_of_temperature
 
-@makeBaseMeasure Temperature Kelvin "K" true
+@makeBaseMeasure Temperature Kelvin "°K" true
+Base.:*(x::T, y::U) where {T<:AbstractTemperature, U<:Number} = T(x.value*y) 
+Base.:*(x::T, y::U) where {T<:Number, U<:AbstractTemperature} = U(x*y.value)
 
 @makeMeasure Kelvin(0) = Celsius(0) "°C" false # false ignores the factors
 Base.convert(::Type{Celsius}, x::Kelvin) = Celsius(x.value - 273.15) # from base

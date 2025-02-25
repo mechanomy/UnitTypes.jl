@@ -1,5 +1,5 @@
 module UnitTypes
-  __precompile__(false)
+  # __precompile__(false)
   using DocStringExtensions
   using Reexport
   using TestItems

@@ -249,14 +249,14 @@ module Measure
         end
         export $rhsSymbol
 
-        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
-        Base.:*(x::T, y::U) where {T<:lhsAbstract, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
-        Base.:*(x::T, y::U) where {T<:Number, U<:lhsAbstract} = U(x*y.value) # enables @show fn = 4*FN(1.3)
+        # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+        # Base.:*(x::T, y::U) where {T<:lhsAbstract, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
+        # Base.:*(x::T, y::U) where {T<:Number, U<:lhsAbstract} = U(x*y.value) # enables @show fn = 4*FN(1.3)
 
         # println("rhs new unit has symbol[$rhsSymbol] factor[$rhsFactor] unit[$rhsUnit] and abstract[$rhsAbstractName]")
 
         $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+        # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
       end ]
 
       if defineConverts
