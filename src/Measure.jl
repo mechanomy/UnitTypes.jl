@@ -5,26 +5,23 @@ module Measure
   export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, @u_str
   abstract type AbstractMeasure end
 
-
-  unitAbbreviations = [] # ("m", :Meter)
+  unitAbbreviations = [] # ("m", :Meter), a list of defined abbreviations for uniqueness checking
 
   """
-    `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)`
+    `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)`
 
     Make a new base measure which has no relationship to an existing unit.
     For example, in `@makeBaseMeasure Length Meter "m"`:
     * `quantityName` is the name of the measure, 'Length' above.
     * `unitName` is the name of the unit which will be used to make measures bearing that unit, 'Meter' above.
     * `unitSymbol` is the abbreviation of the unit name, used in all string presentations of the measure.
-    * `isAffine` is normally false, if true the +-/* operations are not added for this and derived units.
+    * `isAffine` is normally false, if true the +-/* operations are not added for this and derived units and need to be added by hand.
     The macro will introduce `AbstractLength <: AbstractMeasure` and `Meter()` into the current scope.
     
     Measures created by the macro have fields:
     * `value::Number` raw value of the measure
     * `toBase::Number` == 1 for base measures
     * `unit::String` the unit to be displayed
-
-    Internally, this calls @makeDerivedMeasure to make the basic type, then overloads common functions (==, <, ≈, +, -, *, /, :) to enable common operations.
 
     To get the measure's value in the base unit as a float, see [toBaseFloat()](toBaseFloat).
   """
@@ -51,10 +48,6 @@ module Measure
         export $unitName
         Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
 
-        # these only need to be defined on the base measure as derived <:
-        # I am putting them in here with $abstractName instead of <:AbstractMeasure in order to get error messages that say + is not defined on <:AbstractLength, etc., rather than the less direct convert() is not defined on <:AbstractLength and <:AbstractDuration
-        # Base.convert(::Type{T}, x::U) where {T<:$abstractName, U<:$abstractName} # this only makes sense with derived measures, but if placed in @derive then it leads to duplicates # = T(x.value*x.toBase/T(1.0).toBase) #...this is janky but works to get the destination's toBase...
-
         # enable range
         Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
         Base._colon(start::T, step::U, stop::V) where {T<:$abstractName, U<:$abstractName, V<:$abstractName} = T.(start.value : convert(T,step).value : convert(T,stop).value)
@@ -75,9 +68,6 @@ module Measure
         # math
         Base.:+(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
         Base.:-(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value-convert(T,y).value)
-        # Base.:*(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # commented to prevent redefinition warning # = throw(MethodError("Cannot $x * $y, * is not defined yet, define with @relateMeasures"))
-        # Base.:/(x::T, y::U) where {T<:$abstractName, U<:$abstractName} # if appropriate, provided by @relateMeasures # = T( x.value/convert(T,y).value)
-        # Base.:/(x::T, y::U) where {T<:$abstractName, u<:$abstractName} = toBaseFloat(x)/toBaseFloat(y) # any danger to returning float here?
 
         # */ Number, usually used in scaling things
         # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
@@ -238,8 +228,8 @@ module Measure
         # export $rhsAbstractName #AbstractLength
         lhsAbstract = supertype($lhsSymbol)
 
-        # """
-        #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsType)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsType))`](@ref), and symbol `$($unit)`.
+        """
+        #   UnitType [`$($rhsSymbol)`](@ref) is derived from [`$($lhsSymbol)`](@ref), related by [`$($lhsFactor/$rhsFactor)`](@ref), with supertype [`$(supertype($lhsSymbol))`](@ref), and unit `$($unit)`.
         # """
         struct $rhsSymbol <: lhsAbstract # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
           value::Number
@@ -249,14 +239,7 @@ module Measure
         end
         export $rhsSymbol
 
-        # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
-        # Base.:*(x::T, y::U) where {T<:lhsAbstract, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T; this enables @show fn = FN(1.3)*3
-        # Base.:*(x::T, y::U) where {T<:Number, U<:lhsAbstract} = U(x*y.value) # enables @show fn = 4*FN(1.3)
-
-        # println("rhs new unit has symbol[$rhsSymbol] factor[$rhsFactor] unit[$rhsUnit] and abstract[$rhsAbstractName]")
-
         $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-        # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
       end ]
 
       if defineConverts

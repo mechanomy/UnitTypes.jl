@@ -1,4 +1,5 @@
-# 231213: need to ] add ../ to UnitfulTypesDocs package, then run via: cd /w/sync/mechgits/julia/UnitTypes.jl_public/docs $ julia --project make.jl 
+# to run: ] add ../#main to UnitfulTypesDocs package, then run via: cd /w/sync/mechgits/julia/UnitTypes.jl_public/docs $ julia --project make.jl 
+
 using Documenter
 using DocumenterTools
 using DocStringExtensions
@@ -15,7 +16,7 @@ using UnitTypes
 # =
 makedocs(
   sitename="UnitTypes.jl",
-  modules=[UnitTypes, Measure],
+  modules=[UnitTypes],
   root = joinpath(pkgPath, "docs"),
   source = "src",
   build = "build",

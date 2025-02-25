@@ -336,8 +336,8 @@ version = "1.11.0"
 
 [[deps.UnitTypes]]
 deps = ["Compat", "DocStringExtensions", "Reexport", "Test", "TestItemRunner", "TestItems"]
-git-tree-sha1 = "71bb60eb0e136b38fc77c78744c344064b9ffedb"
-repo-rev = "simplifyMacros"
+git-tree-sha1 = "309ddcf6e5b0e532bce39b3c1feb1e7ac708c704"
+repo-rev = "main"
 repo-url = ".."
 uuid = "b0895f2b-ad30-48b9-9e38-efbd1231cd91"
 version = "1.0.0"

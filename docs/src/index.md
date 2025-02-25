@@ -1,8 +1,6 @@
 # UnitTypes.jl
 This package provides physical units as Julia types.
 
-[Repo](https://github.com/mechanomy/UnitTypes.jl)
-
 ```julia
 julia> using UnitTypes
 
@@ -21,45 +19,60 @@ false
 
 This allows you to easily write functions with arguments restricted to variables having certain types.
 ```julia
-julia> function goFaster(a::AbstractAcceleration) end
+julia> function goFaster(a::T) where T<:AbstractAcceleration end
 ```
 
 This leads to correctness and very clear error messages.
 ```julia
-julia> v = MeterPerSecond(3)
-3m/s
-
-julia> goFaster(v)
+julia> goFaster(3u"m/s")
 ERROR: MethodError: no method matching goFaster(::MeterPerSecond)
 
 Closest candidates are:
   goFaster(::AbstractAcceleration)
 ```
 
+## Docs
+[Docs](https://mechanomy.github.io/UnitTypes.jl/dev/)
+
+## Introducing new types
+Macros are used to introduce and create relationships around new types:
+* `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume,
+* 
+* `@makeMeasure Meter(1) = Kilometer(1e-3) "km"` - derives a new measure (KiloMeter) from some an existing measure (Meter) with conversion ratio 1/1e-3 = 1000 m/km
+* 
+* `@makeDimension Diameter Meter` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
 ## Design
 UnitTypes introduces an abstract type hierarchy of:
+```
+AbstractMeasure
+├─ AbstractAcceleration
+│  └─ MeterPerSecond2
+├─ AbstractAngle
+│  ├─ Degree
+│  └─ Radian
+├─ AbstractArea
+│  ├─ Acre
+│  ├─ Meter2
+│  ├─ SquareFoot
+│  └─ SquareMile
+├...and so on
+```
 
-### `AbstractMeasure`
-* `Meter`, `MilliMeter`, ..., `MeterPerSecond`, `MeterPerSecond2`, ... See [src/SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl)
-* `Inch`, `Foot`, `Mile`, ..., See [src/Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/Imperial.jl)
+See [docs/unitTypesTree.txt](docs/unitTypesTree.txt) for the full tree of pre-defined types.
 
-### `AbstractDimension` 
-* `AbstractDiameter`, `AbstractRadius`, ...
-* `AbstractDuration`, ...,
-
-In organizing types around AbstractMeasure and AbstractDimension, the idea is that a Measure is some quantity bearing units, while a Dimension is some context-specific application of a Measure.
+The idea is that a *Measure* is some quantity bearing units, while a *Dimension* is some context-specific application of a Measure.
 Within a Dimension multiple Measures may logically be used as long as they are dimensionally consistent.
 For instance, a circle may be described by its radius, diameter, or circumference, concepts that can be interchangeably converted, using any Measure of extent (<:AbstractLength).
-A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference types, as the type system provides conversion between the argument and the function's internal representation.
+A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference arguments as the user prefers, since the type system provides conversion between the argument and the function's internal convention.
 
-Concrete Dimensions look like
+Internally, Dimensions look like
 ```julia
 struct Diameter{T <: AbstractLength } <: AbstractDimension
   value::T
 end
 ```
-and a concrete Measure is represented by
+and a Measure is represented by
 ```julia
 struct Meter <: AbstractLength
   value::Number
@@ -67,48 +80,40 @@ struct Meter <: AbstractLength
   unit::String
 end
 ```
-## Introducing new types
-Macros are used to introduce and create relationships around new types:
-* `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 for Volume,
-* `@deriveMeasure NewtonMeter(1) = MilliNewtonMeter(1000) "mN*m` - introduces a new name for a Measure, often a prefix like MilliMeter or an alternate name like Inch, 
-* `@makeDimension Diameter Meter` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
-The [typeTree](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/typeTree.txt) lists all of the currently-defined default types.
-See [CommonDimensions](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/CommonDimensions.jl) for more example definitions.
+The macros in [Measure.jl](src/Measure.jl) and [Dimension.jl](src/Dimension.jl) define the necessary convert()s and other operators.
+While these macros suffice for most units, defining nonlinear units (like temperature) requires adding some plumbing.
+See [the temperature converts]() for an example.
+
+Please open an issue _with a minimal working example_ if you run into conversion errors.
+**Please open an issue or PR to add more units.**
 
 ## Logical operations
-Using units correctly requires distinguishing between valid and invalid operations, which in some cases means not allowing convenient operations.
+Using units correctly requires distinguishing between valid and invalid operations, which in some cases means not allowing apparently convenient operations.
 Inches can be added, as can inch and millimeter, but only when computing area does inch*inch make sense.
 Inch * 3 is convenient while 3 / Inch is unlikely to be desirable.
+This is especially obvious in affine units like Temperature, where 0°C + 10°F = -12.2°C.
 
-At any time, `.value` can be used to access the within-type numerical value, while `.toBase` provides the conversion factor to the unit's base quantity.
-If `a = MilliMeter(1)`, `a.value => 1` while `a.toBase => 1000` and `Meter(a).value => 0.001`
-For `b = Inch(144)`, `b.value = 144`, while `b.toBase => 0.0254` since Meter is the base unit of all Lengths.
-
-The macros in Measures.jl and Dimension.jl define the basic convert()s and operators necessary for common tasks, but additional definitions may be necessary.
-Please [open an issue](https://github.com/mechanomy/UnitTypes.jl/issues/new/choose)/PR to add more units or functions to the base module.
-Please open an issue _with a minimal working example_ if you discover conversion errors.
+With use, patience, and issues, these coherence rules will become more clear and explained by example.
 
 ## Comparison with other packages
 
 ### Unitful.jl
 [Unitful](https://painterqubits.github.io/Unitful.jl/latest/) leverages parametric types to store units, giving flexibility at the cost of compile-time type uncertainty.
-It's two major limitations are the avoidance of [angular measures](https://painterqubits.github.io/Unitful.jl/latest/trouble/#promotion-with-dimensionless-numbers), as they are not first-class but rather ratios, and rather lengthy type unions that clutter outputs, especially on error:
+It's two major limitations are the avoidance of [angular measures](https://painterqubits.github.io/Unitful.jl/latest/trouble/#promotion-with-dimensionless-numbers), as they are not first-class entities but rather ratios, and rather lengthy type unions that clutter outputs, especially on error:
 
 ```julia
-julia> function goSlower(x::T) where T<:Unitful.Acceleration end
+julia> function goSlower(x<:Unitful.Acceleration) end
 goSlower (generic function with 1 method)
 
-julia> a = 1u"mm"
-
-julia> goSlower(a)
+julia> goSlower(1u"mm")
 ERROR: MethodError: no method matching goSlower(::Quantity{Int64, 𝐋 , Unitful.FreeUnits{(mm,), 𝐋 , nothing}})
 
 Closest candidates are:
-  goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} where {T, U}) 
+  goSlower(::T) where T<:(Union{Quantity{T, 𝐋 𝐓^-2, U}, Level{L, S, Quantity{T, 𝐋 𝐓^-2, U}} where {L, S}} where {T, U})
 ```
 
-As Unitful is the most widely used unit package, we provide a separate package [ExchangeUnitful](https://github.com/mechanomy/ExchangeUnitful.jl) to enable interoperation with Unitful.
+As Unitful is the dominant unit package and has wide use and support, we provide a separate package [ExchangeUnitful](https://github.com/mechanomy/ExchangeUnitful.jl) to enable interoperation with Unitful.
 
 ### DynamicQuantities.jl
 [DynamicQuantities](https://github.com/SymbolicML/DynamicQuantities.jl) is newer and faster than Unitful because it "defines a simple statically-typed Quantity type for storing physical units."
@@ -118,8 +123,8 @@ But this performant representation hurts readability, and while the unit represe
 ### UnitTypes.jl
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
 The limitation is that _UnitTypes does not have a catch-all unit representation_.
-Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units, ie Celsius to Fahrenheit.
-See [SIDerived.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/SIDerived.jl) and [Imperial.jl](https://github.com/mechanomy/UnitTypes.jl/tree/main/src/Imperial.jl) for examples.
+Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units.
+See [Temperature.jl](src/Temperature.jl) for an example of manual unit conversion.
 
 ## Docs
 
