@@ -15,7 +15,7 @@ using UnitTypes
 @show pkgPath = joinpath(dirname(pathof(UnitTypes)), "..") # this includes UnitTypes/src, so ..
 
 makedocs( # https://documenter.juliadocs.org/stable/lib/public/#Documenter.makedocs
-  repo = "https://github.com/mechanomy/UnitTypes.jl.git",
+  # repo = Documenter.Remotes.GitHub("mechanomy","UnitTypes.jl"), #"https://github.com/mechanomy/UnitTypes.jl.git",  #this isn't working
   sitename="UnitTypes.jl",
   modules=[UnitTypes],
   root = joinpath(pkgPath, "docs"),
@@ -24,8 +24,8 @@ makedocs( # https://documenter.juliadocs.org/stable/lib/public/#Documenter.maked
   clean=true,
   doctest=true,
   draft=false,
-  checkdocs=:exports,
-  warnonly=true # whether it fails on missing docs
+  checkdocs=:none#:exports,
+  # warnonly=true # whether it fails on missing docs...this is an unknown keyword
   # linkcheck=true, fails to find internal links to bookmarks..
   )
 
@@ -36,6 +36,7 @@ deploydocs(
   root = joinpath(pkgPath, "docs"),
   target = "build",
   dirname = "",
+  # repo = Documenter.Remotes.GitHub("mechanomy","UnitTypes.jl"), #
   repo = "https://github.com/mechanomy/UnitTypes.jl.git",
   branch = "gh-pages",
   deps = nothing, 

@@ -9,7 +9,7 @@ $themename: "documenter-dark"; // CSS file must be called `$(themename).css`
 // @import "darkly/variables";
 
 $documenter-is-dark-theme: true;
-
+$admonition-default: hsl(0, 0%, 29%); // has the theme changed to require this? ERROR: LoadError: Undefined variable: "$admonition-default".
 
 // <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Aldrich">
 // <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Actor">
