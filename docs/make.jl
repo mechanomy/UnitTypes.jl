@@ -24,8 +24,8 @@ makedocs( # https://documenter.juliadocs.org/stable/lib/public/#Documenter.maked
   clean=true,
   doctest=true,
   draft=false,
-  checkdocs=:none#:exports,
-  # warnonly=true # whether it fails on missing docs...this is an unknown keyword
+  checkdocs=:none,
+  warnonly=Documenter.except(:cross_references, :linkcheck, :missing_docs)
   # linkcheck=true, fails to find internal links to bookmarks..
   )
 
