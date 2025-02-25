@@ -23,7 +23,7 @@ module Measure
     * `toBase::Number` == 1 for base measures
     * `unit::String` the unit to be displayed
 
-    To get the measure's value in the base unit as a float, see [toBaseFloat()](toBaseFloat).
+    To get the measure's value in the base unit as a float, see toBaseFloat().
   """
   macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)
     # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
