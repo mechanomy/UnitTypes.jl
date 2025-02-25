@@ -1,5 +1,12 @@
 # following https://en.wikipedia.org/wiki/International_System_of_Units for names, definitions, and symbols
 
+# base measures
+@makeBaseMeasure Current Ampere "A"
+@makeBaseMeasure Intensity Candela "cd"
+@makeBaseMeasure Length Meter "m"
+@makeBaseMeasure Mass KiloGram "kg"
+@makeBaseMeasure Time Second "s"
+
 # Length powers
 @makeMeasure Meter(1) = FemtoMeter(1e15) "fm"
 @makeMeasure Meter(1) = PicoMeter(1e12) "pm"
@@ -113,6 +120,11 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistan
 
 @makeBaseMeasure LuminousFlux Lumen "lm"
 @makeBaseMeasure Illuminance Lux "lx"
+#these are waiting for a request and mwe for unit test
 # @makeBaseMeasure DecayRate Becquerel "Bq"
 # @makeBaseMeasure AbsorbedDose Gray "Gy"
 # @makeBaseMeasure EquivalentDose Sievert "Sv"
+
+# others..:
+@makeBaseMeasure Percentage Percent "%" # not a physical unit...
+@makeMeasure Percent(1) = BasisPoints(100) "bps"

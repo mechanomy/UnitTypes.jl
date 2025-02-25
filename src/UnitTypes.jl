@@ -1,5 +1,5 @@
 module UnitTypes
-  # __precompile__(false)
+  __precompile__(false)
   using DocStringExtensions
   using Reexport
   using TestItems
@@ -7,13 +7,10 @@ module UnitTypes
   include("Measure.jl")
   @reexport using .Measure
 
-  # SI Base: https://en.wikipedia.org/wiki/International_System_of_Units
-  include("SIBase.jl")
-
-  # derived measures
-  include("SIDerived.jl")
+  include("SI.jl")
   include("Imperial.jl")
   include("Angle.jl")
+  include("Temperature.jl")
 
   # #Dimensions built on Measures
   include("Dimension.jl")

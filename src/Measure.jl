@@ -16,6 +16,7 @@ module Measure
     * `quantityName` is the name of the measure, 'Length' above.
     * `unitName` is the name of the unit which will be used to make measures bearing that unit, 'Meter' above.
     * `unitSymbol` is the abbreviation of the unit name, used in all string presentations of the measure.
+    * `isAffine` is normally false, if true the +-/* operations are not added for this and derived units.
     The macro will introduce `AbstractLength <: AbstractMeasure` and `Meter()` into the current scope.
     
     Measures created by the macro have fields:
@@ -27,14 +28,13 @@ module Measure
 
     To get the measure's value in the base unit as a float, see [toBaseFloat()](toBaseFloat).
   """
-  macro makeBaseMeasure(quantityName, unitName, unitSymbol::String)
+  macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)
     # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
     abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
 
     global unitAbbreviations = push!(unitAbbreviations, (unitSymbol, Symbol(unitName)))  # ("m", :Meter)
 
-    return esc(
-      quote
+    qts = [quote
         abstract type $abstractName <: AbstractMeasure end
         export $abstractName #AbstractLength
 
@@ -67,7 +67,11 @@ module Measure
         Base.:<(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = x.value < convert(T,y).value # other <> ops are defined from this
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
         # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} removed in order to discover what more specific defs are needed = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units; 
-
+      end
+    ]
+    
+    if isAffine == false
+      push!( qts, quote
         # math
         Base.:+(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
         Base.:-(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value-convert(T,y).value)
@@ -84,7 +88,9 @@ module Measure
 
         # Base.abs()
       end
-    )
+      )
+    end
+    return esc( Expr(:block, qts...))
   end
 
   @testitem "@makeBaseMeasure" begin
@@ -177,7 +183,7 @@ module Measure
 
     The resulting types are defined in the containing module, not in UnitTypes, as seen by `println(names(MyModule, all=true))`.
   """
-  macro makeMeasure(relation, unit="NoUnit")
+  macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
     # println("makeMeasure($(string(relation)), $unit)")
     # display(dump(relation))
     
@@ -250,10 +256,15 @@ module Measure
         # println("rhs new unit has symbol[$rhsSymbol] factor[$rhsFactor] unit[$rhsUnit] and abstract[$rhsAbstractName]")
 
         $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
-        Base.convert(::Type{$rhsSymbol}, x::U) where {U<:lhsAbstract} = $rhsSymbol(x.value*x.toBase * $rhsFactor/$lhsFactor) # convert(MilliMeter, 1in) = 1in*.0254m/in * 1000mm/1m
-        Base.convert(::Type{$lhsSymbol}, x::$rhsSymbol) = $lhsSymbol(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
         Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:lhsAbstract, U<:lhsAbstract} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
       end ]
+
+      if defineConverts
+        push!(qts, quote
+          Base.convert(::Type{$rhsSymbol}, x::U) where {U<:lhsAbstract} = $rhsSymbol(x.value*x.toBase * $rhsFactor/$lhsFactor) # convert(MilliMeter, 1in) = 1in*.0254m/in * 1000mm/1m
+          Base.convert(::Type{$lhsSymbol}, x::$rhsSymbol) = $lhsSymbol(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
+        end)
+      end
 
       # display(qts)
       return esc( Expr(:block, qts...))
