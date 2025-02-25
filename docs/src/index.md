@@ -127,14 +127,66 @@ See Temperature.jl for an example of manual unit conversion.
 CurrentModule=UnitTypes
 ```
 
-```@docs
+<!-- ```@docs
 makeMeasure
+``` -->
+### @makeBaseMeasure quantityName unitName unitSymbol::String isAffine=false
+Make a new base measure which has no relationship to an existing unit.
+For example, in `@makeBaseMeasure Length Meter "m"`:
+* `quantityName` is the name of the measure, 'Length' above.
+* `unitName` is the name of the unit which will be used to make measures bearing that unit, 'Meter' above.
+* `unitSymbol` is the abbreviation of the unit name, used in all string presentations of the measure.
+* `isAffine` is normally false, if true the +-/* operations are not added for this and derived units and need to be added by hand.
+The macro will introduce `AbstractLength <: AbstractMeasure` and `Meter()` into the current scope.
+
+Measures created by the macro have fields:
+* `value::Number` raw value of the measure
+* `toBase::Number` == 1 for base measures
+* `unit::String` the unit to be displayed
+
+To get the measure's value in the base unit as a float, see toBaseFloat().
+
+
+```@docs
+UnitTypes.Measure.makeBaseMeasure
 ```
+
+### @makeMeasure relation unit="NoUnit"
+Creates a new Measure from an existing base measure.
+The left hand side of the equation must already exist, while the right hand side should be undefined, with the trailing string providing the unit symbol.
+
+```julia
+@makeMeasure Meter(1) = MilliMeter(1000) "mm" 
+```
+
+The resulting types are defined in the containing module, not in UnitTypes, as seen by `println(names(MyModule, all=true))`.
+
+### @relateMeasures relation
+Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
+All types must already be defined and only one * is supported on the left side, while the right should the resultant type.
+```julia
+  @relateMeasures Meter*Newton = NewtonMeter
+```
+
+### @measure2String(x<:AbstractMeasure)
+
+### 
+Macro to provide the `1.2u"cm"` inline unit assignment.
+```julia
+a = 1.2u"cm" 
+```
+This function relies on cm(1.2) existing as an alias for CentiMeter(1.2) in the `unitAbbreviations` global variable.
+
+The macro works by converting the unit string into a function, which is called on (1) and returned.
+This return is implicitly multiplied/concatenated with the rest of the source expression, calling the defined multiply method.
+
+### 
+
+
+### Other functions:
 
 ```@autodocs
 Modules=[UnitTypes]
 ```
-<!-- ```@docs
-UnitTypes.Measure.makeBaseMeasure
-``` -->
+
 
