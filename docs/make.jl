@@ -30,8 +30,8 @@ makedocs( # https://documenter.juliadocs.org/stable/lib/public/#Documenter.maked
   )
 
 # compile custom theme scss in to css, copying over the default themes
-DocumenterTools.Themes.compile(joinpath(pkgPath,"docs","src","assets","themes","documenter-mechanomy.scss"), joinpath(pkgPath,"docs","build","assets","themes","documenter-dark.css") )
-DocumenterTools.Themes.compile(joinpath(pkgPath,"docs","src","assets","themes","documenter-mechanomy.scss"), joinpath(pkgPath,"docs","build","assets","themes","documenter-light.css") )
+# DocumenterTools.Themes.compile(joinpath(pkgPath,"docs","src","assets","themes","documenter-mechanomy.scss"), joinpath(pkgPath,"docs","build","assets","themes","documenter-dark.css") )
+# DocumenterTools.Themes.compile(joinpath(pkgPath,"docs","src","assets","themes","documenter-mechanomy.scss"), joinpath(pkgPath,"docs","build","assets","themes","documenter-light.css") )
 deploydocs(
   root = joinpath(pkgPath, "docs"),
   target = "build",
