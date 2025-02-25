@@ -13,8 +13,9 @@ using UnitTypes
 # @show  root = joinpath("..", "docs")
 
 @show pkgPath = joinpath(dirname(pathof(UnitTypes)), "..") # this includes UnitTypes/src, so ..
-# =
-makedocs(
+
+makedocs( # https://documenter.juliadocs.org/stable/lib/public/#Documenter.makedocs
+  repo = "github.com/mechanomy/UnitTypes.jl.git",
   sitename="UnitTypes.jl",
   modules=[UnitTypes],
   root = joinpath(pkgPath, "docs"),
@@ -24,6 +25,7 @@ makedocs(
   doctest=true,
   draft=false,
   checkdocs=:exports,
+  warnonly=true # whether it fails on missing docs
   # linkcheck=true, fails to find internal links to bookmarks..
   )
 

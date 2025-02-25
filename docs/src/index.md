@@ -135,4 +135,7 @@ CurrentModule=UnitTypes
 ```@autodocs
 Modules=[UnitTypes]
 ```
+<!-- ```@docs
+UnitTypes.Measure.makeBaseMeasure
+``` -->
 
