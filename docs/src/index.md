@@ -59,7 +59,7 @@ AbstractMeasure
 ├...and so on
 ```
 
-See [docs/unitTypesTree.txt](../docs/unitTypesTree.txt) for the full tree of pre-defined types.
+See docs/unitTypesTree.txt for the full tree of pre-defined types.
 
 The idea is that a *Measure* is some quantity bearing units, while a *Dimension* is some context-specific application of a Measure.
 Within a Dimension multiple Measures may logically be used as long as they are dimensionally consistent.
@@ -81,9 +81,9 @@ struct Meter <: AbstractLength
 end
 ```
 
-The macros in [Measure.jl](src/Measure.jl) and [Dimension.jl](src/Dimension.jl) define the necessary convert()s and other operators.
+The macros in Measure.jl and Dimension.jl define the necessary convert()s and other operators.
 While these macros suffice for most units, defining nonlinear units (like temperature) requires adding some plumbing.
-See [the temperature converts]() for an example.
+See the temperature converts in Temperature.jl for an example.
 
 Please open an issue _with a minimal working example_ if you run into conversion errors.
 **Please open an issue or PR to add more units.**
@@ -124,7 +124,7 @@ But this performant representation hurts readability, and while the unit represe
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
 The limitation is that _UnitTypes does not have a catch-all unit representation_.
 Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units.
-See [Temperature.jl](../src/Temperature.jl) for an example of manual unit conversion.
+See Temperature.jl for an example of manual unit conversion.
 
 ## Docs
 
