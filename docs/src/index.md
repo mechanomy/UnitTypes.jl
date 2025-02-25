@@ -133,12 +133,8 @@ UnitTypes.Measure.@relateMeasures
 ```
 
 ```@docs
-UnitTypes.Measure.@makeDimension
-UnitTypes.Measure.@relateDimensions
+UnitTypes.@makeDimension
+UnitTypes.@relateDimensions
 ```
 
-### Defined units and other functions:
-```@autodocs
-Modules=[UnitTypes]
-```
 
