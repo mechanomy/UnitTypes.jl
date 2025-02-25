@@ -123,13 +123,7 @@ See Temperature.jl for an example of manual unit conversion.
 
 ## Docs
 
-```@meta
-CurrentModule=UnitTypes
-```
 
-<!-- ```@docs
-makeMeasure
-``` -->
 ### @makeBaseMeasure quantityName unitName unitSymbol::String isAffine=false
 Make a new base measure which has no relationship to an existing unit.
 For example, in `@makeBaseMeasure Length Meter "m"`:
@@ -147,9 +141,6 @@ Measures created by the macro have fields:
 To get the measure's value in the base unit as a float, see toBaseFloat().
 
 
-```@docs
-UnitTypes.Measure.makeBaseMeasure
-```
 
 ### @makeMeasure relation unit="NoUnit"
 Creates a new Measure from an existing base measure.
@@ -168,7 +159,8 @@ All types must already be defined and only one * is supported on the left side, 
   @relateMeasures Meter*Newton = NewtonMeter
 ```
 
-### @measure2String(x<:AbstractMeasure)
+### measure2String(x<:AbstractMeasure)
+Returns a string representing measure `m` in the format "1.23mm".
 
 ### 
 Macro to provide the `1.2u"cm"` inline unit assignment.
@@ -180,13 +172,16 @@ This function relies on cm(1.2) existing as an alias for CentiMeter(1.2) in the 
 The macro works by converting the unit string into a function, which is called on (1) and returned.
 This return is implicitly multiplied/concatenated with the rest of the source expression, calling the defined multiply method.
 
-### 
-
-
 ### Other functions:
+
+```@meta
+CurrentModule=UnitTypes
+```
 
 ```@autodocs
 Modules=[UnitTypes]
 ```
 
-
+```@docs
+UnitTypes.Measure.makeBaseMeasure
+```
