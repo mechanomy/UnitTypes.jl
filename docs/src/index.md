@@ -31,15 +31,10 @@ Closest candidates are:
   goFaster(::AbstractAcceleration)
 ```
 
-## Docs
-[Docs](https://mechanomy.github.io/UnitTypes.jl/dev/)
-
 ## Introducing new types
 Macros are used to introduce and create relationships around new types:
-* `@makeBaseMeasure Torque NewtonMeter "N*m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume,
-* 
-* `@makeMeasure Meter(1) = Kilometer(1e-3) "km"` - derives a new measure (KiloMeter) from some an existing measure (Meter) with conversion ratio 1/1e-3 = 1000 m/km
-* 
+* `@makeBaseMeasure Length Meter "m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume,
+* `@makeMeasure Meter(1000) = KiloMeter(1) "km"` - derives a new measure (KiloMeter) from some an existing measure (Meter) with conversion ratio 1000m = 1m
 * `@makeDimension Diameter Meter` - creates a Dimension, which is a Measure in some particular context, as diameter, radius, and circumference all refer to lengths of a circle.
 
 ## Design
@@ -130,6 +125,10 @@ See Temperature.jl for an example of manual unit conversion.
 
 ```@meta
 CurrentModule=UnitTypes
+```
+
+```@docs
+makeMeasure
 ```
 
 ```@autodocs
