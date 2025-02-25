@@ -178,10 +178,11 @@ This return is implicitly multiplied/concatenated with the rest of the source ex
 CurrentModule=UnitTypes
 ```
 
+```@docs
+UnitTypes.Measure.@makeBaseMeasure
+```
+
 ```@autodocs
 Modules=[UnitTypes]
 ```
 
-```@docs
-UnitTypes.Measure.makeBaseMeasure
-```
