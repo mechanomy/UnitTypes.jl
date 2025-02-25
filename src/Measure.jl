@@ -9,6 +9,7 @@ module Measure
 
   """
     `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)`
+    $TYPEDSIGNATURES
 
     Make a new base measure which has no relationship to an existing unit.
     For example, in `@makeBaseMeasure Length Meter "m"`:

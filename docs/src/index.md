@@ -172,7 +172,6 @@ This function relies on cm(1.2) existing as an alias for CentiMeter(1.2) in the 
 The macro works by converting the unit string into a function, which is called on (1) and returned.
 This return is implicitly multiplied/concatenated with the rest of the source expression, calling the defined multiply method.
 
-### Other functions:
 
 ```@meta
 CurrentModule=UnitTypes
@@ -180,8 +179,16 @@ CurrentModule=UnitTypes
 
 ```@docs
 UnitTypes.Measure.@makeBaseMeasure
+UnitTypes.Measure.@makeMeasure
+UnitTypes.Measure.@relateMeasures
 ```
 
+```@docs
+UnitTypes.Measure.@makeDimension
+UnitTypes.Measure.@relateDimension
+```
+
+### Other functions:
 ```@autodocs
 Modules=[UnitTypes]
 ```
