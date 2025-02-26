@@ -3,12 +3,11 @@ export AbstractDimension, @makeDimension, @relateDimensions
 abstract type AbstractDimension end 
 
 """
-  $TYPEDSIGNATURES
+  `macro makeDimension(dimName, measure)`
 
   Make a new dimension `dimName` of `measure`; also creates 'Abstract`dimName`'
 
-  ```julia
-
+  ```
     @makeDimension Diameter Meter 
 
     d = Diameter(MilliMeter(3.4))
@@ -127,11 +126,11 @@ end
 end
 
 """
-  $TYPEDSIGNATURES
+  `macro relateDimensions(relation)`
 
-  Defines various Base. functions that facilitate the given relationship.
+  Defines various Base.: functions that facilitate the given (linear) relationship.
   All types must already be defined and written in the form `type1 = factor * type2`, as in:
-  ```julia
+  ```
     @relateDimensions Diameter = 2.0*Radius
   ```
 """
@@ -279,8 +278,9 @@ Base.:/(x::T, y::U) where {T<:AbstractDimension, U<:AbstractDimension} = throw(A
 end
 
 """
-  $TYPEDSIGNATURES
-  Returns a string representing dimenson `c` with format Module.DimensionName(value unit).
+  `function dimension2String(c::T)::String where T<:AbstractDimension`
+
+  Returns a string representing dimension `c` with format Module.DimensionName(value unit).
 """
 function dimension2String(c::T)::String where T<:AbstractDimension
   return "$(split(string(T),"{")[1])($(c.measure))" # 
@@ -295,6 +295,8 @@ end
 end
 
 """
+  `function Base.show(io::IO, c::T) where T<:AbstractDimension`
+
   @show functionality for Dimensions via `dimension2String()`.
 """
 function Base.show(io::IO, c::T) where T<:AbstractDimension

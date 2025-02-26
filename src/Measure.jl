@@ -8,7 +8,6 @@ unitAbbreviations = [] # ("m", :Meter), a list of defined abbreviations for uniq
 
 """
   `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)`
-  $TYPEDSIGNATURES
 
   Make a new base measure which has no relationship to an existing unit.
   For example, in `@makeBaseMeasure Length Meter "m"`:
@@ -161,13 +160,12 @@ Base.:-(x::T where T<:AbstractMeasure) = x * -1 # leading negation
 end
 
 """
-  `macro makeMeasure(relation, unit="NoUnit")`
-  $TYPEDSIGNATURES
+  `macro makeMeasure(relation, unit="NoUnit", defineConverts=true)`
 
   Creates a new Measure from an existing base measure.
   The left hand side of the equation must already exist, while the right hand side should be undefined, with the trailing string providing the unit symbol.
 
-  ```julia
+  ```
   @makeMeasure Meter(1) = MilliMeter(1000) "mm" 
   ```
 
@@ -298,7 +296,8 @@ function skipSymbolBlock(eexp)
 end
 
 """
-  $TYPEDSIGNATURES
+  `function measure2String(m::AbstractMeasure)::String`
+
   Returns a string representing measure `m` in the format "1.23mm".
 """
 function measure2String(m::AbstractMeasure)::String
@@ -307,6 +306,8 @@ function measure2String(m::AbstractMeasure)::String
 end
 
 """
+  `function Base.show(io::IO, m::AbstractMeasure)`
+
   @show functionality for Measures via `measure2String()`.
 """
 function Base.show(io::IO, m::AbstractMeasure)
@@ -314,7 +315,8 @@ function Base.show(io::IO, m::AbstractMeasure)
 end
 
 ```
-  $TYPEDSIGNATURES
+  `function toBaseFloat(m::AbstractMeasure) :: Float64`
+
   Returns measure `m` as a float in the base unit.
 ``` 
 function toBaseFloat(m::AbstractMeasure) :: Float64
@@ -326,10 +328,12 @@ end
 end
 
 """
-  $TYPEDSIGNATURES
+  `macro relateMeasures(relation)`
+
   Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
   All types must already be defined and only one * is supported on the left side, while the right should the resultant type.
-  ```julia
+
+  ```
     @relateMeasures Meter*Newton = NewtonMeter
   ```
 """
@@ -400,8 +404,10 @@ end
 end
 
 """
+  `macro u_str(unit::String)`
+
   Macro to provide the 1.2u"cm" inline unit assignment.
-  ```julia
+  ```
   a = 1.2u"cm" 
   ```
   This function relies on cm(1.2) existing as an alias for CentiMeter(1.2).
