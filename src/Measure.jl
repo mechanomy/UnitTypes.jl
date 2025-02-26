@@ -314,11 +314,11 @@ function Base.show(io::IO, m::AbstractMeasure)
   print(io, measure2String(m))
 end
 
-```
+"""
   `function toBaseFloat(m::AbstractMeasure) :: Float64`
 
   Returns measure `m` as a float in the base unit.
-``` 
+""" 
 function toBaseFloat(m::AbstractMeasure) :: Float64
   return m.value * m.toBase
 end
