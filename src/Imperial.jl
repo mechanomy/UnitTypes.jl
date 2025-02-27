@@ -26,7 +26,9 @@ ftPerMi = 5280
 @makeMeasure KiloGram(14.59390294) = Slug(1) "slug"
 
 @testitem "Imperial" begin
-  @test isapprox(Inch(Foot(1.2)), Inch(14.4), atol=1e-6) # @test Inch(Foot(1.2)) ≈ Inch(14.4)
+  @test Inch(12) ≈ Foot(1)
+  @test Foot(3) ≈ Yard(1)
+  @test Foot(5280) ≈ Mile(1)
   @test isapprox(Acre(640), SquareMile(1), atol=0.1)
   @test isapprox(SquareFoot(5280^2), SquareMile(1), atol=0.1)
 end

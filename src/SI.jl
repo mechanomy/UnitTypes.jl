@@ -14,7 +14,7 @@
 @makeMeasure Meter(1) = MicroMeter(1e6) "μm"
 @makeMeasure Meter(1) = MilliMeter(1e3) "mm"
 @makeMeasure Meter(1) = CentiMeter(1e2) "cm"
-@makeMeasure Meter(1) = KiloMeter(1e-3) "km"
+@makeMeasure Meter(1e3) = KiloMeter(1) "km"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -82,9 +82,9 @@ end
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @relateMeasures Newton*Meter2=Pascal
-@makeMeasure Pascal(1e3) = KiloPascal(1e3) "KPa"
-@makeMeasure Pascal(1e6) = MegaPascal(1e3) "MPa"
-@makeMeasure Pascal(1e9) = GigaPascal(1e3) "GPa"
+@makeMeasure Pascal(1e3) = KiloPascal(1) "KPa"
+@makeMeasure Pascal(1e6) = MegaPascal(1) "MPa"
+@makeMeasure Pascal(1e9) = GigaPascal(1) "GPa"
 
 @makeBaseMeasure Charge Coulomb "C"
 @relateMeasures Second*Ampere=Coulomb
@@ -93,8 +93,8 @@ end
 @makeMeasure Volt(1000) = KiloVolt(1) "KV"
 
 @makeBaseMeasure Resistance Ohm "Ω"
-@makeMeasure Ohm(1) = MilliOhm(1000) "Ω"
-@makeMeasure Ohm(1000) = KiloOhm(1) "kΩ"
+@makeMeasure Ohm(1) = MilliOhm(1e3) "Ω"
+@makeMeasure Ohm(1e3) = KiloOhm(1) "kΩ"
 @makeMeasure Ohm(1e6) = MegaOhm(1) "MΩ"
 
 @makeBaseMeasure Power Watt "W"
