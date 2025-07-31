@@ -81,7 +81,7 @@ end
 @makeMeasure NewtonMeter(1) = MilliNewtonMeter(1e3) "mN*m"
 
 @makeBaseMeasure Pressure Pascal "Pa"
-@relateMeasures Newton*Meter2=Pascal
+@relateMeasures Newton/Meter2=Pascal
 @makeMeasure Pascal(1e3) = KiloPascal(1) "KPa"
 @makeMeasure Pascal(1e6) = MegaPascal(1) "MPa"
 @makeMeasure Pascal(1e9) = GigaPascal(1) "GPa"

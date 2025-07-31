@@ -97,6 +97,13 @@ These conceptual gotchas are especially obvious in affine units like Temperature
 
 With use, patience, and [issues](https://github.com/mechanomy/UnitTypes.jl/issues), these coherence rules will become more clear and explained by example.
 
+## Naming conventions
+Combining the names of units to get the resulting type name follows these simple rules:
+1. Multiplication is concatenation: Newton * Meter = NewtonMeter (==MeterNewton)
+1. Division and negative exponents are indicated by `per`: N*m/s^2 = NewtonMeterPerSecond2
+1. Numeric powers are preferred over words: Meter2, not SquareMeter
+1. No plurality
+
 ## Comparison with other packages
 
 ### Unitful.jl

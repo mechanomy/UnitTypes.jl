@@ -180,6 +180,10 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
   # @show dump(rhs)
 
   # rhs will always have the same format (unless a symbol or variable is used for the argument)
+  if rhs isa Symbol
+    @error "$rhs is a Symbol not an expression; the correct format is $rhs(conversion factor), see the documentation for @makeMeasure."
+    return
+  end
   rhsSymbol = rhs.args[1]
   rhsFactor = rhs.args[2]
   rhsUnit = unit

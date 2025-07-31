@@ -10,6 +10,7 @@ ftPerMi = 5280
 @makeMeasure Meter(mPerIn*inPerFt*ftPerMi) = Mile(1) "mi"
 @makeMeasure Meter(1852) = NauticalMile(1) "nmi"
 
+@makeMeasure Meter2(mPerIn ^2) = SquareInch(1) "in^2"
 @makeMeasure Meter2((mPerIn*inPerFt)^2) = SquareFoot(1) "sqft"
 @makeMeasure Meter2(4.046873e3) = Acre(1) "ac"
 @makeMeasure Meter2((mPerIn*inPerFt*ftPerMi)^2) = SquareMile(1) "sqmi"
@@ -24,6 +25,9 @@ ftPerMi = 5280
 @makeMeasure KiloGram(28.349523125e-3) = Ounce(1) "oz"
 @makeMeasure KiloGram(0.45359237) = PoundMass(1) "lbm"
 @makeMeasure KiloGram(14.59390294) = Slug(1) "slug"
+
+@makeMeasure Newton(1) = PoundForce(0.22481) "lbf"
+
 
 @testitem "Imperial" begin
   @test Inch(12) ≈ Foot(1)
