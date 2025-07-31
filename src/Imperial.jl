@@ -10,10 +10,10 @@ ftPerMi = 5280
 @makeMeasure Meter(mPerIn*inPerFt*ftPerMi) = Mile(1) "mi"
 @makeMeasure Meter(1852) = NauticalMile(1) "nmi"
 
-@makeMeasure Meter2(mPerIn ^2) = SquareInch(1) "in^2"
-@makeMeasure Meter2((mPerIn*inPerFt)^2) = SquareFoot(1) "sqft"
+@makeMeasure Meter2(mPerIn ^2) = Inch2(1) "in^2"
+@makeMeasure Meter2((mPerIn*inPerFt)^2) = Foot2(1) "sqft"
 @makeMeasure Meter2(4.046873e3) = Acre(1) "ac"
-@makeMeasure Meter2((mPerIn*inPerFt*ftPerMi)^2) = SquareMile(1) "sqmi"
+@makeMeasure Meter2((mPerIn*inPerFt*ftPerMi)^2) = Mile2(1) "sqmi"
 
 @makeMeasure MeterPerSecond(mPerIn*inPerFt) = FootPerSecond(1) "ft/s"
 
@@ -33,6 +33,6 @@ ftPerMi = 5280
   @test Inch(12) ≈ Foot(1)
   @test Foot(3) ≈ Yard(1)
   @test Foot(5280) ≈ Mile(1)
-  @test isapprox(Acre(640), SquareMile(1), atol=0.1)
-  @test isapprox(SquareFoot(5280^2), SquareMile(1), atol=0.1)
+  @test isapprox(Acre(640), Mile2(1), atol=0.1)
+  @test isapprox(Foot2(5280^2), Mile2(1), atol=0.1)
 end
