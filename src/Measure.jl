@@ -463,10 +463,10 @@ end
 @testitem "u_str" begin
   @makeBaseMeasure TestuNM NewtonMeterTu "nmtu"
   @makeBaseMeasure TestuN NewtonTu "ntu"
-  @makeBaseMeasure TestuM MeterTu "mt"
+  @makeBaseMeasure TestuM MeterTu "mtu"
   @relateMeasures NewtonTu*MeterTu = NewtonMeterTu
 
-  @test 1.2u"mt" ≈ MeterTu(1.2)
-  @test 1.0u"mt" * 2.0u"ntu" ≈ NewtonMeterTu(2.0)
+  @test 1.2u"mtu" ≈ MeterTu(1.2)
+  @test 1.0u"mtu" * 2.0u"ntu" ≈ NewtonMeterTu(2.0)
   @test 2.0u"nmtu" / 1.0u"ntu" ≈ MeterTu(2.0)
 end

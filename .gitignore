@@ -65,6 +65,9 @@ temp
 ~$*.SLDDRW
 ~$*.slddrw
 
+
+Manifest.toml
+
 # Documenter.jl
 docs/build/*
 
