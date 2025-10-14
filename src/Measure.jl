@@ -45,7 +45,7 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
 
-      global UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
+      UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
 
       # Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
       Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*UnitTypes.allUnitTypes[$unitName].toBaseFactor) # supply the convert
@@ -250,7 +250,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
 
       $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
 
-      global UnitTypes.allUnitTypes[$rhsSymbol] = UnitTypes.UnitTypeAttributes($lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
+      UnitTypes.allUnitTypes[$rhsSymbol] = UnitTypes.UnitTypeAttributes($lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
 
     end ]
 
