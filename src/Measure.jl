@@ -41,17 +41,14 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       """
       struct $unitName <: $abstractName
         value::Number # the value on creation as measured in the unit
-        toBase::Number # the conversion factor to the base unit, s.t. value * toBase = value in base unit
-        unit::String # string represenation of the unit
-        $unitName(x::Number) = new(x,1.0,$unitSymbol) # 1.0 b/c this is @makeBaseMeasure
       end
       $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
 
       global allUnitTypes[$unitName] = UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
 
-
-      Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
+      # Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
+      Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*allUnitTypes[$unitName].toBaseFactor) # supply the convert
 
       # enable range
       Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
@@ -170,7 +167,7 @@ end
 """
   `macro makeMeasure(relation, unit="NoUnit", defineConverts=true)`
 
-  Creates a new Measure from an existing base measure.
+  Creates a new Measure from an existing base measure
   The left hand side of the equation must already exist, while the right hand side should be undefined, with the trailing string providing the unit symbol.
 
   ```
@@ -180,7 +177,7 @@ end
   The resulting types are defined in the containing module, not in UnitTypes, as seen by `println(names(MyModule, all=true))`.
 """
 macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
-  # println("makeMeasure($(string(relation)), $unit)")
+  # println("\nmakeMeasure($(string(relation)), $unit)")
   # display(dump(relation))
   
   # Make the new type
@@ -195,6 +192,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
   rhsSymbol = rhs.args[1]
   rhsFactor = rhs.args[2]
   rhsUnit = unit
+  # println("rhs: $($rhsSymbol) $($rhsFactor) $(allUnitTypes[$rhsSymbol].toBaseFactor)")
 
   if isdefined(__module__, rhsSymbol) 
     @warn "$rhsSymbol is already defined, cannot re-define"
@@ -225,6 +223,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
 
     lhsSymbol = lhs.args[1]
     lhsFactor = lhs.args[2]
+    # println("lhs: $($lhsSymbol) $($lhsFactor) $(allUnitTypes[$lhsSymbol].toBaseFactor)")
 
     if !( isdefined(__module__, lhsSymbol) || isdefined(@__MODULE__, lhsSymbol) ) # lhs must be defined in UnitTypes or caller
       throw(ArgumentError("Cannot derive $rhsSymbol from undefined $lhsSymbol in [$relation]"))
@@ -242,9 +241,6 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
       # """
       struct $rhsSymbol <: lhsAbstract # how does the new type relate to other types? is it just, and only <:AbstractMeasure?
         value::Number
-        toBase::Number
-        unit::String
-        $rhsSymbol(x::Number) = new(x, $lhsFactor/$rhsFactor, $rhsUnit)
       end
       export $rhsSymbol
 
@@ -256,7 +252,9 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
 
     if defineConverts
       push!(qts, quote
-        Base.convert(::Type{$rhsSymbol}, x::U) where {U<:lhsAbstract} = $rhsSymbol(x.value*x.toBase * $rhsFactor/$lhsFactor) # convert(MilliMeter, 1in) = 1in*.0254m/in * 1000mm/1m
+        Base.convert(::Type{$rhsSymbol}, x::U) where {U<:lhsAbstract} = $rhsSymbol(toBaseFloat(x) * $rhsFactor/$lhsFactor) # convert(MilliMeter, 1in) = 1in*.0254m/in * 1000mm/1m
+        # Base.convert(::Type{$rhsSymbol}, x::U) where {U<:lhsAbstract} = $rhsSymbol(x.value * allUnitTypes[$lhsSymbol].toBaseFactor * $rhsFactor/$lhsFactor) # no improvement in allocations.. convert(MilliMeter, 1in) = 1in*.0254m/in * 1000mm/1m
+
         Base.convert(::Type{$lhsSymbol}, x::$rhsSymbol) = $lhsSymbol(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
       end)
     end
@@ -281,10 +279,13 @@ end
     @test MeterT(1) + MilliMeterT(1000) ≈ MeterT(2)
 
     @test MeterT(1.2) ≈ MilliMeterT(1200)
+
+
     @test MilliMeterT(1200) ≈ MeterT(1.2)
+    @test isapprox(MilliMeterT(1200), MeterT(1.2), atol=1e-3)
     @test typeof(1.4u"mmT") <: AbstractLengthT
 
-    @test MilliMeterT2(1.2).unit == "NoUnit"
+    @test allUnitTypes[typeof(MilliMeterT2(1.2))].unitString == "NoUnit" #no unit was given to the type, so expect "NoUnit"
   end
 
   @testset "convert" begin
@@ -323,7 +324,11 @@ end
 """
 function measure2String(m::AbstractMeasure)::String
   # return @sprintf("%3.3f []", m)
-  return "$(m.value)$(m.unit)"
+  return "$(m.value)$(unit(m))"
+end
+
+function unit(m::AbstractMeasure)::String
+  return allUnitTypes[typeof(m)].unitString
 end
 
 """
@@ -341,7 +346,7 @@ end
   Returns measure `m` as a float in the base unit.
 """ 
 function toBaseFloat(m::AbstractMeasure) :: Float64
-  return m.value * m.toBase
+  return m.value * allUnitTypes[typeof(m)].toBaseFactor
 end
 @testitem "Measure measure2string()" begin
   @makeBaseMeasure LengthT MeterT "mT"
