@@ -53,7 +53,7 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
   )
 end
 @testitem "makeDimension" begin
-  @makeMeasure Meter(1) = MetT(1) "mt"
+  @makeMeasure Meter(1) = MetT(1) "met"
   @makeDimension DimT MetT 
 
   @test isa(DimT(MetT(3.4)), DimT) # default constructor 
@@ -66,13 +66,13 @@ end
   @test typeof(tdm1.measure) <: AbstractMeasure
 
   # now make sure that I can't convert between Dimensions
-  @makeMeasure Meter(2) = MetT2(1) "mt2"
+  @makeMeasure Meter(2) = MetT2(1) "met2"
   @makeDimension TestDim2 MetT2 
 
   @test isa(convert(MetT,MetT2(3.4)), MetT)
   @test isa(DimT(MetT2(3.4)), DimT)  # if it can convert from MetT2 to MetT, this should work since both are based on Meter
 
-  @makeMeasure Second(1) = MetT3(1) "mt3" #these should fail, showing that the <:AbstractLength is working
+  @makeMeasure Second(1) = MetT3(1) "met3" #these should fail, showing that the <:AbstractLength is working
   @test_throws MethodError convert(MetT,MetT3(3.4))  
   @test_throws MethodError DimT(MetT3(3.4))
 
