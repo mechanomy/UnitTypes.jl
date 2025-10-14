@@ -1,10 +1,16 @@
 using DocStringExtensions
 using TestItems 
 
-export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, @u_str
+export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, @u_str, UnitTypeAttributes, allUnitTypes
 abstract type AbstractMeasure end
 
 unitAbbreviations = [] # ("m", :Meter), a list of defined abbreviations for uniqueness checking
+
+struct UnitTypeAttributes
+  toBaseFactor::Real
+  unitString::String
+end
+allUnitTypes = Dict()
 
 """
   `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)`
@@ -45,6 +51,10 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       end
       $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
+
+      global allUnitTypes[$unitName] = UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
+
+
       Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
 
       # enable range
@@ -79,6 +89,7 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
     end
     )
   end
+
   return esc( Expr(:block, qts...))
 end
 
@@ -155,8 +166,9 @@ end
 
 Base.:-(x::T where T<:AbstractMeasure) = x * -1 # leading negation
 @testitem "leadingNegation" begin
-  a = Meter(1)
-  @test -a ≈ Meter(-1)
+  @makeBaseMeasure LengthT MeterT "mT"
+  a = MeterT(1)
+  @test -a ≈ MeterT(-1)
 end
 
 """
@@ -242,6 +254,9 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
       export $rhsSymbol
 
       $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
+
+      global allUnitTypes[$rhsSymbol] = UnitTypeAttributes($lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
+
     end ]
 
     if defineConverts
@@ -250,6 +265,9 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
         Base.convert(::Type{$lhsSymbol}, x::$rhsSymbol) = $lhsSymbol(x.value*($lhsFactor/$rhsFactor)) # convert(Meter, MilliMeter(3))
       end)
     end
+
+    push!(qts, quote
+    end)
 
     # display(qts)
     return esc( Expr(:block, qts...))
@@ -327,8 +345,9 @@ function toBaseFloat(m::AbstractMeasure) :: Float64
   return m.value * m.toBase
 end
 @testitem "Measure measure2string()" begin
-  @test UnitTypes.measure2String(Meter(3.4)) == "3.4m"
-  @test string(Meter(3.4)) == "3.4m"
+  @makeBaseMeasure LengthT MeterT "mT"
+  @test UnitTypes.measure2String(MeterT(3.4)) == "3.4mT"
+  @test string(MeterT(3.4)) == "3.4mT"
 end
 
 """
