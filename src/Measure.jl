@@ -452,12 +452,12 @@ macro u_str(unit::String)
   @warn "did not find $unit in `allUnitTypes`, returning 0"
 end
 @testitem "u_str" begin
-  @makeBaseMeasure TestNM NewtonMeterT "nmt"
-  @makeBaseMeasure TestN NewtonT "nt"
-  @makeBaseMeasure TestM MeterT "mt"
-  @relateMeasures NewtonT*MeterT = NewtonMeterT
+  @makeBaseMeasure TestuNM NewtonMeterTu "nmt"
+  @makeBaseMeasure TestuN NewtonTu "nt"
+  @makeBaseMeasure TestuM MeterTu "mt"
+  @relateMeasures NewtonTu*MeterTu = NewtonMeterTu
 
-  @test 1.2u"mt" ≈ MeterT(1.2)
-  @test 1.0u"mt" * 2.0u"nt" ≈ NewtonMeterT(2.0)
-  @test 2.0u"nmt" / 1.0u"nt" ≈ MeterT(2.0)
+  @test 1.2u"mt" ≈ MeterTu(1.2)
+  @test 1.0u"mt" * 2.0u"nt" ≈ NewtonMeterTu(2.0)
+  @test 2.0u"nmt" / 1.0u"nt" ≈ MeterTu(2.0)
 end
