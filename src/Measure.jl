@@ -1,7 +1,7 @@
 using DocStringExtensions
 using TestItems 
 
-export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, @u_str, UnitTypeAttributes, allUnitTypes
+export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, unit, @u_str 
 abstract type AbstractMeasure end
 
 struct UnitTypeAttributes
@@ -21,11 +21,6 @@ allUnitTypes = Dict()
   * `isAffine` is normally false, if true the +-/* operations are not added for this and derived units and need to be added by hand.
   The macro will introduce `AbstractLength <: AbstractMeasure` and `Meter()` into the current scope.
   
-  Measures created by the macro have fields:
-  * `value::Number` raw value of the measure
-  * `toBase::Number` == 1 for base measures
-  * `unit::String` the unit to be displayed
-
   To get the measure's value in the base unit as a float, see toBaseFloat().
 """
 macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)
@@ -45,10 +40,10 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
 
-      global allUnitTypes[$unitName] = UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
+      global UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
 
       # Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
-      Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*allUnitTypes[$unitName].toBaseFactor) # supply the convert
+      Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*UnitTypes.allUnitTypes[$unitName].toBaseFactor) # supply the convert
 
       # enable range
       Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
@@ -200,7 +195,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
   end
 
   # is the unit already defined? filter the allUnitTypes to key(s) with matching unit string
-  aut = filter( pairKV->last(pairKV).unitString == unit && last(pairKV).unitString != "NoUnit", allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).unitString ==unit
+  aut = filter( pairKV->last(pairKV).unitString == unit && last(pairKV).unitString != "NoUnit", UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).unitString ==unit
   if !isempty(aut)
     ty = first(first(aut))
     if relation.args[2].args[1] isa LineNumberNode
@@ -246,7 +241,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
 
       $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
 
-      global allUnitTypes[$rhsSymbol] = UnitTypeAttributes($lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
+      global UnitTypes.allUnitTypes[$rhsSymbol] = UnitTypes.UnitTypeAttributes($lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
 
     end ]
 
@@ -285,7 +280,7 @@ end
     @test isapprox(MilliMeterT(1200), MeterT(1.2), atol=1e-3)
     @test typeof(1.4u"mmT") <: AbstractLengthT
 
-    @test allUnitTypes[typeof(MilliMeterT2(1.2))].unitString == "NoUnit" #no unit was given to the type, so expect "NoUnit"
+    @test UnitTypes.allUnitTypes[typeof(MilliMeterT2(1.2))].unitString == "NoUnit" #no unit was given to the type, so expect "NoUnit"
   end
 
   @testset "convert" begin
@@ -327,8 +322,17 @@ function measure2String(m::AbstractMeasure)::String
   return "$(m.value)$(unit(m))"
 end
 
+"""
+  `unit(m::AbstractMeasure)::String`
+
+  Returns the unit string for `m`.
+"""
 function unit(m::AbstractMeasure)::String
-  return allUnitTypes[typeof(m)].unitString
+  return UnitTypes.allUnitTypes[typeof(m)].unitString
+end
+@testitem "unit()" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @test UnitTypes.unit(MeterT(3.4)) == "mT"
 end
 
 """
@@ -346,7 +350,7 @@ end
   Returns measure `m` as a float in the base unit.
 """ 
 function toBaseFloat(m::AbstractMeasure) :: Float64
-  return m.value * allUnitTypes[typeof(m)].toBaseFactor
+  return m.value * UnitTypes.allUnitTypes[typeof(m)].toBaseFactor
 end
 @testitem "Measure measure2string()" begin
   @makeBaseMeasure LengthT MeterT "mT"
@@ -399,7 +403,6 @@ macro relateMeasures(relation)
     throw(ArgumentError("@relateMeasures given incorrect format"))
   end
 end
-
 @testitem "relateMeasures" begin
   # multiplicative same
   @makeBaseMeasure TestM MeterT "tm"
@@ -441,14 +444,13 @@ end
   This works by looking up the unit string in `allUnitTypes` and returning the corresponding type.
 """
 macro u_str(unit::String)
-  aut = filter( pairKV -> last(pairKV).unitString == unit, allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).unitString ==unit
+  aut = filter( pairKV -> last(pairKV).unitString == unit, UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).unitString ==unit
   if !isempty(aut)
     b = first(first(aut))(1) # MeterT(1)
     return b
   end
   @warn "did not find $unit in `allUnitTypes`, returning 0"
 end
-
 @testitem "u_str" begin
   @makeBaseMeasure TestNM NewtonMeterT "nmt"
   @makeBaseMeasure TestN NewtonT "nt"

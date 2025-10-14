@@ -55,8 +55,6 @@ Internally, a Measure is represented by
 ```julia
 struct Meter <: AbstractLength
   value::Number
-  toBase::Number
-  unit::String
 end
 ```
 and a Dimension by
@@ -67,11 +65,11 @@ end
 ```
 
 The idea is that a *Measure* is some quantity bearing units, while a *Dimension* is some context-specific application of a Measure.
+(The Measure's unit string and conversion factor are tracked in `UnitTypes.allUnitTypes`.)
 
 Within a Dimension multiple Measures may logically be used as long as they are dimensionally consistent.
 For instance, a circle may be described by its radius, diameter, or circumference, concepts that can be interchangeably converted, using any Measure of extent (<:AbstractLength).
 A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference arguments as the user prefers, since the type system provides conversion between the argument and the function's internal convention.
-
 
 Please open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues) _with a minimal working example_ if you run into conversion errors or think additional units should be defined by the package.
 
@@ -102,7 +100,7 @@ Combining the names of units to get the resulting type name follows these simple
 1. Multiplication is concatenation: Newton * Meter = NewtonMeter (==MeterNewton)
 1. Division and negative exponents are indicated by `per`: N*m/s^2 = NewtonMeterPerSecond2
 1. Numeric powers are preferred over words: Meter2, not SquareMeter
-1. No plurality
+1. No plurals: Meter, not Meters
 
 ## Comparison with other packages
 
