@@ -27,6 +27,11 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
   # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
   abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
 
+  if unitName in keys(UnitTypes.allUnitTypes)
+    @warn "$unitName is already defined, skipping"
+    return
+  end
+
   qts = [quote
       abstract type $abstractName <: AbstractMeasure end
       export $abstractName #AbstractLength
@@ -187,10 +192,14 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
   rhsSymbol = rhs.args[1]
   rhsFactor = rhs.args[2]
   rhsUnit = unit
-  # println("rhs: $($rhsSymbol) $($rhsFactor) $(allUnitTypes[$rhsSymbol].toBaseFactor)")
 
-  if isdefined(__module__, rhsSymbol) 
+  if isdefined(__module__, rhsSymbol)  # isdefined can error if rhsSymbol is not a symbol as can happen when giving UnitTypes.Meter
     @warn "$rhsSymbol is already defined, cannot re-define"
+    return
+  end
+
+  if rhsSymbol in keys(UnitTypes.allUnitTypes)
+    @warn "$rhsSymbol is already defined, skipping"
     return
   end
 
@@ -454,10 +463,10 @@ end
 @testitem "u_str" begin
   @makeBaseMeasure TestuNM NewtonMeterTu "nmtu"
   @makeBaseMeasure TestuN NewtonTu "ntu"
-  @makeBaseMeasure TestuM MeterTu "mtu"
+  @makeBaseMeasure TestuM MeterTu "mt"
   @relateMeasures NewtonTu*MeterTu = NewtonMeterTu
 
-  @test 1.2u"mtu" ≈ MeterTu(1.2)
-  @test 1.0u"mtu" * 2.0u"ntu" ≈ NewtonMeterTu(2.0)
+  @test 1.2u"mt" ≈ MeterTu(1.2)
+  @test 1.0u"mt" * 2.0u"ntu" ≈ NewtonMeterTu(2.0)
   @test 2.0u"nmtu" / 1.0u"ntu" ≈ MeterTu(2.0)
 end
