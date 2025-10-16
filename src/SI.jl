@@ -1,5 +1,25 @@
 # following https://en.wikipedia.org/wiki/International_System_of_Units for names, definitions, and symbols
 
+# the overall type hierarchy looks like:
+# AbstractMeasure
+#   AbstractCurrent
+#   AbstractIntensity
+#   AbstractLength
+#     Meter
+#     MilliMeter
+#     Inch
+#     Foot
+#   AbstractMass
+#     Gram
+#     KiloGram
+#     Slug
+#   AbstractTime
+#     Second
+#     Hour
+#   AbstractForce - derived from Mass*Length^2*Time...
+#     Newton
+#   ...
+
 # base measures
 @makeBaseMeasure Current Ampere "A"
 @makeBaseMeasure Intensity Candela "cd"
@@ -15,6 +35,7 @@
 @makeMeasure Meter(1) = MilliMeter(1e3) "mm"
 @makeMeasure Meter(1) = CentiMeter(1e2) "cm"
 @makeMeasure Meter(1e3) = KiloMeter(1) "km"
+
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)

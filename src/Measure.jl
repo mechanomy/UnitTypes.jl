@@ -1,30 +1,48 @@
-using DocStringExtensions
-using TestItems 
-
-export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, unit, @u_str 
+export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes
 abstract type AbstractMeasure end
 
 struct UnitTypeAttributes
-  toBaseFactor::Real
-  unitString::String
+  abstract::DataType # the abstract type of this type, say AbstractLength for MilliMeter
+  base::DataType # Meter
+  toBaseFactor::Real # 1/1000 such that: this[mm] * factor(1/1000) = base[m]
+  abbreviation::String # "mm"
 end
-allUnitTypes = Dict()
+allUnitTypes = Dict{DataType, UnitTypeAttributes}()
+# allUnitTypes = IdDict{DataType, UnitTypeAttributes}() # any benefit?
 
 """
-  `macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)`
+  `abbreviation(m::AbstractMeasure)::String`
+
+  Returns the unit string for `m`.
+"""
+function abbreviation(m::AbstractMeasure)::String
+  return UnitTypes.allUnitTypes[typeof(m)].abbreviation
+end
+@testitem "abbreviation()" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @test UnitTypes.abbreviation(MeterT(3.4)) == "mT"
+end
+
+function displayUnitTypes()
+  println("allUnitTypes=")
+  display(sort(collect(allUnitTypes), by=x->string(x[1]))) # alphabetize and display
+end
+
+"""
+  `macro makeBaseMeasure(quantityName, unitName, abbreviation::String, isAffine=false)`
 
   Make a new base measure which has no relationship to an existing unit.
   For example, in `@makeBaseMeasure Length Meter "m"`:
   * `quantityName` is the name of the measure, 'Length' above.
   * `unitName` is the name of the unit which will be used to make measures bearing that unit, 'Meter' above.
-  * `unitSymbol` is the abbreviation of the unit name, used in all string presentations of the measure.
+  * `abbreviation` is the abbreviation of the unit name, used in all string presentations of the measure.
   * `isAffine` is normally false, if true the +-/* operations are not added for this and derived units and need to be added by hand.
   The macro will introduce `AbstractLength <: AbstractMeasure` and `Meter()` into the current scope.
   
   To get the measure's value in the base unit as a float, see toBaseFloat().
 """
-macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false)
-  # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName unitSymbol:$unitSymbol")
+macro makeBaseMeasure(quantityName, unitName, abbreviation::String, isAffine=false)
+  # println("makeBaseMeasure: Module:$(__module__) quantityName:$quantityName unitName:$unitName abbreviation:$abbreviation")
   abstractName = Symbol("Abstract"*String(quantityName)) #AbstractLength
 
   if unitName in keys(UnitTypes.allUnitTypes)
@@ -37,7 +55,7 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       export $abstractName #AbstractLength
 
       """
-        This UnitType represents a basic measure of $($unitName) with units $($unitSymbol).
+        This UnitType represents a basic measure of $($unitName) with units $($abbreviation).
       """
       struct $unitName <: $abstractName
         value::Number # the value on creation as measured in the unit
@@ -45,27 +63,11 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       $unitName(x::T where T<:$abstractName) = convert($unitName, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
 
-      UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes(1, $unitSymbol) # must come after the type has been created!
-
-      # Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*x.toBase) # supply the convert
-      Base.convert(::Type{$unitName}, x::U) where {U<:$abstractName} = $unitName(x.value*UnitTypes.allUnitTypes[$unitName].toBaseFactor) # supply the convert
-
-      # enable range
-      Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
-      Base._colon(start::T, step::U, stop::V) where {T<:$abstractName, U<:$abstractName, V<:$abstractName} = T.(start.value : convert(T,step).value : convert(T,stop).value)
-
-      # enable iteration&broadcasting
-      Base.broadcastable(x::T) where T<:$abstractName = Ref(x) # If a type is intended to act like a "0-dimensional scalar" (a single object) rather than as a container for broadcasting, then the following method should be defined:
-
-      # enable comparisons
-      Base.isequal(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = convert(T,x).value == convert(T,y).value
-      Base.:<(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = x.value < convert(T,y).value # other <> ops are defined from this
-      Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
-      # Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:Number} removed in order to discover what more specific defs are needed = isapprox(x.value, y, atol=atol, rtol=rtol) # when comparing to number, do not convert to base units; 
+      UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, 1, $abbreviation) # add to the Dict
     end
   ]
   
-  if isAffine == false
+  if isAffine == false # Since isAffine is not part of the type, I can't gate these by type parameters which means I can't remove them from the quote yet
     push!( qts, quote
       # math
       Base.:+(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = T(x.value+convert(T,y).value) #result returned in the unit of the first measure
@@ -75,7 +77,7 @@ macro makeBaseMeasure(quantityName, unitName, unitSymbol::String, isAffine=false
       # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
       Base.:*(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value*y) # * inside T because x*T(y) = Meter^2; toBaseFloat not needed since x.value is already T
       Base.:*(x::T, y::U) where {T<:Number, U<:$abstractName} = U(x*y.value)
-      # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed?
+      # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed? 1.2in^3Pa ?
       Base.:/(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value/y)
 
       # Base.abs()
@@ -93,6 +95,9 @@ end
   @testset "did the macro create the definitions we expect" begin
     @test isdefined(@__MODULE__, :AbstractMeterTest)
     @test isdefined(@__MODULE__, :MeterT)
+
+    @makeBaseMeasure DensityTest DensityT "dennyT"
+    @test_throws MethodError MeterT(1.2)*DensityT(3.4)
   end
   
   @testset "constructor" begin
@@ -100,42 +105,12 @@ end
     # @show MeterT(2im).value # should imaginary error?
   end
 
-  @testset "range" begin
-    b = MeterT(1) : MeterT(0.3) : MeterT(2)
-    @test b[1] ≈ MeterT(1)
-    @test b[2] ≈ MeterT(1.3)
-    @test last(b) ≈ MeterT(1.9)
-
-    c = LinRange(MeterT(10), MeterT(20), 4)
-    @test c[1] ≈ MeterT(10)
-    @test c[2] ≈ MeterT(13+1/3)
-    @test last(c) ≈ MeterT(20)
-  end
-
-  @testset "broadcast" begin
-    @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
-    for m in MeterT.([1,2,3])
-      @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
-    end
-  end
-
-  @testset "comparsions" begin
-    @test MeterT(1.2) < MeterT(3.4)
-    @test MeterT(1.2) <= MeterT(3.4)
-    @test MeterT(3.4) > MeterT(1.2)
-    @test MeterT(3.4) >= MeterT(1.2)
-    @test (MeterT(3.4) == MeterT(1.2)) == false
-    @test (MeterT(3.4) == MeterT(3.4)) == true
-    @test (MeterT(3.4) != MeterT(1.2)) == true
-    @test (MeterT(3.4) != MeterT(3.4)) == false
-    @test isapprox(MeterT(1.2), MeterT(1.2), rtol=1e-3)
-    @test MeterT(1.2) ≈ MeterT(1.2)
-  end
-
-  @testset "ensure prevention of mixed base measures" begin
-    # @show @macroexpand @makeBaseMeasure DensityTest DensityT "dennyT"
-    @makeBaseMeasure DensityTest DensityT "dennyT"
-    @test_throws MethodError MeterT(1.2)*DensityT(3.4)
+  @testset "allUnitTypes is populated" begin
+    @test haskey(UnitTypes.allUnitTypes, MeterT)
+    @test UnitTypes.allUnitTypes[MeterT].abstract == AbstractMeterTest
+    @test UnitTypes.allUnitTypes[MeterT].base == MeterT
+    @test UnitTypes.allUnitTypes[MeterT].toBaseFactor == 1
+    @test UnitTypes.allUnitTypes[MeterT].abbreviation == "metT"
   end
 
   @testset "math" begin
@@ -155,6 +130,94 @@ end
   @testset "unit constructor" begin
     @test 1.2u"metT" ≈ MeterT(1.2)
   end
+end
+
+function Base.convert(::Type{T}, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} # I wanted U<:supertype(T) but can't, so assert below.  cf https://discourse.julialang.org/t/limit-subtype-to-immediate-parent-in-method-signature/133177/3
+  @assert typejoin(T,U) <: supertype(T) "Cannot convert dissimilar types" 
+  return T(y.value * allUnitTypes[U].toBaseFactor / allUnitTypes[T].toBaseFactor )
+end
+@testitem "convert" begin
+  @makeBaseMeasure LengthTest MeterT "metT" 
+  @makeBaseMeasure SoundTest GrowlT "gro" 
+  @test_throws AssertionError convert(GrowlT, MeterT(1.2))
+end
+
+Base.isequal(x::T, y::U) where {T<:N, U<:N} where N<:AbstractMeasure = x.value == convert(T,y).value
+@testitem "isequal" begin
+  @makeBaseMeasure MeterTest MeterT "metT" 
+
+  @test (MeterT(3.4) == MeterT(1.2)) == false
+  @test (MeterT(3.4) == MeterT(3.4)) == true
+  @test (MeterT(3.4) != MeterT(1.2)) == true
+  @test (MeterT(3.4) != MeterT(3.4)) == false
+
+  @makeBaseMeasure GrowlTest GrowlT "gro" 
+  @test MeterT(3.4) != GrowlT(3.4) 
+end
+
+function Base.:<(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} # I wanted U<:supertype(T) but can't, so assert below.  cf https://discourse.julialang.org/t/limit-subtype-to-immediate-parent-in-method-signature/133177/3
+  @assert typejoin(T,U) <: supertype(T) "Cannot compare dissimilar types" 
+  return x.value < convert(T,y).value # other <> ops are defined from this
+end
+@testitem "lessThan" begin
+  @makeBaseMeasure MeterTest MeterT "metT" 
+  @test MeterT(1.2) < MeterT(3.4)
+  @test MeterT(1.2) <= MeterT(3.4)
+  @test MeterT(3.4) > MeterT(1.2)
+  @test MeterT(3.4) >= MeterT(1.2)
+
+  @makeBaseMeasure GrowlTest GrowlT "gro" 
+  @test_throws AssertionError MeterT(1.2) < GrowlT(3.4)
+end
+
+function Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure, U<:AbstractMeasure} # I wanted U<:supertype(T) but can't, so assert below.  cf https://discourse.julialang.org/t/limit-subtype-to-immediate-parent-in-method-signature/133177/3
+  @assert typejoin(T,U) <: supertype(T) "Cannot compare dissimilar types" 
+  return isapprox(convert(T,x).value, convert(T,y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+end
+@testitem "isapprox" begin
+  @makeBaseMeasure MeterTest MeterT "metT" 
+  @test isapprox(MeterT(1.2), MeterT(1.2), rtol=1e-3)
+  @test MeterT(1.2) ≈ MeterT(1.2)
+  
+  @makeBaseMeasure GrowlTest GrowlT "gro" 
+  @test_throws AssertionError MeterT(1.2) ≈ GrowlT(1.2)
+end
+
+""" 
+  Enable iteration and broadcasting
+"""
+Base.broadcastable(x::T) where T<:AbstractMeasure = Ref(x) 
+@testitem "broadcasting" begin
+  @makeBaseMeasure MeterTest MeterT "metT" 
+  @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
+  for m in MeterT.([1,2,3])
+    @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
+  end
+end
+
+# enable range
+Base.zero(x::T) where T<:AbstractMeasure = T(0) #zero() seems to be required for _colon()
+function Base._colon(start::T, step::U, stop::V) where {T<:AbstractMeasure, U<:AbstractMeasure, V<:AbstractMeasure} 
+  @assert typejoin(T,U,V) <: supertype(T) "Cannot iterate dissimilar types" 
+  return T.(start.value : convert(T,step).value : convert(T,stop).value)
+end
+@testitem "range _colon" begin
+  @makeBaseMeasure MeterTest MeterT "metT" 
+  @makeBaseMeasure GrowlTest GrowlT "gro" 
+
+  b = MeterT(1) : MeterT(0.3) : MeterT(2)
+  @test b[1] ≈ MeterT(1)
+  @test b[2] ≈ MeterT(1.3)
+  @test last(b) ≈ MeterT(1.9)
+
+  c = LinRange(MeterT(10), MeterT(20), 4)
+  @test c[1] ≈ MeterT(10)
+  @test c[2] ≈ MeterT(13+1/3)
+  @test last(c) ≈ MeterT(20)
+
+  @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
+  @test_throws AssertionError MeterT(1) : GrowlT(0.3) : MeterT(2) 
+  @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
 end
 
 Base.:-(x::T where T<:AbstractMeasure) = x * -1 # leading negation
@@ -204,7 +267,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
   end
 
   # is the unit already defined? filter the allUnitTypes to key(s) with matching unit string
-  aut = filter( pairKV->last(pairKV).unitString == unit && last(pairKV).unitString != "NoUnit", UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).unitString ==unit
+  aut = filter( pairKV->last(pairKV).abbreviation == unit && last(pairKV).abbreviation != "NoUnit", UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).abbreviation ==unit
   if !isempty(aut)
     ty = first(first(aut))
     if relation.args[2].args[1] isa LineNumberNode
@@ -250,7 +313,7 @@ macro makeMeasure(relation, unit="NoUnit", defineConverts=true)
 
       $rhsSymbol(x::T where T<:lhsAbstract) = convert($rhsSymbol, x) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
 
-      UnitTypes.allUnitTypes[$rhsSymbol] = UnitTypes.UnitTypeAttributes($lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
+      UnitTypes.allUnitTypes[$rhsSymbol] = UnitTypes.UnitTypeAttributes(lhsAbstract, $lhsSymbol, $lhsFactor/$rhsFactor, $rhsUnit) # add it to the type dict
 
     end ]
 
@@ -284,12 +347,11 @@ end
 
     @test MeterT(1.2) ≈ MilliMeterT(1200)
 
-
     @test MilliMeterT(1200) ≈ MeterT(1.2)
     @test isapprox(MilliMeterT(1200), MeterT(1.2), atol=1e-3)
     @test typeof(1.4u"mmT") <: AbstractLengthT
 
-    @test UnitTypes.allUnitTypes[typeof(MilliMeterT2(1.2))].unitString == "NoUnit" #no unit was given to the type, so expect "NoUnit"
+    @test UnitTypes.allUnitTypes[typeof(MilliMeterT2(1.2))].abbreviation == "NoUnit" #no unit was given to the type, so expect "NoUnit"
   end
 
   @testset "convert" begin
@@ -328,20 +390,7 @@ end
 """
 function measure2String(m::AbstractMeasure)::String
   # return @sprintf("%3.3f []", m)
-  return "$(m.value)$(unit(m))"
-end
-
-"""
-  `unit(m::AbstractMeasure)::String`
-
-  Returns the unit string for `m`.
-"""
-function unit(m::AbstractMeasure)::String
-  return UnitTypes.allUnitTypes[typeof(m)].unitString
-end
-@testitem "unit()" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @test UnitTypes.unit(MeterT(3.4)) == "mT"
+  return "$(m.value)$(abbreviation(m))"
 end
 
 """
@@ -451,9 +500,10 @@ end
   ```
 
   This works by looking up the unit string in `allUnitTypes` and returning the corresponding type.
+  See https://docs.julialang.org/en/v1/manual/metaprogramming/#meta-non-standard-string-literals
 """
 macro u_str(unit::String)
-  aut = filter( pairKV -> last(pairKV).unitString == unit, UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).unitString ==unit
+  aut = filter( pairKV -> last(pairKV).abbreviation == unit, UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).abbreviation ==unit
   if !isempty(aut)
     b = first(first(aut))(1) # MeterT(1)
     return b
@@ -470,3 +520,4 @@ end
   @test 1.0u"mtu" * 2.0u"ntu" ≈ NewtonMeterTu(2.0)
   @test 2.0u"nmtu" / 1.0u"ntu" ≈ MeterTu(2.0)
 end
+

@@ -106,7 +106,7 @@ Combining the names of units to get the resulting type name follows these simple
 
 ### Unitful.jl
 [Unitful](https://painterqubits.github.io/Unitful.jl/latest/) leverages parametric types to store units, giving flexibility at the cost of compile-time type uncertainty.
-It's two major limitations are the avoidance of [angular measures](https://painterqubits.github.io/Unitful.jl/latest/trouble/#promotion-with-dimensionless-numbers), as they are not first-class entities but rather ratios, and rather lengthy type unions that clutter outputs, especially on error:
+It's two major limitations are the avoidance of [angular measures](https://painterqubits.github.io/Unitful.jl/latest/trouble/#promotion-with-dimensionless-numbers), as they are not first-class entities but rather ratios, and rather [lengthy type unions](https://discourse.julialang.org/t/how-to-properly-use-unitful/40295/14?u=bcon) that clutter outputs, especially on error:
 
 ```julia
 julia> function goSlower(x<:Unitful.Acceleration) end

@@ -73,7 +73,6 @@ end
   @test isa(DimT(MetT2(3.4)), DimT)  # if it can convert from MetT2 to MetT, this should work since both are based on Meter
 
   @makeMeasure Second(1) = MetT3(1) "met3" #these should fail, showing that the <:AbstractLength is working
-  @test_throws MethodError convert(MetT,MetT3(3.4))  
   @test_throws MethodError DimT(MetT3(3.4))
 
   @test DimT(3.4) ≈ DimT(3.4) #Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)

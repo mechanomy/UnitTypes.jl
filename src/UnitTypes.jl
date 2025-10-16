@@ -1,5 +1,5 @@
 module UnitTypes
-  # __precompile__(false)
+  __precompile__(false)
   # __precompile__(true)
   using DocStringExtensions
   using Reexport
@@ -15,8 +15,6 @@ module UnitTypes
   include("Dimension.jl")
   include("CommonDimensions.jl")
 
-  # display("\nallUnitTypes = ")
-  # display(sort(collect(allUnitTypes), by=x->string(x[1]))) # alphabetize and display
-
+  # displayUnitTypes()
 end
 
