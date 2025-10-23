@@ -16,5 +16,9 @@ module UnitTypes
   include("CommonDimensions.jl")
 
   # displayUnitTypes()
+
+  # function __init__()
+  #   makeConversions()
+  # end
 end
 

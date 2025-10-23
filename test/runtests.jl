@@ -1,7 +1,11 @@
+# using Pkg
+# Pkg.activate(".")
+
 using TestItemRunner # https://github.com/julia-vscode/TestItemRunner.jl 
 @run_package_tests verbose=true
 # @run_package_tests verbose=true filter=ti->(occursin("Measure", ti.filename))
 # @run_package_tests verbose=true filter=ti->(occursin("SI", ti.filename))
+# @run_package_tests verbose=true filter=ti->(occursin("Imperial", ti.filename))
 # @run_package_tests verbose=true filter=ti->(occursin("Angle", ti.filename))
 # @run_package_tests verbose=true filter=ti->(occursin("Temperature", ti.filename))
 # @run_package_tests verbose=true filter=ti->(occursin("ExchangeUnitful", ti.filename))

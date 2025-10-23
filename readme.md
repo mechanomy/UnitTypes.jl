@@ -84,7 +84,7 @@ For working with Dimensions:
 * `@relateDimensions Diameter = 2.0*Radius` - relates the Dimensions Diameter and Radius by the scalar 2.0.
 
 The macros in Measure.jl and Dimension.jl define the necessary convert()s and other operators.
-While these macros suffice for most units, defining nonlinear units (like temperature) requires additional plumbing.
+While these macros suffice for most units, defining affine units (like temperature) requires additional plumbing.
 See the temperature converts in Temperature.jl for an example.
 
 ## Logical operations
