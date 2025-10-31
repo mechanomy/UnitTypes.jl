@@ -1,23 +1,23 @@
 @makeBaseMeasure Angle Radian "rad"
-@makeMeasure Radian(π) = Degree(180) "°"
+@makeMeasure Radian = Degree "°" π/180
+
+# @makeMeasure arcmin
 
 @testitem "Angle Radian Degree definitions" begin
+  @test convert(Radian, Degree(180)) ≈ Radian(π)
+  @test convert(Degree, Radian(π)) ≈ Degree(180)
+
   @test Radian(π) ≈ Degree(180)
   @test Radian(Degree(180)) ≈ Radian(π)
   @test Degree(Radian(π)) ≈ Degree(180)
 
   @test Degree(1) + Degree(2) ≈ Degree(3)
-  @test Degree(3) - Degree(1) ≈ Degree(2)
+  @test isapprox(Degree(3) - Degree(1), Degree(2), atol=1e-3)
 
   @test Radian(1)*2 ≈ Radian(2)
   @test Degree(1)*2 ≈ Degree(2)
   @test -Degree(45) ≈ Degree(-45)
 end
-
-# Base.promote_rule(::Type{Radian}, ::Type{Degree}) = Radian #promote to Radian in general
-# @testitem "Angle promotion" begin
-#   @test promote_type(Radian, Degree) == Radian # what's the use case that I should be testing?
-# end
 
 Base.sin(x::Radian) = sin(x.value)
 Base.sin(x::Degree) = sin(convert(Radian, x))

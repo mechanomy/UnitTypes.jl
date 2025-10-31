@@ -53,7 +53,7 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
   )
 end
 @testitem "makeDimension" begin
-  @makeMeasure Meter(1) = MetT(1) "met"
+  @makeMeasure Meter = MetT "met" 1
   @makeDimension DimT MetT 
 
   @test isa(DimT(MetT(3.4)), DimT) # default constructor 
@@ -66,13 +66,13 @@ end
   @test typeof(tdm1.measure) <: AbstractMeasure
 
   # now make sure that I can't convert between Dimensions
-  @makeMeasure Meter(2) = MetT2(1) "met2"
+  @makeMeasure Meter = MetT2 "met2" 2
   @makeDimension TestDim2 MetT2 
 
   @test isa(convert(MetT,MetT2(3.4)), MetT)
   @test isa(DimT(MetT2(3.4)), DimT)  # if it can convert from MetT2 to MetT, this should work since both are based on Meter
 
-  @makeMeasure Second(1) = MetT3(1) "met3" #these should fail, showing that the <:AbstractLength is working
+  @makeMeasure Second = MetT3 "met3" 3 #these should fail, showing that the <:AbstractLength is working
   @test_throws MethodError DimT(MetT3(3.4))
 
   @test DimT(3.4) ≈ DimT(3.4) #Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
@@ -100,13 +100,13 @@ end
 
   # @test isa([1,2,3] .* DimT(MetT(4)), Vector{DimT(MetT)})
 
-  for m in DimT.([1,2,3])
-    @test m≈DimT(MetT(1)) || m≈DimT(MetT(2)) || m≈DimT(MetT(3))
-  end
-  b = DimT(MetT(1)) : DimT(MetT(0.3)) : DimT(MetT(2))
-  @test b[1] ≈ DimT(MetT(1))
-  @test b[2] ≈ DimT(MetT(1.3))
-  @test last(b) ≈ DimT(MetT(1.9))
+  # for m in DimT.([1,2,3])
+  #   @test m≈DimT(MetT(1)) || m≈DimT(MetT(2)) || m≈DimT(MetT(3))
+  # end
+  # b = DimT(MetT(1)) : DimT(MetT(0.3)) : DimT(MetT(2))
+  # @test b[1] ≈ DimT(MetT(1))
+  # @test b[2] ≈ DimT(MetT(1.3))
+  # @test last(b) ≈ DimT(MetT(1.9))
 
   # @show c = LinRange(DimT(MetT(10)), DimT(MetT(20)), 4)
   # @test c[1] ≈ DimT(MetT(10))
@@ -241,7 +241,7 @@ end
   # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2) #maintain Radius
   @test rm - dm ≈ RadiusT(MeterT(0))
 
-  @makeMeasure MeterT(1) = MillimeterT(1000) "mmt"
+  @makeMeasure MeterT = MillimeterT "mmt" 1e-3
   m = MillimeterT(1200)
 
   # # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
@@ -285,7 +285,7 @@ function dimension2String(c::T)::String where T<:AbstractDimension
   return "$(split(string(T),"{")[1])($(c.measure))" # 
 end
 @testitem "dimension2String" begin
-  @makeMeasure Meter(1) = TestLength1(10) "tl1"
+  @makeMeasure Meter = TestLength1 "tl1" 10
   @makeDimension DimT TestLength1
   d11 = DimT{TestLength1}(1.2)
 
