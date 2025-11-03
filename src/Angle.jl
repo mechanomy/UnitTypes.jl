@@ -4,10 +4,19 @@
 # @makeMeasure arcmin
 
 @testitem "Angle Radian Degree definitions" begin
+  # display(UnitTypes.allUnitTypes[Radian])
+  # display(UnitTypes.allUnitTypes[Degree])
+  # @show methods(isapprox, (Radian, Degree))
+  # @show methods(isapprox, (Radian, Any))
+  # @show methods(isapprox, (Any, Radian))
+  # @show methods(isapprox, (Degree, Any))
+  # @show methods(isapprox, (Any, Degree))
+
   @test convert(Radian, Degree(180)) ≈ Radian(π)
   @test convert(Degree, Radian(π)) ≈ Degree(180)
 
   @test Radian(π) ≈ Degree(180)
+  @test Degree(180) ≈ Radian(π)
   @test Radian(Degree(180)) ≈ Radian(π)
   @test Degree(Radian(π)) ≈ Degree(180)
 

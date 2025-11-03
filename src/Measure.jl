@@ -229,10 +229,12 @@ function makeConversions(newType=nothing) # optional argument to only run on the
 
     for b in allUnitTypes 
       if supertype(a.first) == supertype(b.first) # can only convert/isapprox/+-*/ within the same measures
-        # if !hasmethod(Base.convert, (Type{a.first}, b.first) )
+        if !hasmethod(Base.convert, (Type{a.first}, b.first) )
           UnitTypes.eval( :( Base.convert(::Type{$(a.first)}, y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) ) )) # convert b to its base, then a fromBase
+        end
+        if !hasmethod(Base.convert, (Type{b.first}, a.first) )
           UnitTypes.eval( :( Base.convert(::Type{$(b.first)}, y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(y.value)) ) )) # 
-        # end
+        end
         if !hasmethod(Base.isapprox, (a.first, b.first) )
           UnitTypes.eval( :( Base.isapprox(x::$(a.first), y::$(b.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(a.first),y).value, atol=atol, rtol=rtol) ) ) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
 
@@ -271,7 +273,6 @@ end
   @makeBaseMeasure SoundTest GrowlT "gT" 
   @makeBaseMeasure TemperatureTest KelvinT "KT"
 
-	# @makeMeasure KelvinT = FahrenheitT "FT" f->(f+459.67)*5/9 k->k*9/5-459.67 
 	@makeMeasure KelvinT = FahrenheitT "FT" x->(x+459.67)*5/9 k->k*9/5-459.67 
 	@makeMeasure MeterT = CentiMeterT "cmT" 1e-2 # x->x/100 x->x*100
   @makeMeasure MeterT = InchT "inT" x->x*0.0254 x->x/0.0254
@@ -290,6 +291,7 @@ end
   end
 
   @testset "isapprox" begin
+    @test InchT(1.2) ≈ InchT(1.2)
     @test InchT(1.2) ≈ CentiMeterT(3.048)
     @test MeterT(0.03048) ≈ CentiMeterT(3.048)
     @test CentiMeterT(3.048) ≈ MeterT(0.03048)
