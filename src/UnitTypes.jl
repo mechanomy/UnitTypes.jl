@@ -1,5 +1,5 @@
 module UnitTypes
-  __precompile__(false)
+  # __precompile__(false)
   # __precompile__(true)
   using DocStringExtensions
   using TestItems
@@ -15,9 +15,5 @@ module UnitTypes
   include("CommonDimensions.jl")
 
   # displayUnitTypes()
-
-  # function __init__()
-  #   makeConversions()
-  # end
 end
 

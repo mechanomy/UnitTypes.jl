@@ -207,23 +207,43 @@ function makeConversions(newType=nothing) # optional argument to only run on the
 
   for a in allUnitTypes # maybe this should also go over allUnitTypes so that I don't have duplicate every line!
 
-    if !hasmethod(Base.:+, (a.first, a.first))
+    
+    if a.second.isAffine && !hasmethod(Base.:+, (a.first, a.first))
       # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
       UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(a.first)) = $(a.first)(x.value + y.value) ))
+    end
+    if a.second.isAffine && !hasmethod(Base.:-, (a.first, a.first))
       UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(a.first)) = $(a.first)(x.value - y.value) ))
-        
-      UnitTypes.eval( :( Base.broadcastable(x::$(a.first)) = Ref(x) ))
-      # UnitTypes.eval( :( Base.broadcastable(x::T) where T<:$(a.second.base) = Ref(x) ))
-      # UnitTypes.eval( :( Base.zero(x::T) where T<:$(a.second.base) = T(0) )) #zero() seems to be required for _colon()
-      # UnitTypes.eval( :( Base._colon(start::T, step::U, stop::V) where {T<:$(a.second.base), U<:$(a.second.base), V<:$(a.second.base)} = T.(convert(T,start).value : convert(T,step).value : convert(T,stop).value) )) # leave this Abstract for now
-      # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-iteration
-      # https://github.com/JuliaPhysics/Unitful.jl/blob/9cc01eb486eb1fbf16129e04381ce4817ded4f25/src/range.jl#L108
+    end
 
-      # */^ Number, usually used in scaling things
+    # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-iteration
+    # https://github.com/JuliaPhysics/Unitful.jl/blob/9cc01eb486eb1fbf16129e04381ce4817ded4f25/src/range.jl#L108
+    if !hasmethod(Base.broadcastable, (a.first))
+      UnitTypes.eval( :( Base.broadcastable(x::$(a.first)) = Ref(x) ))
+    end
+    if !hasmethod(Base.zero, (a.first))
+      UnitTypes.eval( :( Base.zero(x::T) where T<:$(a.second.base) = T(0) )) #zero() seems to be required for _colon()
+    end
+
+    # I'm not finding the right call here, shouldn't be hard. Does not guarding this emit the redefinition warning?
+    # if !hasmethod(Base._colon, (T, U, V) where {T<:a.second.base, U<:a.second.base, V<:a.second.base} )
+    # if !hasmethod(Base._colon, (T where T<:a.second.base, U where U<:a.second.base, V where V<:a.second.base) )
+    # if !hasmethod(Base._colon, (a.second.base, a.second.base, a.second.base) ) 
+    # if !hasmethod(Base._colon, (::Type{a.second.base}, ::Type{a.second.base}, ::Type{a.second.base} ))
+    # if !hasmethod(Base._colon, (:<a.second.base, :<a.second.base, :<a.second.base ))
+    UnitTypes.eval( :( Base._colon(start::T, step::U, stop::V) where {T<:$(a.second.base), U<:$(a.second.base), V<:$(a.second.base)} = T.(convert(T,start).value : convert(T,step).value : convert(T,stop).value) )) # leave this Abstract for now
+    # end
+
+    # */^ Number, usually used in scaling things
+    if !hasmethod(Base.:*, (a.first, Number))
       UnitTypes.eval( :( Base.:*(x::$(a.first), y::U) where U<:Number = $(a.first)(x.value*y) )) 
       UnitTypes.eval( :( Base.:*(x::T, y::$(a.first)) where T<:Number = $(a.first)(x*y.value) ))
-      # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed here? @relateMeasures is the correct place
+    end
+    # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed here? @relateMeasures is the correct place
+    if !hasmethod(Base.:/, (a.first, Number))
       UnitTypes.eval( :( Base.:/(x::$(a.first), y::U) where U<:Number = $(a.first)(x.value/y) ))
+    end
+    if !hasmethod(Base.:-, (a.first))
       UnitTypes.eval( :( Base.:-(x::$(a.first)) = x * -1 )) # leading negation
     end
 
@@ -237,32 +257,42 @@ function makeConversions(newType=nothing) # optional argument to only run on the
         end
         if !hasmethod(Base.isapprox, (a.first, b.first) )
           UnitTypes.eval( :( Base.isapprox(x::$(a.first), y::$(b.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(a.first),y).value, atol=atol, rtol=rtol) ) ) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+        end
 
+        if !hasmethod(Base.isequal, (a.first, b.first) )
           UnitTypes.eval( :( Base.isequal(x::$(a.first), y::$(b.first)) = x.value == convert(($a.first),y).value ))
+        end
 
+        # if !hasmethod(Base.:<, (a.first, b.first) )
           UnitTypes.eval( :( Base.:<(x::$(a.first), y::$(b.first)) = x.value < convert($(a.first),y).value  )) # other <> ops are defined from this
+        # end
 
-          # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
+        # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
 
-          # if isaffine, cross-unit addition is not defined...
-          # if isapprox( a.second.toBase(2), b.second.fromBase(2) 
-          # UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.second.base)(convert($(a.second.base),x).value + convert($(b.second.base),y).value) )) # this gets confusing and dangerous for affine units, so just convert all to base and then do the operation
-          # UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first))::$(a.first) = convert($(a.first), convert($(a.second.base), x) + convert($(b.second.base), y)) )) 
-          # UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first))::$(b.first) = convert($(b.first), convert($(a.second.base), x) + convert($(b.second.base), y)) )) 
-          # UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.second.base)(convert($(a.second.base),x).value - convert($(b.second.base),y).value) ))
-          # UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first))::$(a.first) = convert($(a.first), convert($(a.second.base), x) - convert($(b.second.base), y)) )) 
-          # UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first))::$(b.first) = convert($(b.first), convert($(a.second.base), x) - convert($(b.second.base), y)) )) 
+        if !hasmethod(Base.:+, (a.first,b.first)) 
+          if !(a.second.isAffine || b.second.isAffine) 
+            # UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.second.base)($(a.second.toBase)(x.value) + $(b.second.toBase)(y.value)) )) # this gets confusing and dangerous for affine units, so just convert all to base and then do the operation
+            UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) )) 
+            if a.first != b.first
+              UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) )) 
+            end
+          end
+          if a.second.isAffine && a.first == b.first # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
+            UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(a.first)) = $(a.first)(x.value + y.value) ))
+          end
         end
-        if !hasmethod(Base.:+, (a.first,b.first)) && !(a.second.isAffine || b.second.isAffine)
-          # UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.second.base)($(a.second.toBase)(x.value) + $(b.second.toBase)(y.value)) )) # this gets confusing and dangerous for affine units, so just convert all to base and then do the operation
-          UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) )) 
-          UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) )) 
-        end
 
-        if !hasmethod(Base.:-, (a.first,b.first)) && !(a.second.isAffine || b.second.isAffine)
-          # UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.second.base)($(a.second.toBase)(x.value) - $(b.second.toBase)(y.value)) ))
-          UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) )) 
-          UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) )) 
+        if !hasmethod(Base.:-, (a.first,b.first)) 
+          if !(a.second.isAffine || b.second.isAffine)
+            # UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.second.base)($(a.second.toBase)(x.value) - $(b.second.toBase)(y.value)) ))
+            UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) )) 
+            if a.first != b.first
+              UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) )) 
+            end
+          end
+          if a.second.isAffine && a.first == b.first # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
+            UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(a.first)) = $(a.first)(x.value - y.value) ))
+          end
         end
       end
     end
@@ -356,30 +386,22 @@ end
     end
   end
 
-  # as the links above, I need to re-read about how to implement iteration
-  # @testset "range _colon" begin
-  #   b = MeterT(1) : MeterT(0.3) : MeterT(2)
-  #   @test b[1] ≈ MeterT(1)
-  #   @test b[2] ≈ MeterT(1.3)
-  #   @test last(b) ≈ MeterT(1.9)
+  @testset "range _colon" begin
+    b = MeterT(1) : MeterT(0.3) : MeterT(2)
+    @test b[1] ≈ MeterT(1)
+    @test b[2] ≈ MeterT(1.3)
+    @test last(b) ≈ MeterT(1.9)
 
-  #   c = LinRange(MeterT(10), MeterT(20), 4)
-  #   display(collect(c))
-  #   @test c[1] ≈ MeterT(10)
-  #   @test c[2] ≈ MeterT(13+1/3)
-  #   @test last(c) ≈ MeterT(20)
+    c = LinRange(MeterT(10), MeterT(20), 4)
+    @test c[1] ≈ MeterT(10)
+    @test c[2] ≈ MeterT(13+1/3)
+    @test last(c) ≈ MeterT(20)
 
-  #   @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
-  #   @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
-  #   @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
-  # end
-
-
-  # display(UnitTypes.allUnitTypes)
-  # display(methods(convert,UnitTypes)) # julia> methods(Base.convert, (Type{UnitTypes.NanoFarad}, UnitTypes.Farad), UnitTypes)        
-  # display(methods(isapprox,UnitTypes)) # julia> methods(Base.convert, (Type{UnitTypes.NanoFarad}, UnitTypes.Farad), UnitTypes)        
+    @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
+    @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
+    @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
+  end
 end
-
 
 function skipSymbolBlock(eexp)
   if eexp.head == :block
