@@ -231,10 +231,6 @@ function makeSelfConversion(newType)
       Base.zero(x::$newType) = $newType(0) #zero() seems to be required for _colon()
     end
 
-    if !hasmethod(Base._colon, ($newType, $newType, $newType))
-      Base._colon(start::$newType, step::$newType, stop::$newType) = $newType.(start.value : step.value : stop.value)
-    end
-
     if !hasmethod(Base.:+, (Number, $newType))
       Base.:+(x::Number, y::$newType) = $newType(x+y.value) 
     end
@@ -271,6 +267,26 @@ function makeSelfConversion(newType)
       Base.rem(x::$newType, y::$newType) = $newType(rem(x.value, y.value, RoundNearest)) # required for _colon
       # Base.rem(x::$newType, y::$newType, r::RoundingMode) = $newType(rem(x.value, y.value, r)) ..define others? https://github.com/JuliaLang/julia/blob/d665f8980f2bada7cd87fd79610ab769e44e95f7/base/div.jl#L114
     end
+
+    # 251105 - implementing colon in v1.11+ causes all sorts of mucking around in Base, omit
+    # if !hasmethod(Base._colon, ($newType, $newType, $newType))
+    #   Base._colon(start::$newType, step::$newType, stop::$newType) = $newType.(start.value : step.value : stop.value)
+    # end
+    # julia1.11 is complaining about the internals of range...:
+    # the point of the range function is for 1m:5m to have a iterand as a Meter...
+    # if !hasmethod(Base.div, ($newType, $newType, RoundingMode))
+    #   Base.div(x::$newType, y::$newType, r::RoundingMode) = $newType(div(x.value, y.value, r))
+    # end
+    # Return a multiplicative identity for x: a value such that one(x)*x == x*one(x) == x.  
+    # Alternatively one(T) can take a type T, in which case one returns a multiplicative identity for any x of type T.
+    # If possible, one(x) returns a value of the same type as x, and one(T) returns a value of type T. However, this may not be the case for types representing dimensionful quantities (e.g. time in days), since the multiplicative identity must   be dimensionless. In that case, one(x) should return an identity value of the same    precision (and shape, for matrices) as x.
+    # Base.one(x::$newType) = $newType(1.0)
+    # Base.Integer(x::$newType) = $newType(Integer(x.value))
+    #Expression: b[1] ≈ MeterT(1) MethodError: no method matching unchecked_oneto(::Main.var"##239".MeterT)
+    # but looking higher in the error:   [8] getindex(v::StepRange{Main.var"##239".MeterT, Main.var"##239".MeterT}, i::Int64)      @ Base .\array.jl:3077
+    # Base.getindex(v::StepRange{$newType}, x::$newType, i::Int64) = 
+    # Base.StepRange(start::$newType, step::S, stop::$newType) where S = Base.StepRange(start, step, $newType(Base.steprange_last(start.value, step, stop.value)))
+
   end)
 
 end
@@ -329,21 +345,23 @@ end
     end
   end
 
-  @testset "range _colon" begin
-    b = MeterT(1) : MeterT(0.3) : MeterT(2)
-    @test b[1] ≈ MeterT(1)
-    @test b[2] ≈ MeterT(1.3)
-    @test last(b) ≈ MeterT(1.9)
-
+  @testset "range" begin
     c = LinRange(MeterT(10), MeterT(20), 4)
     @test c[1] ≈ MeterT(10)
     @test c[2] ≈ MeterT(13+1/3)
     @test last(c) ≈ MeterT(20)
-
-    @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
-    @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
-    @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
   end
+
+  # @testset "range _colon" begin # 251105 - implementing colon in v1.11+ causes all sorts of mucking around in Base, omit
+  #   b = MeterT(1) : MeterT(0.3) : MeterT(2)
+  #   @test b[1] ≈ MeterT(1)
+  #   @test b[2] ≈ MeterT(1.3)
+  #   @test last(b) ≈ MeterT(1.9)
+
+  #   @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
+  #   @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
+  #   @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
+  # end
 end
 
 """
@@ -510,22 +528,25 @@ end
     end
   end
 
-  @testset "range _colon" begin
-    b = MeterT(1) : MeterT(0.3) : MeterT(2)
-    @test b[1] ≈ MeterT(1)
-    @test b[2] ≈ MeterT(1.3)
-    @test last(b) ≈ MeterT(1.9)
-    # b = MeterT(1) : CentiMeterT(0.3) : MeterT(2)
-
+  @testset "range" begin
     c = LinRange(MeterT(10), MeterT(20), 4)
     @test c[1] ≈ MeterT(10)
     @test c[2] ≈ MeterT(13+1/3)
     @test last(c) ≈ MeterT(20)
-
-    @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
-    @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
-    @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
   end
+
+  # @testset "range _colon" begin # 251105 - implementing colon in v1.11+ causes all sorts of mucking around in Base, omit
+  #   b = MeterT(1) : MeterT(0.3) : MeterT(2) 
+  #   @test b[1] ≈ MeterT(1)
+  #   @test b[2] ≈ MeterT(1.3)
+  #   @test last(b) ≈ MeterT(1.9)
+
+  #   # = MeterT(1) : CentiMeterT(0.3) : MeterT(2)
+
+  #   @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
+  #   @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
+  #   @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
+  # end
 end
 
 function skipSymbolBlock(eexp)
