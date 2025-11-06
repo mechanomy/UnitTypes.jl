@@ -35,9 +35,10 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
       Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
       Base.:<(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = x.measure < convert(T,y).measure # can compare the same Dimension via the Measure; other <> ops are defined from this
 
-      Base.zero(x::T) where T<:$abstractName = T(0) #zero() seems to be required for _colon()
-      Base._colon(start::T, step::U, stop::V) where {T<:$abstractName, U<:$abstractName, V<:$abstractName} = T.(start.measure:step.measure:stop.measure) # start may have a convert issue...
-      Base.broadcastable(x::T) where T<:$abstractName = Ref(x) # If a type is intended to act like a "0-dimensional scalar" (a single object) rather than as a container for broadcasting, then the following method should be defined:
+      Base.zero(x::T) where T<:$abstractName = T(0) # required for LinRange()
+
+      # Base._colon(start::T, step::U, stop::V) where {T<:$abstractName, U<:$abstractName, V<:$abstractName} = T.(start.measure:step.measure:stop.measure) # start may have a convert issue...
+      # Base.broadcastable(x::T) where T<:$abstractName = Ref(x) # If a type is intended to act like a "0-dimensional scalar" (a single object) rather than as a container for broadcasting, then the following method should be defined:
 
       #these all return a Measure, discarding the Dimension because...we can't dispatch on return type...
       Base.:+(x::$abstractName, y::$abstractName) = x.measure + y.measure
