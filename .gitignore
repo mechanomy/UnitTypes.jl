@@ -75,3 +75,4 @@ desktop.ini
 
 # 
 *.code-workspace
+.vscode
