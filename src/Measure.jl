@@ -65,7 +65,8 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
 
       UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
 
-      UnitTypes.makeConversions($unitName) # define operations on itself, as there cannot be any children measures yet
+      UnitTypes.makeSelfConversion($unitName) 
+      # UnitTypes.makeJointConversions($unitName) # define operations on itself, as there cannot be any children measures yet
     end
   ]
   return esc( Expr(:block, qts...))
@@ -143,7 +144,8 @@ macro makeMeasure(relation, newAbbreviation, newToBase, newFromBase=missing, isA
 
     UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine) 
 
-    UnitTypes.makeConversions($newType)
+    UnitTypes.makeSelfConversion($newType)
+    UnitTypes.makeJointConversions($newType)
   end]
   return esc( Expr(:block, qts...))
 end
@@ -193,112 +195,234 @@ end
 
 end
 
-function makeConversions(newType=nothing) # optional argument to only run on the newly created type, for makeMeasure()
-  # println("\npre makeConversions:")
-  # @show newType
-  # @show typeof(allUnitTypes)
-  # display(allUnitTypes)
-  # @show allUnitTypes[newType]
+"""
+  makeSelfConversions(newType) 
+  
+  Defines function overloads for common operations like `convert`, `isapprox`, `isequal`, `isless`, +-/* between instances of a new UnitType.
+"""
+function makeSelfConversion(newType)
+  uta = allUnitTypes[newType]
+  if uta.isAffine
+    # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
+    UnitTypes.eval( quote 
+      if !hasmethod(Base.:+, ($newType, $newType))
+        Base.:+(x::$newType, y::$newType) = $newType(x.value + y.value) 
+      end
+      if !hasmethod(Base.:-, ($newType, $newType))
+        Base.:-(x::$newType, y::$newType) = $newType(x.value - y.value) 
+      end
+    end)
+  end
 
-  # make newType into an iterable 
-  # f(d) = Dict(d=>allUnitTypes[d])
-  # newTypes = isa(newType, DataType) ? f(newType) : allUnitTypes 
-  # for a in newTypes# maybe this should also go over allUnitTypes so that I don't have duplicate every line!
-
-  for a in allUnitTypes # maybe this should also go over allUnitTypes so that I don't have duplicate every line!
-
-    
-    if a.second.isAffine && !hasmethod(Base.:+, (a.first, a.first))
-      # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
-      UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(a.first)) = $(a.first)(x.value + y.value) ))
-    end
-    if a.second.isAffine && !hasmethod(Base.:-, (a.first, a.first))
-      UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(a.first)) = $(a.first)(x.value - y.value) ))
-    end
-
-    # https://docs.julialang.org/en/v1/manual/interfaces/#man-interface-iteration
-    # https://github.com/JuliaPhysics/Unitful.jl/blob/9cc01eb486eb1fbf16129e04381ce4817ded4f25/src/range.jl#L108
-    if !hasmethod(Base.broadcastable, (a.first))
-      UnitTypes.eval( :( Base.broadcastable(x::$(a.first)) = Ref(x) ))
-    end
-    if !hasmethod(Base.zero, (a.first))
-      UnitTypes.eval( :( Base.zero(x::T) where T<:$(a.second.base) = T(0) )) #zero() seems to be required for _colon()
+  UnitTypes.eval( quote 
+    if !hasmethod(Base.isapprox, ($newType, $newType) )
+      Base.isapprox(x::$newType, y::$newType; atol::Real=0, rtol::Real=atol) = isapprox( x.value, y.value, atol=atol, rtol=rtol) 
     end
 
-    # I'm not finding the right call here, shouldn't be hard. Does not guarding this emit the redefinition warning?
-    # if !hasmethod(Base._colon, (T, U, V) where {T<:a.second.base, U<:a.second.base, V<:a.second.base} )
-    # if !hasmethod(Base._colon, (T where T<:a.second.base, U where U<:a.second.base, V where V<:a.second.base) )
-    # if !hasmethod(Base._colon, (a.second.base, a.second.base, a.second.base) ) 
-    # if !hasmethod(Base._colon, (::Type{a.second.base}, ::Type{a.second.base}, ::Type{a.second.base} ))
-    # if !hasmethod(Base._colon, (:<a.second.base, :<a.second.base, :<a.second.base ))
-    UnitTypes.eval( :( Base._colon(start::T, step::U, stop::V) where {T<:$(a.second.base), U<:$(a.second.base), V<:$(a.second.base)} = T.(convert(T,start).value : convert(T,step).value : convert(T,stop).value) )) # leave this Abstract for now
-    # end
-
-    # */^ Number, usually used in scaling things
-    if !hasmethod(Base.:*, (a.first, Number))
-      UnitTypes.eval( :( Base.:*(x::$(a.first), y::U) where U<:Number = $(a.first)(x.value*y) )) 
-      UnitTypes.eval( :( Base.:*(x::T, y::$(a.first)) where T<:Number = $(a.first)(x*y.value) ))
-    end
-    # Base.:^(x::T, y::U) where {T<:$abstractName, U<:Number} = T(x.value^y) # is this ever rightly needed here? @relateMeasures is the correct place
-    if !hasmethod(Base.:/, (a.first, Number))
-      UnitTypes.eval( :( Base.:/(x::$(a.first), y::U) where U<:Number = $(a.first)(x.value/y) ))
-    end
-    if !hasmethod(Base.:-, (a.first))
-      UnitTypes.eval( :( Base.:-(x::$(a.first)) = x * -1 )) # leading negation
+    if !hasmethod(Base.isless, ($newType, $newType) )
+      Base.isless(x::$newType, y::$newType) = x.value < y.value 
     end
 
+    if !hasmethod(Base.broadcastable, ($newType))
+      Base.broadcastable(x::$newType) = Ref(x) 
+    end
+
+    if !hasmethod(Base.zero, ($newType))
+      Base.zero(x::$newType) = $newType(0) #zero() seems to be required for _colon()
+    end
+
+    if !hasmethod(Base._colon, ($newType, $newType, $newType))
+      Base._colon(start::$newType, step::$newType, stop::$newType) = $newType.(start.value : step.value : stop.value)
+    end
+
+    if !hasmethod(Base.:+, (Number, $newType))
+      Base.:+(x::Number, y::$newType) = $newType(x+y.value) 
+    end
+    if !hasmethod(Base.:+, ($newType, Number))
+      Base.:+(x::$newType, y::Number) = $newType(x.value+y) 
+    end
+    if !hasmethod(Base.:-, (Number, $newType))
+      Base.:-(x::Number, y::$newType) = $newType(x-y.value) 
+    end
+    if !hasmethod(Base.:-, ($newType, Number))
+      Base.:-(x::$newType, y::Number) = $newType(x.value-y) 
+    end
+
+    if !hasmethod(Base.:+, ($newType, $newType))
+      Base.:+(x::$newType, y::$newType) = $newType(x.value+y.value) 
+    end
+    if !hasmethod(Base.:-, ($newType, $newType))
+      Base.:-(x::$newType, y::$newType) = $newType(x.value-y.value) 
+    end
+    if !hasmethod(Base.:-, ($newType))
+      Base.:-(x::$newType) = x * -1 # leading negation
+    end
+
+    if !hasmethod(Base.:*, ($newType, Number))
+      Base.:*(x::$newType, y::U) where U<:Number = $newType(x.value*y) 
+      Base.:*(x::T, y::$newType) where T<:Number = $newType(x*y.value)
+    end
+
+    if !hasmethod(Base.:/, ($newType, Number))
+      Base.:/(x::$newType, y::U) where U<:Number = $newType(x.value/y)
+    end
+
+    if !hasmethod(Base.rem, ($newType, $newType))
+      Base.rem(x::$newType, y::$newType) = $newType(rem(x.value, y.value, RoundNearest)) # required for _colon
+      # Base.rem(x::$newType, y::$newType, r::RoundingMode) = $newType(rem(x.value, y.value, r)) ..define others? https://github.com/JuliaLang/julia/blob/d665f8980f2bada7cd87fd79610ab769e44e95f7/base/div.jl#L114
+    end
+  end)
+
+end
+@testitem "makeSelfConversion" begin
+  @makeBaseMeasure LengthTest MeterT "mtT" 
+  @makeBaseMeasure SoundTest GrowlT "gT" 
+  @makeBaseMeasure TemperatureTest KelvinT "KT"
+
+  @testset "convert" begin
+    @test isa( convert(MeterT, MeterT(1.2)), MeterT)
+    @test_throws MethodError convert(GrowlT, MeterT(1.2)) #  MethodError: Cannot `convert` an object of type Main.var"##238".MeterT to an object of type Main.var"##238".GrowlT
+  end
+
+  @testset "isapprox" begin
+    @test MeterT(1.2) ≈ MeterT(1.2)
+  end
+
+  @testset "isequal" begin
+    @test MeterT(3.4) == MeterT(3.4)
+    @test MeterT(3.4) != MeterT(1.2)
+    @test MeterT(3.4) != GrowlT(3.4) 
+  end
+
+  @testset "less than" begin
+    @test MeterT(1.2) < MeterT(3.4)
+    @test MeterT(1.2) <= MeterT(3.4)
+    @test MeterT(3.4) > MeterT(1.2)
+    @test MeterT(3.4) >= MeterT(1.2)
+    @test_throws MethodError MeterT(1.2) < GrowlT(3.4)
+  end
+
+  @testset "addition" begin
+    @test MeterT(1) + MeterT(10) ≈ MeterT(11)
+    @test KelvinT(1) + KelvinT(2) ≈ KelvinT(3)
+    @test length(methods(Base.:+, (MeterT, MeterT))) == 1
+  end
+
+  @testset "subtraction" begin
+    @test MeterT(2) - MeterT(0.1) ≈ MeterT(1.9)
+  end
+
+  @testset "multiply divide" begin
+    @test MeterT(3)*3 ≈ MeterT(9)
+    @test 3*MeterT(3) ≈ MeterT(9)
+    @test MeterT(3)/3 ≈ MeterT(1)
+
+    @test -MeterT(3) ≈ MeterT(-3)
+    @test MeterT(5) + MeterT(-3) ≈ MeterT(2)
+    @test MeterT(5) + -MeterT(3) ≈ MeterT(2)
+  end
+
+  @testset "broadcasting" begin
+    @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
+    for m in MeterT.([1,2,3])
+      @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
+    end
+  end
+
+  @testset "range _colon" begin
+    b = MeterT(1) : MeterT(0.3) : MeterT(2)
+    @test b[1] ≈ MeterT(1)
+    @test b[2] ≈ MeterT(1.3)
+    @test last(b) ≈ MeterT(1.9)
+
+    c = LinRange(MeterT(10), MeterT(20), 4)
+    @test c[1] ≈ MeterT(10)
+    @test c[2] ≈ MeterT(13+1/3)
+    @test last(c) ≈ MeterT(20)
+
+    @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
+    @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
+    @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
+  end
+end
+
+"""
+  makeJointConversions(newType) 
+  
+  Defines function overloads for common operations like `convert`, `isapprox`, `isequal`, `isless`, +-/* between a new UnitType and all existing UnitTypes.
+"""
+function makeJointConversions(newType=nothing) # optional argument to only run on the newly created type, for makeMeasure()
+  for a in Dict(newType=>allUnitTypes[newType]) # match structure of allUnitTypes
     for b in allUnitTypes 
       if supertype(a.first) == supertype(b.first) # can only convert/isapprox/+-*/ within the same measures
-        if !hasmethod(Base.convert, (Type{a.first}, b.first) )
-          UnitTypes.eval( :( Base.convert(::Type{$(a.first)}, y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) ) )) # convert b to its base, then a fromBase
-        end
-        if !hasmethod(Base.convert, (Type{b.first}, a.first) )
-          UnitTypes.eval( :( Base.convert(::Type{$(b.first)}, y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(y.value)) ) )) # 
-        end
-        if !hasmethod(Base.isapprox, (a.first, b.first) )
-          UnitTypes.eval( :( Base.isapprox(x::$(a.first), y::$(b.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(a.first),y).value, atol=atol, rtol=rtol) ) ) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
-        end
+        UnitTypes.eval( quote
+          if !hasmethod(Base.convert, (Type{$(a.first)}, $(b.first)) )
+            Base.convert(::Type{$(a.first)}, y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) ) # convert b to its base, then a fromBase
+          end
+          if !hasmethod(Base.convert, (Type{$(b.first)}, $(a.first)) )
+            Base.convert(::Type{$(b.first)}, y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(y.value)) ) # 
+          end
 
-        if !hasmethod(Base.isequal, (a.first, b.first) )
-          UnitTypes.eval( :( Base.isequal(x::$(a.first), y::$(b.first)) = x.value == convert(($a.first),y).value ))
-        end
+          if !hasmethod(Base.isapprox, ($(a.first), $(b.first)) )
+            Base.isapprox(x::$(a.first), y::$(b.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(a.first),y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+          end
+          if !hasmethod(Base.isapprox, ($(b.first), $(a.first)) )
+            Base.isapprox(x::$(b.first), y::$(a.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(b.first),y).value, atol=atol, rtol=rtol) 
+          end
 
-        # if !hasmethod(Base.:<, (a.first, b.first) )
-          UnitTypes.eval( :( Base.:<(x::$(a.first), y::$(b.first)) = x.value < convert($(a.first),y).value  )) # other <> ops are defined from this
-        # end
+          if !hasmethod(Base.isequal, ($(a.first), $(b.first)) )
+            Base.isequal(x::$(a.first), y::$(b.first)) = x.value == convert(($a.first),y).value
+          end
+          if !hasmethod(Base.isequal, ($(b.first), $(a.first)) )
+            Base.isequal(x::$(b.first), y::$(a.first)) = x.value == convert(($b.first),y).value
+          end
 
+          if !hasmethod(Base.isless, ($(a.first), $(b.first)) )
+            Base.isless(x::$(a.first), y::$(b.first)) = x.value < convert($(a.first),y).value # other <> ops are defined from this
+          end
+          if !hasmethod(Base.isless, ($(b.first), $(a.first)) )
+            Base.isless(x::$(b.first), y::$(a.first)) = x.value < convert($(b.first),y).value # other <> ops are defined from this
+          end
+        end)
         # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
 
-        if !hasmethod(Base.:+, (a.first,b.first)) 
-          if !(a.second.isAffine || b.second.isAffine) 
-            # UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.second.base)($(a.second.toBase)(x.value) + $(b.second.toBase)(y.value)) )) # this gets confusing and dangerous for affine units, so just convert all to base and then do the operation
-            UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) )) 
-            if a.first != b.first
-              UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(b.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) )) 
+        UnitTypes.eval( quote
+          if !($(a.second.isAffine) || $(b.second.isAffine))
+            if !hasmethod(Base.:+, ($(a.first),$(b.first))) 
+              Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) 
+            end
+            if !hasmethod(Base.:+, ($(b.first),$(a.first))) 
+              Base.:+(x::$(b.first), y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(b.second.toBase)(x.value) + $(a.second.toBase)(y.value))) 
+            end
+            if !hasmethod(Base.:-, ($(a.first),$(b.first))) 
+              Base.:-(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) 
+            end
+            if !hasmethod(Base.:-, ($(b.first),$(a.first))) 
+              Base.:-(x::$(b.first), y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(b.second.toBase)(x.value) - $(a.second.toBase)(y.value))) 
             end
           end
-          if a.second.isAffine && a.first == b.first # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
-            UnitTypes.eval( :( Base.:+(x::$(a.first), y::$(a.first)) = $(a.first)(x.value + y.value) ))
-          end
-        end
 
-        if !hasmethod(Base.:-, (a.first,b.first)) 
-          if !(a.second.isAffine || b.second.isAffine)
-            # UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.second.base)($(a.second.toBase)(x.value) - $(b.second.toBase)(y.value)) ))
-            UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) )) 
-            if a.first != b.first
-              UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(b.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(x.value) - $(b.second.toBase)(y.value))) )) 
+          # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points
+          if $(a.second.isAffine) && $(b.second.isAffine) && $(a.first)==$(b.first) 
+            if !hasmethod(Base.:+, ($(a.first),$(b.first))) 
+              Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)(x.value + y.value)
+            end
+            if !hasmethod(Base.:+, ($(b.first),$(a.first))) 
+              Base.:+(x::$(b.first), y::$(a.first)) = $(b.first)(x.value + y.value)
+            end
+            if !hasmethod(Base.:-, ($(a.first),$(b.first))) 
+              Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)(x.value - y.value)
+            end
+            if !hasmethod(Base.:-, ($(b.first),$(a.first))) 
+              Base.:+(x::$(b.first), y::$(a.first)) = $(b.first)(x.value - y.value)
             end
           end
-          if a.second.isAffine && a.first == b.first # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
-            UnitTypes.eval( :( Base.:-(x::$(a.first), y::$(a.first)) = $(a.first)(x.value - y.value) ))
-          end
-        end
+        end)
       end
     end
   end
 end
-@testitem "makeConversions" begin
+@testitem "makeJointConversions" begin
   @makeBaseMeasure LengthTest MeterT "mtT" 
   @makeBaseMeasure SoundTest GrowlT "gT" 
   @makeBaseMeasure TemperatureTest KelvinT "KT"
@@ -391,6 +515,7 @@ end
     @test b[1] ≈ MeterT(1)
     @test b[2] ≈ MeterT(1.3)
     @test last(b) ≈ MeterT(1.9)
+    # b = MeterT(1) : CentiMeterT(0.3) : MeterT(2)
 
     c = LinRange(MeterT(10), MeterT(20), 4)
     @test c[1] ≈ MeterT(10)
@@ -503,10 +628,18 @@ macro relateMeasures(relation)
         for m in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TM].abstract, UnitTypes.allUnitTypes) # loops have to be in quote for TM, TN, TNM to resolve
           for n in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TN].abstract, UnitTypes.allUnitTypes)
             # println("Base.:*(x::$(first(m)), y::$(first(n))) = $($TNM)( convert($($TM), x).value * convert($($TN),y).value ) ")
-            Base.:*(x::first(m), y::first(n)) = $TNM( convert($TM, x).value * convert($TN,y).value ) # x <: Abstract, so convert everything to the types given in the relation
-            Base.:*(x::first(n), y::first(m)) = $TNM( convert($TN, x).value * convert($TM,y).value ) # swapped
-            Base.:/(x::$TNM, y::first(m)) = $TN( convert($TNM,x).value / convert($TM,y).value )
-            Base.:/(x::$TNM, y::first(n)) = $TM( convert($TNM,x).value / convert($TN,y).value )
+            if !hasmethod(Base.:*, (first(m), first(n)))
+              Base.:*(x::first(m), y::first(n)) = $TNM( convert($TM, x).value * convert($TN,y).value ) # x <: Abstract, so convert everything to the types given in the relation
+            end
+            if !hasmethod(Base.:*, (first(n), first(m)))
+              Base.:*(x::first(n), y::first(m)) = $TNM( convert($TN, x).value * convert($TM,y).value ) # swapped
+            end
+            if !hasmethod(Base.:/, ($TNM, first(m)))
+              Base.:/(x::$TNM, y::first(m)) = $TN( convert($TNM,x).value / convert($TM,y).value )
+            end
+            if !hasmethod(Base.:/, ($TNM, first(n)))
+              Base.:/(x::$TNM, y::first(n)) = $TM( convert($TNM,x).value / convert($TN,y).value )
+            end
           end
         end
         if $TM == $TN
@@ -517,12 +650,22 @@ macro relateMeasures(relation)
       push!(qts, quote
         for m in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TM].abstract, UnitTypes.allUnitTypes)
           for n in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TN].abstract, UnitTypes.allUnitTypes)
-            Base.:/(x::first(m), y::first(n)) = $TNM( convert($TM, x).value / convert($TN,y).value ) # F/m2 = Pa
-            Base.:*(x::first(m), y::$TNM) = $TN( convert($TM,x).value * y.value ) # m2 * Pa = N
-            Base.:*(x::$TNM, y::first(m)) = $TN( x.value * convert($TM, y)) # Pa * m2 = N
+            if !hasmethod(Base.:/, (first(m), first(n)))
+              Base.:/(x::first(m), y::first(n)) = $TNM( convert($TM, x).value / convert($TN,y).value ) # F/m2 = Pa
+            end
+            if !hasmethod(Base.:*, (first(m), $TNM))
+              Base.:*(x::first(m), y::$TNM) = $TN( convert($TM,x).value * y.value ) # m2 * Pa = N
+            end
+            if !hasmethod(Base.:*, ($TNM, first(m)))
+              Base.:*(x::$TNM, y::first(m)) = $TN( x.value * convert($TM, y)) # Pa * m2 = N
+            end
 
-            Base.:*(x::first(n), y::$TNM) = $TM( convert($TN,x).value * y.value ) # N * Pa = m2
-            Base.:*(x::$TNM, y::first(n)) = $TM( x.value * convert($TN,y).value ) # Pa * N = m2
+            if !hasmethod(Base.:*, (first(n), $TNM))
+              Base.:*(x::first(n), y::$TNM) = $TM( convert($TN,x).value * y.value ) # N * Pa = m2
+            end
+            if !hasmethod(Base.:*, ($TNM, first(n)))
+              Base.:*(x::$TNM, y::first(n)) = $TM( x.value * convert($TN,y).value ) # Pa * N = m2
+            end
           end
         end
       end)
@@ -565,7 +708,7 @@ end
   #non-operator
   @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT%Meter2T = NewtonT  )) 
 
-  # coefficient of thermal expansion, to check with affine unit:
+  # coefficient of thermal expansion?, to check with affine unit:
 end
 
 
