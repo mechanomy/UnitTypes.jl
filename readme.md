@@ -76,7 +76,7 @@ Please open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues) _with a
 ## Introducing new types
 Macros are used to introduce and create relationships around new types:
 * `@makeBaseMeasure Length Meter "m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume, this should be rarely used!
-* `@makeMeasure Meter(1000) = KiloMeter(1) "km"` - derives a new measure (KiloMeter) from some an existing measure (Meter) with a conversion ratio (1000m = 1km)
+* `@makeMeasure Meter = KiloMeter "km" 1000` - derives a new measure (KiloMeter) from some an existing measure (Meter) with a conversion ratio (1000m = 1km)
 * `@relateMeasures KiloGram*MeterPerSecond2=Newton` - relates the product of types to another type, all types preexisting.
 
 For working with Dimensions:
