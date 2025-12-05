@@ -13,7 +13,5 @@ module UnitTypes
   #Dimensions built on Measures
   include("Dimension.jl")
   include("CommonDimensions.jl")
-
-  # displayUnitTypes()
 end
 

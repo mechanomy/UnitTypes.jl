@@ -9,7 +9,7 @@ struct UnitTypeAttributes
   abbreviation::String # "mm"
   isAffine::Bool 
 end
-allUnitTypes = Dict{DataType, UnitTypeAttributes}()
+const allUnitTypes = Dict{DataType, UnitTypeAttributes}() # const means allUnitTypes won't change from a Dict https://discourse.julialang.org/t/mutating-global-variable-during-precompilation/51478/2?u=bcon
 
 """
   `abbreviation(m::AbstractMeasure)::String`
@@ -51,7 +51,7 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
   end
 
   qts = [quote
-      abstract type $abstractName <: AbstractMeasure end
+      abstract type $abstractName <: UnitTypes.AbstractMeasure end
       export $abstractName #AbstractLength
 
       """
@@ -65,7 +65,7 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
 
       UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
 
-      UnitTypes.makeSelfConversion($unitName) 
+      UnitTypes.makeSelfConversion($unitName, @__MODULE__) 
       # UnitTypes.makeJointConversions($unitName) # define operations on itself, as there cannot be any children measures yet
     end
   ]
@@ -129,7 +129,6 @@ macro makeMeasure(relation, newAbbreviation, newToBase, newFromBase=missing, isA
   end
   isAffine |= contains(string(toBase), "+") || contains(string(fromBase), "+") # check if the expr has +-, making it an affine conversion, which means that we need to restrict what +- functions are added; - is also used for x->x, so just check for + in to&from
 
-
   qts = [quote
     existingSupertype = supertype($existingType)
 
@@ -144,8 +143,8 @@ macro makeMeasure(relation, newAbbreviation, newToBase, newFromBase=missing, isA
 
     UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine) 
 
-    UnitTypes.makeSelfConversion($newType)
-    UnitTypes.makeJointConversions($newType)
+    UnitTypes.makeSelfConversion($newType, @__MODULE__)
+    UnitTypes.makeJointConversions($newType, @__MODULE__)
   end]
   return esc( Expr(:block, qts...))
 end
@@ -200,11 +199,12 @@ end
   
   Defines function overloads for common operations like `convert`, `isapprox`, `isequal`, `isless`, +-/* between instances of a new UnitType.
 """
-function makeSelfConversion(newType)
+function makeSelfConversion(newType, mod=@__MODULE__)
+  # something about lowering requires passing the calling module from @makeBaseMeasure into here as just calling @__MODULE__ is undefined.
   uta = allUnitTypes[newType]
   if uta.isAffine
     # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
-    UnitTypes.eval( quote 
+    mod.eval( quote 
       if !hasmethod(Base.:+, Tuple{$newType, $newType})
         Base.:+(x::$newType, y::$newType) = $newType(x.value + y.value) 
       end
@@ -214,7 +214,7 @@ function makeSelfConversion(newType)
     end)
   end
 
-  UnitTypes.eval( quote 
+  mod.eval( quote 
     if !hasmethod(Base.isapprox, Tuple{$newType, $newType})
       Base.isapprox(x::$newType, y::$newType; atol::Real=0, rtol::Real=atol) = isapprox( x.value, y.value, atol=atol, rtol=rtol) 
     end
@@ -376,11 +376,11 @@ end
   
   Defines function overloads for common operations like `convert`, `isapprox`, `isequal`, `isless`, +-/* between a new UnitType and all existing UnitTypes.
 """
-function makeJointConversions(newType=nothing) # optional argument to only run on the newly created type, for makeMeasure()
+function makeJointConversions(newType=nothing, mod=@__MODULE__) # optional argument to only run on the newly created type, for makeMeasure()
   for a in Dict(newType=>allUnitTypes[newType]) # match structure of allUnitTypes
     for b in allUnitTypes 
       if supertype(a.first) == supertype(b.first) # can only convert/isapprox/+-*/ within the same measures
-        UnitTypes.eval( quote
+        mod.eval( quote
           if !hasmethod(Base.convert, (Type{$(a.first)}, $(b.first)) )
             Base.convert(::Type{$(a.first)}, y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) ) # convert b to its base, then a fromBase
           end
@@ -411,7 +411,7 @@ function makeJointConversions(newType=nothing) # optional argument to only run o
         end)
         # Base.:+(<:Number) not implemented to prevent random numbers from assuming UnitTypes, the point is to be explicit
 
-        UnitTypes.eval( quote
+        mod.eval( quote
           if !($(a.second.isAffine) || $(b.second.isAffine))
             if !hasmethod(Base.:+, ($(a.first),$(b.first))) 
               Base.:+(x::$(a.first), y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(a.second.toBase)(x.value) + $(b.second.toBase)(y.value))) 
