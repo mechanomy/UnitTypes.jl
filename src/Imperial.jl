@@ -26,7 +26,7 @@ ftPerMi = 5280
 @makeMeasure KiloGram = PoundMass "lbm" 0.45359237
 
 @makeMeasure KiloGram = Slug "slug" 14.59390294
-@makeMeasure Newton = PoundForce "lbf" 0.22481
+@makeMeasure Newton = PoundForce "lbf" 4.448
 
 @testitem "Imperial" begin
   @test isapprox(Inch(12), Foot(1), atol=1e-3) # @test Inch(12) ≈ Foot(1)
@@ -36,4 +36,6 @@ ftPerMi = 5280
   @test isapprox(Foot2(5280^2), Mile2(1), atol=0.1)
 
   @test isapprox(Slug(1), PoundMass(32.174), atol=1e-3)
+  @test isapprox(Newton(10), PoundForce(2.2481), atol=1e-3)
+  @test isapprox(PoundForce(10), Newton(44.48), atol=1e-3)
 end
