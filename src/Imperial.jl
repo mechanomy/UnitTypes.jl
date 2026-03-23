@@ -38,4 +38,14 @@ ftPerMi = 5280
   @test isapprox(Slug(1), PoundMass(32.174), atol=1e-3)
   @test isapprox(Newton(10), PoundForce(2.2481), atol=1e-3)
   @test isapprox(PoundForce(10), Newton(44.48), atol=1e-3)
+
+  @test 1u"in" ≈ Inch(1)
+  @test MilliMeter(1)*MilliMeter(2) ≈ Meter2(2e-6)
+
+  @test Meter(Inch(1))*Meter(Inch(2)) ≈ Meter2(0.00129032)
+  @test Inch(1)*Inch(2) ≈ Meter2(0.00129032)
+  @test Inch(1)*Inch(2) ≈ Inch2(2)
+  @test isapprox(Inch(1)*Foot(1), Inch2(12), atol=1e-3)
+  @test isapprox(Foot(1)*Foot(2), Inch2(12*24), atol=1e-3)
+  @test Inch2(1)/Inch(2) ≈ Inch(0.5)
 end

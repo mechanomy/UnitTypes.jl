@@ -66,7 +66,7 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
       UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
 
       UnitTypes.makeSelfConversion($unitName, @__MODULE__) 
-      # UnitTypes.makeJointConversions($unitName) # define operations on itself, as there cannot be any children measures yet
+      # UnitTypes.makeJointConversions($unitName) # define operations only on itself, as there cannot be any child measures yet
     end
   ]
   return esc( Expr(:block, qts...))
@@ -379,7 +379,7 @@ end
 function makeJointConversions(newType=nothing, mod=@__MODULE__) # optional argument to only run on the newly created type, for makeMeasure()
   for a in Dict(newType=>allUnitTypes[newType]) # match structure of allUnitTypes
     for b in allUnitTypes 
-      if supertype(a.first) == supertype(b.first) # can only convert/isapprox/+-*/ within the same measures
+      if supertype(a.first) == supertype(b.first) # can only convert/isapprox/+- within the same measures
         mod.eval( quote
           if !hasmethod(Base.convert, (Type{$(a.first)}, $(b.first)) )
             Base.convert(::Type{$(a.first)}, y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) ) # convert b to its base, then a fromBase
@@ -444,6 +444,24 @@ function makeJointConversions(newType=nothing, mod=@__MODULE__) # optional argum
           end
         end)
       end
+
+      # # add */ if the resultant type already exists...
+      # if hasmethod(Base.:/, (a.first, b.first)) # 
+      # # if supertype(a.first) == supertype(b.first) # can only convert/isapprox/+- within the same measures
+      #   baseA = getBaseType(a.first)
+      #   baseB = getBaseType(b.first)
+      #   println("adding math with a:$(a.first)::$baseA, $(b.first)::$baseB")
+      #        if !hasmethod(Base.:*, ($(a.first), $(b.first))) 
+      #         Base.:*(x::$(a.first), y::$(b.first)) = convert($baseA, x)*convert($baseB, y)  #just convert to base and * since it's too hard to find Foot^2 and handle if it doesn't exist yet
+      #       end
+      #       if !hasmethod(Base.:*, ($(b.first), $(a.first))) 
+      #         Base.:*(x::$(b.first), y::$(a.first)) = convert($baseB, x)*convert($baseA, y)
+      #       end
+      #       # divide works if we have a/b::baseB
+      #       if !hasmethod(Base.:/, ($(baseA),$(baseB)))
+      #         Base.:/(x::$(a.first), y::$(b.first)) = convert($baseA, x)/convert($baseB,y)
+      #       end     
+
     end
   end
 end
@@ -527,6 +545,18 @@ end
     @test MeterT(5) + MeterT(-3) ≈ MeterT(2)
     @test MeterT(5) + -MeterT(3) ≈ MeterT(2)
   end
+  
+  # @makeBaseMeasure AreaT Meter2T "m^2"
+  # @relateMeasures MeterT*MeterT=Meter2T
+  # @testset "multiply between types" begin
+  #   @test MeterT(3)*CentiMeterT(1) ≈ Meter2T(0.03)
+  #   @test MeterT(1)*InchT(1) ≈ Meter2T(0.0254)
+  # end
+  # @testset "divide between types" begin
+  #   @test Meter2T(4)/MeterT(2) ≈ MeterT(2)
+  #   @test Meter2T(1)/CentiMeterT(1) ≈ MeterT(100)
+  #   @test isapprox(Meter2T(1)/InchT(1), MeterT(1/0.0254), atol=1e-3)
+  # end
 
   # @testset "broadcasting" begin
   #   @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
@@ -589,6 +619,23 @@ function Base.show(io::IO, m::AbstractMeasure)
 end
 
 """
+  `function getBaseType(mtype::DataType) :: DataType`
+  Returns the base type of some child type, so getBaseType(MilliMeter) returns Meter.
+"""
+function getBaseType(mtype::DataType) :: DataType
+  ret = UnitTypes.allUnitTypes[mtype].base
+  # println("getBase: ", mtype, " -> ", ret)
+  return ret
+end
+@testitem "getBaseType" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @test UnitTypes.getBaseType( MeterT ) == MeterT
+
+	@makeMeasure MeterT = CentiMeterT "cmT" 1e-2 # x->x/100 x->x*100
+  @test UnitTypes.getBaseType( CentiMeterT ) == MeterT
+end
+
+"""
   `function toBaseFloat(m::AbstractMeasure) :: Float64`
 
   Returns measure `m` as a float in the base unit.
@@ -622,11 +669,11 @@ macro u_str(unit::String)
     b = first(first(aut))(1) # MeterT(1)
     return b
   end
-  @warn "did not find $unit in `allUnitTypes`, returning 0"
+  @warn "did not find $unit in `allUnitTypes`. Verify the unit string spelling or use the base unit (eg instead of MilliMeter use Meter)"
 end
 @testitem "u_str" begin
   @makeBaseMeasure UStrTest UsT "usT"
-  @test isa(1u"usT", UsT)
+  @test isa(1u"usT", UsT) 
 end
 
 """
@@ -634,12 +681,23 @@ end
 
   Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
   All types must already be defined and only one * is supported on the left side, while the right should the resultant type.
-
   ```
     @relateMeasures Meter*Newton = NewtonMeter
   ```
+
+  To add a compound unit like kg*m/s^2, build incrementally:
+  ```
+    @makeMeasure Hertz = PerSecond "s^-1" 1
+    @makeBaseMeasure Velocity MeterPerSecond "m/s" 
+    @relateMeasures Meter*PerSecond=MeterPerSecond
+    @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
+    @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
+    @makeBaseMeasure Force Newton "N"
+    @relateMeasures KiloGram*MeterPerSecond2=Newton
+  ```
 """
 macro relateMeasures(relation)
+  # println("relateMeasures($relation)")
   # @relateMeasures Meter*Newton = NewtonMeter
   # an alternate format would be: @relateMeasures Meter(1)*Centimeter(100)=Meter2(1), adding conversion...
   if length(relation.args) == 2# && isa(relation.args[2], Expr)
@@ -647,72 +705,89 @@ macro relateMeasures(relation)
     TM = relation.args[1].args[2] # TM
     TN = relation.args[1].args[3] # TN
     TNM = relation.args[2].args[2] # TNM
-
-    qts = [ quote end ] # build expressions in quotes
-
-    # iterate through all types with same supertype to add concrete operations
-    if operator == :*
-      push!(qts, quote 
-        for m in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TM].abstract, UnitTypes.allUnitTypes) # loops have to be in quote for TM, TN, TNM to resolve
-          for n in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TN].abstract, UnitTypes.allUnitTypes)
-            # println("Base.:*(x::$(first(m)), y::$(first(n))) = $($TNM)( convert($($TM), x).value * convert($($TN),y).value ) ")
-            if !hasmethod(Base.:*, (first(m), first(n)))
-              Base.:*(x::first(m), y::first(n)) = $TNM( convert($TM, x).value * convert($TN,y).value ) # x <: Abstract, so convert everything to the types given in the relation
-            end
-            if !hasmethod(Base.:*, (first(n), first(m)))
-              Base.:*(x::first(n), y::first(m)) = $TNM( convert($TN, x).value * convert($TM,y).value ) # swapped
-            end
-            if !hasmethod(Base.:/, ($TNM, first(m)))
-              Base.:/(x::$TNM, y::first(m)) = $TN( convert($TNM,x).value / convert($TM,y).value )
-            end
-            if !hasmethod(Base.:/, ($TNM, first(n)))
-              Base.:/(x::$TNM, y::first(n)) = $TM( convert($TNM,x).value / convert($TN,y).value )
-            end
-          end
-        end
-        if $TM == $TN
-          Base.sqrt(x::$TNM) = $TM( sqrt(x.value) ) # I can define sqrt(m^2) -> m, but I cannot define x^0.5 b/c the exponent might not lead to a known or integer unit..
-        end
-      end)
-    elseif operator == :/ # as in pressure: N/m^2 = Pa
-      push!(qts, quote
-        for m in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TM].abstract, UnitTypes.allUnitTypes)
-          for n in filter(kv->kv.second.abstract == UnitTypes.allUnitTypes[$TN].abstract, UnitTypes.allUnitTypes)
-            if !hasmethod(Base.:/, (first(m), first(n)))
-              Base.:/(x::first(m), y::first(n)) = $TNM( convert($TM, x).value / convert($TN,y).value ) # F/m2 = Pa
-            end
-            if !hasmethod(Base.:*, (first(m), $TNM))
-              Base.:*(x::first(m), y::$TNM) = $TN( convert($TM,x).value * y.value ) # m2 * Pa = N
-            end
-            if !hasmethod(Base.:*, ($TNM, first(m)))
-              Base.:*(x::$TNM, y::first(m)) = $TN( x.value * convert($TM, y)) # Pa * m2 = N
-            end
-
-            if !hasmethod(Base.:*, (first(n), $TNM))
-              Base.:*(x::first(n), y::$TNM) = $TM( convert($TN,x).value * y.value ) # N * Pa = m2
-            end
-            if !hasmethod(Base.:*, ($TNM, first(n)))
-              Base.:*(x::$TNM, y::first(n)) = $TM( x.value * convert($TN,y).value ) # Pa * N = m2
-            end
-          end
-        end
-      end)
-    else
-      throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
-    end
+    operator = Symbol(operator)
+    qts = [quote (
+      UnitTypes.addRelations($operator, $TM, $TN, $TNM, @__MODULE__)
+      ) end]
+    # display(qts)
     return esc( Expr(:block, qts...))
-
   else
     throw(ArgumentError("@relateMeasures given incorrect format"))
   end
 end
+
+"""
+  function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
+
+  Adds */ relations between the given UnitTypes by eval()ing in the given module.
+  The arguments are such that TM <operator> TN = TNM.
+"""
+function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
+  superM = supertype(TM) # these are abstract
+  superN = supertype(TN)
+  superNM = supertype(TNM)
+  baseM = getBaseType(TM)
+  baseN = getBaseType(TN)
+  baseNM = getBaseType(TNM)
+
+  if operator==:* || operator==* 
+    mod.eval( quote
+      if !hasmethod(Base.:*, ($superM, $superN))
+        Base.:*(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value * convert($baseN,y).value) # ensure the operation is defined for the base units, in case the relation was not given in base: ft*lbs = Nm
+      end
+      if !hasmethod(Base.:*, ($superN, $superM)) 
+        Base.:*(x::$superN, y::$superM) = $baseNM( convert($baseN, x).value * convert($baseM,y).value) 
+      end
+
+      if !hasmethod(Base.:/, ($superNM, $superM))
+        Base.:/(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value / convert($baseM,y).value ) 
+      end
+      if !hasmethod(Base.:/, ($superNM, $superN))
+        Base.:/(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value / convert($baseN,y).value )
+      end
+
+      if $TM == $TN
+        Base.sqrt(x::$TNM) = $TM( sqrt(x.value) ) # I can define sqrt(m^2) -> m, but I cannot define x^0.5 b/c the exponent might not lead to a known or integer unit..
+      end
+    end)
+  elseif operator==:/ || operator==/ # as in pressure: N/m^2 = Pa
+    mod.eval(quote
+      if !hasmethod(Base.:/, ($superM, $superN))
+        Base.:/(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value / convert($baseN,y).value ) # F/m2 = Pa
+      end
+      if !hasmethod(Base.:*, ($superM, $superNM))
+        Base.:*(x::$superM, y::$superNM) = $baseN( convert($baseM,x).value * convert($baseNM,y).value ) # m2 * Pa = N
+      end
+      if !hasmethod(Base.:*, ($superNM, $superM))
+        Base.:*(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value * convert($baseM, y)) # Pa * m2 = N
+      end
+      if !hasmethod(Base.:*, ($superN, $superNM))
+        Base.:*(x::$superN, y::$superNM) = $baseM( convert($baseN,x).value * convert($baseNM,y).value ) # N * Pa = m2
+      end
+      if !hasmethod(Base.:*, ($superNM, $superN))
+        Base.:*(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value * convert($baseN,y).value ) # Pa * N = m2
+      end
+
+    end)
+  else
+    throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
+  end
+end
 @testitem "relateMeasures" begin
-  # multiplicative same
   @makeBaseMeasure LengthTest MeterT "mT"
   @makeBaseMeasure AreaTest Meter2T "m2T"
   @relateMeasures MeterT*MeterT = Meter2T
+  @makeMeasure MeterT = MilliMeterT "mmT" 1e-3
+
+  # @show which(Base.:*, (MilliMeterT, MilliMeterT))
+  # @show which(Base.:*, (MilliMeterT, MeterT))
+  # @show which(Base.:*, (MeterT, MilliMeterT))
+
+  # multiplicative same
   @test MeterT(2)*MeterT(3) ≈ Meter2T(6)
   @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
+  @test MeterT(2)*MilliMeterT(3) ≈ Meter2T(6e-3)
+  @test MilliMeterT(2)*MeterT(3) ≈ Meter2T(6e-3)
 
   # multiplicative different
   @makeBaseMeasure TorqueTest NewtonMeterT "NMT"
@@ -734,9 +809,9 @@ end
   @test Meter2T(2)*PascalT(3) ≈ NewtonT(6)
 
   #non-operator
-  @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT%Meter2T = NewtonT  )) 
+  # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT Meter2T = NewtonT  )) # missing operator
+  # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT & Meter2T = NewtonT  )) # operator is not defined on this
 
   # coefficient of thermal expansion?, to check with affine unit:
 end
-
 
