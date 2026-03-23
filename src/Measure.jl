@@ -681,12 +681,14 @@ end
 
   Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
   All types must already be defined and only one * is supported on the left side, while the right should the resultant type.
-  ```
+
+  `
     @relateMeasures Meter*Newton = NewtonMeter
-  ```
+  `
 
   To add a compound unit like kg*m/s^2, build incrementally:
-  ```
+
+  `
     @makeMeasure Hertz = PerSecond "s^-1" 1
     @makeBaseMeasure Velocity MeterPerSecond "m/s" 
     @relateMeasures Meter*PerSecond=MeterPerSecond
@@ -694,7 +696,7 @@ end
     @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
     @makeBaseMeasure Force Newton "N"
     @relateMeasures KiloGram*MeterPerSecond2=Newton
-  ```
+  `
 """
 macro relateMeasures(relation)
   # println("relateMeasures($relation)")
