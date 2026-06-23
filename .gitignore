@@ -76,3 +76,6 @@ desktop.ini
 # 
 *.code-workspace
 .vscode
+
+.claude
+claude.md

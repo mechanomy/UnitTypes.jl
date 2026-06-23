@@ -100,34 +100,33 @@ end
 end
 
 """
-  `macro makeMeasure(relation, newAbbreviation, toBase, fromBase=missing)
+  `macro makeMeasure(xFactor, relation, newType, newAbbreviation)`
 
-  Creates a new Measure from an existing base measure.
-  The left hand side of the equation must already exist, while the right hand side should be undefined, with the string providing the unit symbol and the number the multiplicative factor to the base unit.
+  Creates a new Measure from an existing base measure using leading conversion factors.
+  The ExistingUnitType must already exist; NewUnitType will be created.
+  The equation `xFactor * ExistingUnitType = yFactor * NewUnitType` defines the conversion.
   ```
-  @makeMeasure Meter = Inch "in" 0.0254
+  @makeMeasure 1e-3 Meter = 1 MilliMeter "mm"
   ```
-  Here, an Inch * 0.0254 = Meter.
 
-  Affine units (like Temperature) can provide anonymous functions converting to and from the base unit.
+  Affine units (like Temperature) provide parenthesized anonymous functions as factors.
+  xFactor converts NewUnitType values to ExistingUnitType; yFactor is the inverse.
   ```
-  @makeMeasure Kelvin = Fahrenheit "F" f->(f+459.67)*5/9 k->k*9/5-459.67 
+  @makeMeasure (f->(f+459.67)*5/9) Kelvin = (k->k*9/5-459.67) Fahrenheit "°F"
   ```
 """
-macro makeMeasure(relation, newAbbreviation, newToBase, newFromBase=missing, isAffine=false)
-  # @makeMeasure Kelvin = Fahrenheit "F" f->(f+459.67)*5/9 k->k*9/5-459.67 
-  # display(dump(relation)) # Kelvin = Fahrenheit
-  existingType = relation.args[1] # Kelvin
-  newType = relation.args[2] # Fahrenheit
-  
-  # accept base factor
-  toBase = newToBase
-  fromBase = newFromBase
-  if ismissing(newFromBase) 
-    global toBase = :(x->x*$newToBase) # quote to match format
-    global fromBase = :(x->x/$newToBase)
-  end
-  isAffine |= contains(string(toBase), "+") || contains(string(fromBase), "+") # check if the expr has +-, making it an affine conversion, which means that we need to restrict what +- functions are added; - is also used for x->x, so just check for + in to&from
+macro makeMeasure(xFactor, relation, newType, newAbbreviation)
+  # xFactor      : scalar or (parenthesized) lambda — leading conversion factor for ExistingType
+  # relation     : Expr(:(=), existingType, yFactor) — parsed from "ExistingType = yFactor"
+  # newType      : Symbol for the new unit type
+  # newAbbreviation : String abbreviation
+  existingType = relation.args[1]
+  yFactor      = relation.args[2]
+
+  isFnFactor = xFactor isa Expr && xFactor.head == :(->)
+  toBase   = isFnFactor ? xFactor : :(x -> x * $xFactor / $yFactor)
+  fromBase = isFnFactor ? yFactor : :(x -> x * $yFactor / $xFactor)
+  isAffine = contains(string(toBase), "+") || contains(string(fromBase), "+")
 
   qts = [quote
     existingSupertype = supertype($existingType)
@@ -141,7 +140,7 @@ macro makeMeasure(relation, newAbbreviation, newToBase, newFromBase=missing, isA
     $newType(x::T where T<:existingSupertype) = $newType( $fromBase(UnitTypes.allUnitTypes[typeof(x)].toBase(x.value) )) # conversion constructor
     export $newType
 
-    UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine) 
+    UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine)
 
     UnitTypes.makeSelfConversion($newType, @__MODULE__)
     UnitTypes.makeJointConversions($newType, @__MODULE__)
@@ -152,13 +151,12 @@ end
   @makeBaseMeasure LengthTest MeterT "mT"
   @makeBaseMeasure TemperatureTest KelvinT "KT"
 
-	@makeMeasure KelvinT = FahrenheitT "FT" f->(f+459.67)*5/9 k->k*9/5-459.67 
-	@makeMeasure MeterT = CentiMeterT "cmT" x->x/100 x->x*100
-  # @makeMeasure MeterT = InchT "inT" x->x*0.0254 x->x/0.0254
-  @makeMeasure MeterT = InchT "inT" 25.4/1000 # 0.0254
-  @makeMeasure MeterT = KiloMeterT "KmT" 1/1000
+  @makeMeasure (f->(f+459.67)*5/9) KelvinT = (k->k*9/5-459.67) FahrenheitT "FT"
+  @makeMeasure (x->x/100) MeterT = (x->x*100) CentiMeterT "cmT"
+  @makeMeasure 25.4/1000 MeterT = 1 InchT "inT"
+  @makeMeasure 1/1000 MeterT = 1 KiloMeterT "KmT"
 
-  @makeMeasure InchT = FootT "ft" 12
+  @makeMeasure 12 InchT = 1 FootT "ft"
 
   @testset "subtyped" begin
     @test KelvinT <: AbstractMeasure
@@ -470,9 +468,9 @@ end
   @makeBaseMeasure SoundTest GrowlT "gT" 
   @makeBaseMeasure TemperatureTest KelvinT "KT"
 
-	@makeMeasure KelvinT = FahrenheitT "FT" x->(x+459.67)*5/9 k->k*9/5-459.67 
-	@makeMeasure MeterT = CentiMeterT "cmT" 1e-2 # x->x/100 x->x*100
-  @makeMeasure MeterT = InchT "inT" x->x*0.0254 x->x/0.0254
+  @makeMeasure (x->(x+459.67)*5/9) KelvinT = (k->k*9/5-459.67) FahrenheitT "FT"
+  @makeMeasure 1e-2 MeterT = 1 CentiMeterT "cmT"
+  @makeMeasure (x->x*0.0254) MeterT = (x->x/0.0254) InchT "inT"
 
   @testset "convert" begin
     @test isa( convert(MeterT, MeterT(1.2)), MeterT)
@@ -631,7 +629,7 @@ end
   @makeBaseMeasure LengthT MeterT "mT"
   @test UnitTypes.getBaseType( MeterT ) == MeterT
 
-	@makeMeasure MeterT = CentiMeterT "cmT" 1e-2 # x->x/100 x->x*100
+  @makeMeasure 1e-2 MeterT = 1 CentiMeterT "cmT"
   @test UnitTypes.getBaseType( CentiMeterT ) == MeterT
 end
 
@@ -645,8 +643,8 @@ function toBaseFloat(m::AbstractMeasure) :: Float64
 end
 @testitem "toBaseFloat" begin
   @makeBaseMeasure LengthT MeterT "mT"
-	@makeMeasure MeterT = CentiMeterT "cmT" x->x/100 x->x*100
-	@makeMeasure MeterT = KiloMeterT "kmT" x->x*1000 x->x/1000
+  @makeMeasure (x->x/100) MeterT = (x->x*100) CentiMeterT "cmT"
+  @makeMeasure (x->x*1000) MeterT = (x->x/1000) KiloMeterT "kmT"
 
   @test toBaseFloat(CentiMeterT(100)) ≈ 1
   @test toBaseFloat(KiloMeterT(1)) ≈ 1000
@@ -779,7 +777,7 @@ end
   @makeBaseMeasure LengthTest MeterT "mT"
   @makeBaseMeasure AreaTest Meter2T "m2T"
   @relateMeasures MeterT*MeterT = Meter2T
-  @makeMeasure MeterT = MilliMeterT "mmT" 1e-3
+  @makeMeasure 1e-3 MeterT = 1 MilliMeterT "mmT"
 
   # @show which(Base.:*, (MilliMeterT, MilliMeterT))
   # @show which(Base.:*, (MilliMeterT, MeterT))

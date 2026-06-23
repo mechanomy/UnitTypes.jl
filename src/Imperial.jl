@@ -4,29 +4,29 @@ mPerIn = 0.0254
 inPerFt = 12
 ftPerMi = 5280
 
-@makeMeasure Meter = Inch "in" mPerIn
-@makeMeasure Meter = Foot "ft" mPerIn*inPerFt
-@makeMeasure Meter = Yard "yd" mPerIn*inPerFt*3
-@makeMeasure Meter = Mile "mi" mPerIn*inPerFt*ftPerMi
-@makeMeasure Meter = NauticalMile "nmi" 1852
+@makeMeasure mPerIn Meter = 1 Inch "in"
+@makeMeasure mPerIn*inPerFt Meter = 1 Foot "ft"
+@makeMeasure mPerIn*inPerFt*3 Meter = 1 Yard "yd"
+@makeMeasure mPerIn*inPerFt*ftPerMi Meter = 1 Mile "mi"
+@makeMeasure 1852 Meter = 1 NauticalMile "nmi"
 
-@makeMeasure Meter2 = Inch2 "in^2" mPerIn ^2
-@makeMeasure Meter2 = Foot2 "sqft" (mPerIn*inPerFt)^2
-@makeMeasure Meter2 = Acre "ac" 4.046873e3
-@makeMeasure Meter2 = Mile2 "sqmi" (mPerIn*inPerFt*ftPerMi)^2
+@makeMeasure mPerIn^2 Meter2 = 1 Inch2 "in^2"
+@makeMeasure (mPerIn*inPerFt)^2 Meter2 = 1 Foot2 "sqft"
+@makeMeasure 4.046873e3 Meter2 = 1 Acre "ac"
+@makeMeasure (mPerIn*inPerFt*ftPerMi)^2 Meter2 = 1 Mile2 "sqmi"
 
-@makeMeasure MeterPerSecond = FootPerSecond "ft/s" 1/mPerIn*inPerFt
+@makeMeasure 1/mPerIn*inPerFt MeterPerSecond = 1 FootPerSecond "ft/s"
 
-@makeMeasure Meter3 = FluidOunce "floz" 28.4130625e-3
-@makeMeasure Meter3 = Pint "pt" 568.26126e-3
-@makeMeasure Meter3 = Quart "qt" 1136.5225e-3
-@makeMeasure Meter3 = Gallon "gal" 4546.09e-3
+@makeMeasure 28.4130625e-3 Meter3 = 1 FluidOunce "floz"
+@makeMeasure 568.26126e-3 Meter3 = 1 Pint "pt"
+@makeMeasure 1136.5225e-3 Meter3 = 1 Quart "qt"
+@makeMeasure 4546.09e-3 Meter3 = 1 Gallon "gal"
 
-@makeMeasure KiloGram = Ounce "oz" 28.349523125e-3
-@makeMeasure KiloGram = PoundMass "lbm" 0.45359237
+@makeMeasure 28.349523125e-3 KiloGram = 1 Ounce "oz"
+@makeMeasure 0.45359237 KiloGram = 1 PoundMass "lbm"
 
-@makeMeasure KiloGram = Slug "slug" 14.59390294
-@makeMeasure Newton = PoundForce "lbf" 4.448
+@makeMeasure 14.59390294 KiloGram = 1 Slug "slug"
+@makeMeasure 4.448 Newton = 1 PoundForce "lbf"
 
 @testitem "Imperial" begin
   @test isapprox(Inch(12), Foot(1), atol=1e-3) # @test Inch(12) ≈ Foot(1)

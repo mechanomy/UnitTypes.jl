@@ -1,5 +1,5 @@
 @makeBaseMeasure Angle Radian "rad"
-@makeMeasure Radian = Degree "°" π/180
+@makeMeasure π/180 Radian = 1 Degree "°"
 
 # @makeMeasure arcmin
 

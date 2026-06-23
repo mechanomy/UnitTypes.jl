@@ -54,7 +54,7 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
   )
 end
 @testitem "makeDimension" begin
-  @makeMeasure Meter = MetT "met" 1
+  @makeMeasure 1 Meter = 1 MetT "met"
   @makeDimension DimT MetT 
 
   @test isa(DimT(MetT(3.4)), DimT) # default constructor 
@@ -67,13 +67,13 @@ end
   @test typeof(tdm1.measure) <: AbstractMeasure
 
   # now make sure that I can't convert between Dimensions
-  @makeMeasure Meter = MetT2 "met2" 2
+  @makeMeasure 2 Meter = 1 MetT2 "met2"
   @makeDimension TestDim2 MetT2 
 
   @test isa(convert(MetT,MetT2(3.4)), MetT)
   @test isa(DimT(MetT2(3.4)), DimT)  # if it can convert from MetT2 to MetT, this should work since both are based on Meter
 
-  @makeMeasure Second = MetT3 "met3" 3 #these should fail, showing that the <:AbstractLength is working
+  @makeMeasure 3 Second = 1 MetT3 "met3" #these should fail, showing that the <:AbstractLength is working
   @test_throws MethodError DimT(MetT3(3.4))
 
   @test DimT(3.4) ≈ DimT(3.4) #Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
@@ -242,7 +242,7 @@ end
   # Base.:-(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = T(x.measure - y.measure/2) #maintain Radius
   @test rm - dm ≈ RadiusT(MeterT(0))
 
-  @makeMeasure MeterT = MillimeterT "mmt" 1e-3
+  @makeMeasure 1e-3 MeterT = 1 MillimeterT "mmt"
   m = MillimeterT(1200)
 
   # # Base.:+(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractLengthTest} = T(x.measure+y)
@@ -286,7 +286,7 @@ function dimension2String(c::T)::String where T<:AbstractDimension
   return "$(split(string(T),"{")[1])($(c.measure))" # 
 end
 @testitem "dimension2String" begin
-  @makeMeasure Meter = TestLength1 "tl1" 10
+  @makeMeasure 10 Meter = 1 TestLength1 "tl1"
   @makeDimension DimT TestLength1
   d11 = DimT{TestLength1}(1.2)
 

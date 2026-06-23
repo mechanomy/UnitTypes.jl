@@ -28,13 +28,13 @@
 @makeBaseMeasure Time Second "s"
 
 # Length powers
-@makeMeasure Meter = FemtoMeter "fm" 1e-15
-@makeMeasure Meter = PicoMeter "pm" 1e-12
-@makeMeasure Meter = NanoMeter "nm" 1e-9
-@makeMeasure Meter = MicroMeter "μm" 1e-6 
-@makeMeasure Meter = MilliMeter "mm" 1e-3
-@makeMeasure Meter = CentiMeter "cm" 1e-2 
-@makeMeasure Meter = KiloMeter "km" 1e3
+@makeMeasure 1e-15 Meter = 1 FemtoMeter "fm"
+@makeMeasure 1e-12 Meter = 1 PicoMeter "pm"
+@makeMeasure 1e-9 Meter = 1 NanoMeter "nm"
+@makeMeasure 1e-6 Meter = 1 MicroMeter "μm"
+@makeMeasure 1e-3 Meter = 1 MilliMeter "mm"
+@makeMeasure 1e-2 Meter = 1 CentiMeter "cm"
+@makeMeasure 1e3 Meter = 1 KiloMeter "km"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -53,8 +53,8 @@ end
 
 @makeBaseMeasure Volume Meter3 "m^3"
 @relateMeasures Meter2*Meter=Meter3
-@makeMeasure Meter3 = Liter "L" 1e3
-@makeMeasure Liter = MilliLiter "mL" 1e3
+@makeMeasure 1e3 Meter3 = 1 Liter "L"
+@makeMeasure 1e3 Liter = 1 MilliLiter "mL"
 
 @makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
 @makeBaseMeasure SpecificVolume M3PerKg "m^3/kg"
@@ -66,13 +66,13 @@ Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBas
 @makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
 # time
-@makeMeasure Second = MilliSecond "ms" 1e-3
-@makeMeasure Second = Minute "min" 1/60
-@makeMeasure Second = Hour "hr" 1/3600
-@makeMeasure Hour = Day "days" 1/24
+@makeMeasure 1e-3 Second = 1 MilliSecond "ms"
+@makeMeasure 1/60 Second = 1 Minute "min"
+@makeMeasure 1/3600 Second = 1 Hour "hr"
+@makeMeasure 1/24 Hour = 1 Day "days"
 
 @makeBaseMeasure Frequency Hertz "Hz"
-@makeMeasure Hertz = PerSecond "s^-1" 1
+@makeMeasure 1 Hertz = 1 PerSecond "s^-1"
 
 # can relateMeasures be expanded to provide? @relateMeasures 1/Second = Hertz?
 Base.convert(::Type{Second}, x::T) where {T<:AbstractFrequency} = 1/x #Second(1/toBaseFloat(x))
@@ -93,41 +93,41 @@ end
 @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
 
 @makeBaseMeasure Force Newton "N"
-@makeMeasure Newton = KiloNewton "kN" 1e3
-@makeMeasure Newton = MilliNewton "mN" 1e-3
+@makeMeasure 1e3 Newton = 1 KiloNewton "kN"
+@makeMeasure 1e-3 Newton = 1 MilliNewton "mN"
 @relateMeasures KiloGram*MeterPerSecond2=Newton
 
 @makeBaseMeasure Torque NewtonMeter "N*m"
 @relateMeasures Newton*Meter=NewtonMeter
-@makeMeasure NewtonMeter = NewtonMilliMeter "N*mm" 1e-3
-@makeMeasure NewtonMeter = MilliNewtonMeter "mN*m" 1e-3
+@makeMeasure 1e-3 NewtonMeter = 1 NewtonMilliMeter "N*mm"
+@makeMeasure 1e-3 NewtonMeter = 1 MilliNewtonMeter "mN*m"
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @relateMeasures Newton/Meter2=Pascal
-@makeMeasure Pascal = KiloPascal "KPa" 1e3
-@makeMeasure Pascal = MegaPascal "MPa" 1e6
-@makeMeasure Pascal = GigaPascal "GPa" 1e9
+@makeMeasure 1e3 Pascal = 1 KiloPascal "KPa"
+@makeMeasure 1e6 Pascal = 1 MegaPascal "MPa"
+@makeMeasure 1e9 Pascal = 1 GigaPascal "GPa"
 
 @makeBaseMeasure Charge Coulomb "C"
 @relateMeasures Second*Ampere=Coulomb
 
 @makeBaseMeasure ElectricPotential Volt "V"
-@makeMeasure Volt = KiloVolt "KV" 1e3
+@makeMeasure 1e3 Volt = 1 KiloVolt "KV"
 
 @makeBaseMeasure Resistance Ohm "Ω"
-@makeMeasure Ohm = MilliOhm "Ω" 1e-3
-@makeMeasure Ohm = KiloOhm "kΩ" 1e3
-@makeMeasure Ohm = MegaOhm "MΩ" 1e6
+@makeMeasure 1e-3 Ohm = 1 MilliOhm "Ω"
+@makeMeasure 1e3 Ohm = 1 KiloOhm "kΩ"
+@makeMeasure 1e6 Ohm = 1 MegaOhm "MΩ"
 
 @makeBaseMeasure Power Watt "W"
 @relateMeasures Ampere*Volt=Watt
 @relateMeasures Ampere*Ohm=Volt
 
 @makeBaseMeasure Capacitance Farad "F" 
-@makeMeasure Farad = MilliFarad "mF" 1e-3
-@makeMeasure Farad = MicroFarad "μF" 1e-6
-@makeMeasure Farad = NanoFarad "nF" 1e-9
-@makeMeasure Farad = PicoFarad "pF" 1e-12
+@makeMeasure 1e-3 Farad = 1 MilliFarad "mF"
+@makeMeasure 1e-6 Farad = 1 MicroFarad "μF"
+@makeMeasure 1e-9 Farad = 1 NanoFarad "nF"
+@makeMeasure 1e-12 Farad = 1 PicoFarad "pF"
 
 @makeBaseMeasure Conductance Siemens "Ω^-1"
 Base.convert(::Type{U}, x::T) where {U<:AbstractResistance, T<:AbstractConductance} = Ohm(1/toBaseFloat(x))
@@ -138,7 +138,7 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistan
 @makeBaseMeasure MagneticFluxDensity Tesla "T"
 
 @makeBaseMeasure Inductance Henry "H"
-@makeMeasure Henry = MilliHenry "mH" 1e-3
+@makeMeasure 1e-3 Henry = 1 MilliHenry "mH"
 
 @makeBaseMeasure LuminousFlux Lumen "lm"
 @makeBaseMeasure Illuminance Lux "lx"
@@ -149,4 +149,4 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistan
 
 # others..?:
 @makeBaseMeasure Percentage Percent "%" # not a physical unit...
-@makeMeasure Percent = BasisPoints "bps" 1e-2 # 100bps in 1%
+@makeMeasure 1e-2 Percent = 1 BasisPoints "bps" # 100bps in 1%

@@ -1,20 +1,20 @@
 #temperature: https://en.wikipedia.org/wiki/Conversion_of_scales_of_temperature
 
 @makeBaseMeasure Temperature Kelvin "°K"
-@makeMeasure Kelvin = Celsius "°C" x->x+273.15 x->x-273.15
+@makeMeasure (x->x+273.15) Kelvin = (x->x-273.15) Celsius "°C"
 @testitem "Celsius" begin
   @test isapprox( convert(Celsius, Kelvin(273.15)), Celsius(0), atol=1e-3)
   @test isapprox( convert(Kelvin, Celsius(0)), Kelvin(273.15), atol=1e-3)
 end
 
-@makeMeasure Kelvin = Fahrenheit "°F" x->(x+459.67)*5/9 x->x*9/5-459.67
+@makeMeasure (x->(x+459.67)*5/9) Kelvin = (x->x*9/5-459.67) Fahrenheit "°F"
 @testitem "Fahrenheit" begin
   @test isapprox(convert(Kelvin, Fahrenheit(32)), Kelvin(273.15), atol=1e-3)
   @test isapprox(convert(Fahrenheit, Kelvin(273.15)), Fahrenheit(32), atol=1e-3)
   @test isapprox(convert(Celsius, Fahrenheit(32)), Celsius(0), atol=1e-3)
 end
 
-@makeMeasure Kelvin = Rankine "°R" x->x*5/9 x->x*9/5
+@makeMeasure (x->x*5/9) Kelvin = (x->x*9/5) Rankine "°R"
 @testitem "Rankine" begin
   @test isapprox(Rankine(491.67), Kelvin(273.15), atol=1e-3)
   @test isapprox(Kelvin(273.15), Rankine(491.67), atol=1e-3)
