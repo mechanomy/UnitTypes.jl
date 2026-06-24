@@ -1,4 +1,4 @@
-export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes
+export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes, getDimensions, mergeBaseDimensions, findNamedType
 abstract type AbstractMeasure end
 
 struct UnitTypeAttributes
@@ -7,7 +7,8 @@ struct UnitTypeAttributes
   toBase::Function # function to numerically convert to the base unit; this would be overkill except for handling affine units
   fromBase::Function # function to numerically convert from the base unit
   abbreviation::String # "mm"
-  isAffine::Bool 
+  isAffine::Bool
+  dimensions::Dict{DataType,Int} # maps abstract dimension types to exponents, e.g. {AbstractLength=>1, AbstractTime=>-1}
 end
 const allUnitTypes = Dict{DataType, UnitTypeAttributes}() # const means allUnitTypes won't change from a Dict https://discourse.julialang.org/t/mutating-global-variable-during-precompilation/51478/2?u=bcon
 
@@ -63,7 +64,7 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
       $unitName(x::T where T<:$abstractName) = $unitName( UnitTypes.allUnitTypes[typeof(x)].toBase(x.value) ) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
 
-      UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
+      UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false, Dict{DataType,Int}($abstractName => 1)) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
 
       UnitTypes.makeSelfConversion($unitName, @__MODULE__) 
       # UnitTypes.makeJointConversions($unitName) # define operations only on itself, as there cannot be any child measures yet
@@ -80,7 +81,7 @@ end
     @test isdefined(@__MODULE__, :MeterT)
 
     @makeBaseMeasure DensityTest DensityT "dennyT"
-    @test_throws MethodError MeterT(1.2)*DensityT(3.4) #method error because these cannot be * yet
+    @test MeterT(1.2)*DensityT(3.4) isa UnitExpr #catch-all returns UnitExpr when no @relateMeasures is defined
   end
   
   @testset "constructor" begin
@@ -140,7 +141,7 @@ macro makeMeasure(xFactor, relation, newType, newAbbreviation)
     $newType(x::T where T<:existingSupertype) = $newType( $fromBase(UnitTypes.allUnitTypes[typeof(x)].toBase(x.value) )) # conversion constructor
     export $newType
 
-    UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine)
+    UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine, UnitTypes.allUnitTypes[$existingType].dimensions)
 
     UnitTypes.makeSelfConversion($newType, @__MODULE__)
     UnitTypes.makeJointConversions($newType, @__MODULE__)
@@ -667,7 +668,9 @@ macro u_str(unit::String)
     b = first(first(aut))(1) # MeterT(1)
     return b
   end
-  @warn "did not find $unit in `allUnitTypes`. Verify the unit string spelling or use the base unit (eg instead of MilliMeter use Meter)"
+  result = UnitTypes.parseUnitExpr(unit) # defined in UnitExpr.jl, loaded after this file
+  result !== nothing && return result
+  @warn "did not find $unit in `allUnitTypes` and could not parse as compound unit expression"
 end
 @testitem "u_str" begin
   @makeBaseMeasure UStrTest UsT "usT"
@@ -675,45 +678,127 @@ end
 end
 
 """
+  `mergeBaseDimensions(d1, d2, sign=1) -> Dict{DataType,Int}`
+
+  Combines two dimension maps: result = d1 * d2^sign (sign=1 for multiply, -1 for divide).
+  Zero-exponent entries are removed so the map stays canonical.
+"""
+function mergeBaseDimensions(d1::Dict{DataType,Int}, d2::Dict{DataType,Int}, sign::Int=1)::Dict{DataType,Int}
+  result = copy(d1)
+  for (k, v) in d2
+    result[k] = get(result, k, 0) + sign * v
+  end
+  filter!(kv -> last(kv) != 0, result)
+  return result
+end
+
+"""
+  `findNamedType(dims) -> Union{DataType, Nothing}`
+
+  Returns the registered type whose dimension signature exactly matches `dims`, preferring
+  base types (where `allUnitTypes[T].base == T`) over scaled variants like Inch2 vs Meter2.
+  Returns nothing if no match exists.
+"""
+function findNamedType(dims::Dict{DataType,Int})::Union{DataType, Nothing}
+  candidate = nothing
+  for (T, uta) in allUnitTypes
+    if uta.dimensions == dims
+      if uta.base == T          # base types beat scaled variants; return immediately
+        return T
+      end
+      candidate === nothing && (candidate = T)  # keep first non-base match as fallback
+    end
+  end
+  return candidate
+end
+
+"""
+  `getDimensions(x) -> Dict{DataType,Int}`
+
+  Returns the dimension map for a named measure type.  UnitExpr overloads this in UnitExpr.jl.
+"""
+getDimensions(x::T) where {T<:AbstractMeasure} = allUnitTypes[T].dimensions
+
+"""
   `macro relateMeasures(relation)`
 
   Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
-  All types must already be defined and only one * is supported on the left side, while the right should the resultant type.
+  All types must already be defined and only one * or / is supported on the left side, while the right should be the resultant type.
 
-  `
+  ```
     @relateMeasures Meter*Newton = NewtonMeter
-  `
+    @relateMeasures Newton/Meter2 = Pascal
+    @relateMeasures 1/Second = Hertz   # inverse: sets Hertz dims to {AbstractTime=>-1}
+  ```
 
   To add a compound unit like kg*m/s^2, build incrementally:
 
-  `
-    @makeMeasure Hertz = PerSecond "s^-1" 1
-    @makeBaseMeasure Velocity MeterPerSecond "m/s" 
-    @relateMeasures Meter*PerSecond=MeterPerSecond
+  ```
+    @makeBaseMeasure Frequency Hertz "Hz"
+    @relateMeasures 1/Second = Hertz
+    @makeMeasure 1 Hertz = 1 PerSecond "s^-1"
+    @makeBaseMeasure Velocity MeterPerSecond "m/s"
+    @relateMeasures Meter*PerSecond = MeterPerSecond
     @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
-    @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
+    @relateMeasures MeterPerSecond*PerSecond = MeterPerSecond2
     @makeBaseMeasure Force Newton "N"
-    @relateMeasures KiloGram*MeterPerSecond2=Newton
-  `
+    @relateMeasures KiloGram*MeterPerSecond2 = Newton
+  ```
 """
 macro relateMeasures(relation)
-  # println("relateMeasures($relation)")
-  # @relateMeasures Meter*Newton = NewtonMeter
-  # an alternate format would be: @relateMeasures Meter(1)*Centimeter(100)=Meter2(1), adding conversion...
-  if length(relation.args) == 2# && isa(relation.args[2], Expr)
-    operator = relation.args[1].args[1] # *
-    TM = relation.args[1].args[2] # TM
-    TN = relation.args[1].args[3] # TN
-    TNM = relation.args[2].args[2] # TNM
+  if length(relation.args) == 2
+    operator = relation.args[1].args[1]
+    lhs1     = relation.args[1].args[2]
+    lhs2     = relation.args[1].args[3]
+    TNM      = relation.args[2].args[2]
+
+    # Special case: 1/X = Y  (inverse / reciprocal relation)
+    if isa(lhs1, Number) && lhs1 == 1 && (operator == :/ || operator == /)
+      TX = lhs2
+      TY = TNM
+      return esc(quote
+        UnitTypes.addInverseRelation($TX, $TY, @__MODULE__)
+      end)
+    end
+
+    TM = lhs1
+    TN = lhs2
     operator = Symbol(operator)
     qts = [quote (
       UnitTypes.addRelations($operator, $TM, $TN, $TNM, @__MODULE__)
       ) end]
-    # display(qts)
-    return esc( Expr(:block, qts...))
+    return esc(Expr(:block, qts...))
   else
     throw(ArgumentError("@relateMeasures given incorrect format"))
   end
+end
+
+"""
+  `function addInverseRelation(TX, TY, mod)`
+
+  Establishes that `TY = 1/TX` (and `TX = 1/TY`):
+  - defines `Base.:/(n::Number, x::AbstractTX) = baseY(n/toBaseFloat(x))` and the reverse
+  - sets TY's dimension map to the element-wise negation of TX's dimension map
+"""
+function addInverseRelation(TX, TY, mod=@__MODULE__)
+  superX = supertype(TX)
+  superY = supertype(TY)
+  baseX  = getBaseType(TX)
+  baseY  = getBaseType(TY)
+
+  mod.eval(quote
+    if !hasmethod(Base.:/, (Number, $superX))
+      Base.:/(n::Number, x::$superX) = $baseY(n / UnitTypes.toBaseFloat(x))
+    end
+    if !hasmethod(Base.:/, (Number, $superY))
+      Base.:/(n::Number, y::$superY) = $baseX(n / UnitTypes.toBaseFloat(y))
+    end
+  end)
+
+  # TY's dimensions = inverse of TX's dimensions
+  dimsY = mergeBaseDimensions(Dict{DataType,Int}(), allUnitTypes[baseX].dimensions, -1)
+  uta = allUnitTypes[baseY]
+  allUnitTypes[baseY] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsY)
 end
 
 """
@@ -730,17 +815,17 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
   baseN = getBaseType(TN)
   baseNM = getBaseType(TNM)
 
-  if operator==:* || operator==* 
+  if operator==:* || operator==*
     mod.eval( quote
       if !hasmethod(Base.:*, ($superM, $superN))
         Base.:*(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value * convert($baseN,y).value) # ensure the operation is defined for the base units, in case the relation was not given in base: ft*lbs = Nm
       end
-      if !hasmethod(Base.:*, ($superN, $superM)) 
-        Base.:*(x::$superN, y::$superM) = $baseNM( convert($baseN, x).value * convert($baseM,y).value) 
+      if !hasmethod(Base.:*, ($superN, $superM))
+        Base.:*(x::$superN, y::$superM) = $baseNM( convert($baseN, x).value * convert($baseM,y).value)
       end
 
       if !hasmethod(Base.:/, ($superNM, $superM))
-        Base.:/(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value / convert($baseM,y).value ) 
+        Base.:/(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value / convert($baseM,y).value )
       end
       if !hasmethod(Base.:/, ($superNM, $superN))
         Base.:/(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value / convert($baseN,y).value )
@@ -750,6 +835,11 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
         Base.sqrt(x::$TNM) = $TM( sqrt(x.value) ) # I can define sqrt(m^2) -> m, but I cannot define x^0.5 b/c the exponent might not lead to a known or integer unit..
       end
     end)
+    # update result type's dimension signature from its factor types
+    dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, 1)
+    uta = allUnitTypes[baseNM]
+    allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
+
   elseif operator==:/ || operator==/ # as in pressure: N/m^2 = Pa
     mod.eval(quote
       if !hasmethod(Base.:/, ($superM, $superN))
@@ -769,6 +859,10 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
       end
 
     end)
+    # update result type's dimension signature: TNM = TM / TN
+    dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, -1)
+    uta = allUnitTypes[baseNM]
+    allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
   else
     throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
   end

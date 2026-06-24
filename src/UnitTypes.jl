@@ -4,6 +4,7 @@ module UnitTypes
   using TestItems
 
   include("Measure.jl")
+  include("UnitExpr.jl")
   include("SI.jl")
   include("Imperial.jl")
   include("Angle.jl")

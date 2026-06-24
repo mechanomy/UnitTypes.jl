@@ -72,13 +72,11 @@ Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBas
 @makeMeasure 1/24 Hour = 1 Day "days"
 
 @makeBaseMeasure Frequency Hertz "Hz"
+@relateMeasures 1/Second = Hertz  # sets Hertz dims to {AbstractTime=>-1}; must precede @makeMeasure so PerSecond inherits correctly
 @makeMeasure 1 Hertz = 1 PerSecond "s^-1"
 
-# can relateMeasures be expanded to provide? @relateMeasures 1/Second = Hertz?
 Base.convert(::Type{Second}, x::T) where {T<:AbstractFrequency} = 1/x #Second(1/toBaseFloat(x))
 Base.convert(::Type{Hertz}, x::T) where {T<:AbstractTime} = 1/x #Hertz(1/toBaseFloat(x))
-Base.:/(x::T,y::U) where {T<:Number, U<:AbstractTime} = Hertz(x/toBaseFloat(y)) #1/time
-Base.:/(x::T,y::U) where {T<:Number, U<:AbstractFrequency} = Second(x/toBaseFloat(y)) #1/time
 @testitem "Frequency conversions" begin
   @test convert(Second, Hertz(10)) ≈ Second(0.1)
   @test convert(Hertz, Second(0.1)) ≈ Hertz(10)
