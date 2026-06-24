@@ -2,6 +2,7 @@
 # Guiding prompts:
 #   "Resolve back to named types by adding dimension tracking to UnitTypeAttributes"
 #   "We always want to prefer the named, concrete types over UnitExpr"
+#   "Add exponent handling to UnitTypes via UnitExpr; restrict to integer powers"
 # Catch-all unit representation for unanticipated unit combinations arising from arithmetic
 # or from u_str strings that don't match a registered abbreviation.  Named concrete types
 # always take priority: resolveOrExpr() attempts a reverse dimension-map lookup first and
@@ -66,7 +67,7 @@ end
 Base.:*(x::UnitExpr, y::Number) = resolveOrExpr(x.value * Float64(y), x.dimensions)
 Base.:*(x::Number,   y::UnitExpr) = resolveOrExpr(Float64(x) * y.value, y.dimensions)
 Base.:/(x::UnitExpr, y::Number) = resolveOrExpr(x.value / Float64(y), x.dimensions)
-Base.:-(x::UnitExpr)             = UnitExpr(-x.value, x.dimensions)
+Base.:-(x::UnitExpr) = UnitExpr(-x.value, x.dimensions)
 
 Base.:+(x::UnitExpr, y::UnitExpr) =
   x.dimensions == y.dimensions ?
@@ -98,6 +99,55 @@ Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} =
 Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} =
   resolveOrExpr(toBaseFloat(x) / toBaseFloat(y),
                 mergeBaseDimensions(getDimensions(x), getDimensions(y), -1))
+
+# Integer exponentiation: (2mm)^3 = 8mm^3; Integer exponents keep dimension maps exact.
+# A single method covers both named types and UnitExpr since both define toBaseFloat/getDimensions.
+# Base.inv handles literal_pow(^, x, Val{-1}), which Julia emits for compile-time literal -1 exponents.
+Base.:^(x::AbstractMeasure, n::Integer) = resolveOrExpr(toBaseFloat(x)^n, Dict{DataType,Int}(k => v*n for (k, v) in getDimensions(x) if v*n != 0))
+
+Base.inv(x::AbstractMeasure) =
+  resolveOrExpr(1.0 / toBaseFloat(x),
+                Dict{DataType,Int}(k => -v for (k, v) in getDimensions(x) if v != 0))
+
+@testitem "AbstractMeasure integer exponentiation" begin
+  @testset "design: type resolution" begin
+    @test (2u"mm")^3 isa Meter3       # resolves to named base type
+    @test (2u"mm")^2 isa Meter2
+    @test Meter(3)^2 isa Meter2
+    @test Meter(3)^1 isa Meter
+    @test Meter(3)^0 isa UnitExpr     # n=0 → dimensionless, no named type
+    @test Meter(2)^(-1) isa UnitExpr  # no named type for m^-1
+  end
+
+  @testset "functional: values" begin
+    @test (2u"mm")^3 ≈ 8u"mm^3"      # (2mm)^3 == 8mm^3
+    @test (2u"mm")^2 ≈ Meter2(4e-6)
+    @test Meter(3)^2 ≈ Meter2(9)
+    @test Meter(3)^1 ≈ Meter(3)
+    @test (Meter(3)^0).value ≈ 1.0
+    @test (Meter(2)^(-1)).value ≈ 0.5
+  end
+end
+
+@testitem "UnitExpr integer exponentiation" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @makeBaseMeasure ForceT NewtonT "nT"
+  expr = MeterT(2.0) * NewtonT(3.0)   # UnitExpr with value 6.0
+
+  @testset "design: type" begin
+    @test expr^2 isa UnitExpr
+    @test expr^1 isa UnitExpr
+    @test expr^0 isa UnitExpr
+  end
+
+  @testset "functional: values and dimensions" begin
+    @test (expr^2).value ≈ 36.0
+    @test (expr^2).dimensions[AbstractLengthT] == 2
+    @test (expr^2).dimensions[AbstractForceT] == 2
+    @test (expr^1).value ≈ 6.0
+    @test (expr^0).value ≈ 1.0
+  end
+end
 
 """
   `parseUnitExpr(str) -> Union{AbstractMeasure, Nothing}`

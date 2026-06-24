@@ -1,7 +1,15 @@
 @makeBaseMeasure Angle Radian "rad"
 @makeMeasure π/180 Radian = 1 Degree "°"
 
+
 # @makeMeasure arcmin
+
+# constants: https://github.com/JuliaLang/julia/blob/master/base/mathconstants.jl
+# On the one hand I'd like to overwrite these to be unit-correct, but that would likely break other base libraries that expect unitless
+pi = Radian(Base.pi)
+tau = Radian(Base.pi*2)
+export pi, tau
+
 
 @testitem "Angle Radian Degree definitions" begin
   @test convert(Radian, Degree(180)) ≈ Radian(π)

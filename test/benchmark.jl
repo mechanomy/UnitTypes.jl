@@ -1,4 +1,4 @@
-
+# run from within test/, do not use the UnitType's package environmnent because it does not BenchmarkTools
 using BenchmarkTools
 import Unitful
 include("../src/UnitTypes.jl")
@@ -12,9 +12,11 @@ resFloats = @timed fun(1.1)
 resUnitTypes = @timed fun(UnitTypes.Meter(1.1))
 resUnitful = @timed fun(2.1Unitful.@u_str("m"))
 
-println("\nfloats: $(resFloats.time), $(resFloats.bytes)")
+println("\nfloats: time=$(resFloats.time), bytes=$(resFloats.bytes)")
 display(@benchmark fun(1.1))
-println("\nUnitful: $(resUnitful.time), $(resFloats.bytes)")
+
+println("\nUnitful: time=$(resUnitful.time), bytes=$(resFloats.bytes)")
 display(@benchmark fun(1.1Unitful.@u_str("m")))
-println("\nUnitTypes: $(resUnitTypes.time), $(resFloats.bytes)")
+
+println("\nUnitTypes: time=$(resUnitTypes.time), bytes=$(resFloats.bytes)")
 display(@benchmark fun(UnitTypes.Meter(1.1)))
