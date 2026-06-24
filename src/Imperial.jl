@@ -1,8 +1,8 @@
 # following https://en.wikipedia.org/wiki/Imperial_units
 
-mPerIn = 0.0254
-inPerFt = 12
-ftPerMi = 5280
+const mPerIn = 0.0254
+const inPerFt = 12
+const ftPerMi = 5280
 
 @makeMeasure mPerIn Meter = 1 Inch "in"
 @makeMeasure mPerIn*inPerFt Meter = 1 Foot "ft"

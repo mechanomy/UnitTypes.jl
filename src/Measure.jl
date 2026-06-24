@@ -12,6 +12,10 @@ struct UnitTypeAttributes
 end
 const allUnitTypes = Dict{DataType, UnitTypeAttributes}() # const means allUnitTypes won't change from a Dict https://discourse.julialang.org/t/mutating-global-variable-during-precompilation/51478/2?u=bcon
 
+# Registry mapping (AbstractType, exponent) → base result type, populated by addRelations.
+# Used by registerPower (and makeJointConversions) to emit zero-alloc literal_pow methods.
+const powerTypes = Dict{Tuple{DataType,Int}, DataType}()
+
 """
   `abbreviation(m::AbstractMeasure)::String`
 
@@ -66,7 +70,7 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
 
       UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false, Dict{DataType,Int}($abstractName => 1)) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
 
-      UnitTypes.makeSelfConversion($unitName, @__MODULE__) 
+      UnitTypes.makeSelfConversion($unitName, @__MODULE__)
       # UnitTypes.makeJointConversions($unitName) # define operations only on itself, as there cannot be any child measures yet
     end
   ]
@@ -384,7 +388,18 @@ function makeJointConversions(newType=nothing, mod=@__MODULE__) # optional argum
             Base.convert(::Type{$(a.first)}, y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) ) # convert b to its base, then a fromBase
           end
           if !hasmethod(Base.convert, (Type{$(b.first)}, $(a.first)) )
-            Base.convert(::Type{$(b.first)}, y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(y.value)) ) # 
+            Base.convert(::Type{$(b.first)}, y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(y.value)) )
+          end
+
+          # specific outer constructors: more specific than the generic conversion constructor,
+          # so Julia dispatches here first — captured functions mean zero runtime dict lookup.
+          # Use (::Type{T})(y::S) = ... syntax because $(a.first) interpolates as a qualified
+          # name (UnitTypes.Foo) which is not valid as a bare function definition target.
+          if !any(m -> m.sig == Tuple{Type{$(a.first)}, $(b.first)}, methods($(a.first)))
+            (::Type{$(a.first)})(y::$(b.first)) = $(a.first)( $(a.second.fromBase)( $(b.second.toBase)(y.value)) )
+          end
+          if !any(m -> m.sig == Tuple{Type{$(b.first)}, $(a.first)}, methods($(b.first)))
+            (::Type{$(b.first)})(y::$(a.first)) = $(b.first)( $(b.second.fromBase)( $(a.second.toBase)(y.value)) )
           end
 
           if !hasmethod(Base.isapprox, ($(a.first), $(b.first)) )
@@ -462,6 +477,20 @@ function makeJointConversions(newType=nothing, mod=@__MODULE__) # optional argum
       #       end     
 
     end
+  end
+
+  # define zero-alloc Base.literal_pow methods for any registered integer power relations
+  abstractType = supertype(newType)
+  toBase = allUnitTypes[newType].toBase
+  for ((absT, n), baseResultType) in powerTypes
+    absT == abstractType || continue
+    fromBase = allUnitTypes[baseResultType].fromBase
+    valN = Val{n}
+    mod.eval(quote
+      if !UnitTypes.hasExactMethod(Base.literal_pow, (typeof(^), $newType, $valN))
+        Base.literal_pow(::typeof(^), x::$newType, ::$valN) = $baseResultType($fromBase($toBase(x.value)^$n))
+      end
+    end)
   end
 end
 @testitem "makeJointConversions" begin
@@ -810,6 +839,29 @@ function addInverseRelation(TX, TY, mod=@__MODULE__)
 end
 
 """
+  `registerPower(abstractType, n, baseResultType, mod)`
+
+  Records that values of `abstractType` raised to the integer power `n` resolve to
+  `baseResultType`, then evals a zero-alloc `Base.literal_pow` method for every concrete
+  subtype currently registered under `abstractType`.  Concrete subtypes defined later get
+  their method from the power-conversion block inside `makeJointConversions`.
+"""
+function registerPower(abstractType::DataType, n::Int, baseResultType::DataType, mod)
+  powerTypes[(abstractType, n)] = baseResultType
+  fromBase = allUnitTypes[baseResultType].fromBase
+  valN = Val{n}
+  for (T, uta) in allUnitTypes
+    supertype(T) == abstractType || continue
+    toBase = uta.toBase
+    mod.eval(quote
+      if !UnitTypes.hasExactMethod(Base.literal_pow, (typeof(^), $T, $valN))
+        Base.literal_pow(::typeof(^), x::$T, ::$valN) = $baseResultType($fromBase($toBase(x.value)^$n))
+      end
+    end)
+  end
+end
+
+"""
   function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
 
   Adds */ relations between the given UnitTypes by eval()ing in the given module.
@@ -847,6 +899,20 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
     dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, 1)
     uta = allUnitTypes[baseNM]
     allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
+
+    # register power relations for zero-alloc literal_pow dispatch
+    if TM == TN
+      # direct square: TM^2 = TNM
+      registerPower(superM, 2, baseNM, mod)
+    else
+      # chain detection: if TM = TN^k (from powerTypes), then TN^(k+1) = TNM
+      for ((absT, k), powerBase) in powerTypes
+        if absT == superN && powerBase == baseM
+          registerPower(superN, k + 1, baseNM, mod)
+          break
+        end
+      end
+    end
 
   elseif operator==:/ || operator==/ # as in pressure: N/m^2 = Pa
     mod.eval(quote
