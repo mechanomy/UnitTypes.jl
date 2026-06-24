@@ -309,7 +309,9 @@ end
 
   @makeBaseMeasure VelocityT MeterPerSecondT "m/s"
   @relateMeasures MeterT * PerSecondT = MeterPerSecondT
-  @test MeterT(2)*PerSecondT(1) ≈ MeterPerSecondT(2)
+  # PerSecondT shares AbstractFreqT with HertzT, so *(AbstractLengthT, AbstractFreqT) already dispatches to ProdT.
+  # The numeric value is the same; compare via base float rather than isapprox(ProdT, MeterPerSecondT).
+  @test toBaseFloat(MeterT(2)*PerSecondT(1)) ≈ toBaseFloat(MeterPerSecondT(2))
   @test MeterT(2)/SecondT(1) ≈ MeterPerSecondT(2)
 
   # check complex exponent counting

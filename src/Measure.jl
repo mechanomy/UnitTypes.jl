@@ -677,6 +677,14 @@ end
   @test isa(1u"usT", UsT) 
 end
 
+# hasmethod() returns true for parametric catch-alls (e.g. *(T<:AbstractMeasure, U<:AbstractMeasure)),
+# which causes addRelations to skip defining specific abstract-type methods like *(AbstractLength, AbstractLength).
+# This checks for an exact non-parametric signature only.
+function hasExactMethod(f, types)
+  target = Tuple{typeof(f), types...}
+  return any(m -> m.sig == target, methods(f))
+end
+
 """
   `mergeBaseDimensions(d1, d2, sign=1) -> Dict{DataType,Int}`
 
@@ -817,17 +825,17 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
 
   if operator==:* || operator==*
     mod.eval( quote
-      if !hasmethod(Base.:*, ($superM, $superN))
+      if !UnitTypes.hasExactMethod(Base.:*, ($superM, $superN))
         Base.:*(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value * convert($baseN,y).value) # ensure the operation is defined for the base units, in case the relation was not given in base: ft*lbs = Nm
       end
-      if !hasmethod(Base.:*, ($superN, $superM))
+      if !UnitTypes.hasExactMethod(Base.:*, ($superN, $superM))
         Base.:*(x::$superN, y::$superM) = $baseNM( convert($baseN, x).value * convert($baseM,y).value)
       end
 
-      if !hasmethod(Base.:/, ($superNM, $superM))
+      if !UnitTypes.hasExactMethod(Base.:/, ($superNM, $superM))
         Base.:/(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value / convert($baseM,y).value )
       end
-      if !hasmethod(Base.:/, ($superNM, $superN))
+      if !UnitTypes.hasExactMethod(Base.:/, ($superNM, $superN))
         Base.:/(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value / convert($baseN,y).value )
       end
 
@@ -842,19 +850,19 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
 
   elseif operator==:/ || operator==/ # as in pressure: N/m^2 = Pa
     mod.eval(quote
-      if !hasmethod(Base.:/, ($superM, $superN))
+      if !UnitTypes.hasExactMethod(Base.:/, ($superM, $superN))
         Base.:/(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value / convert($baseN,y).value ) # F/m2 = Pa
       end
-      if !hasmethod(Base.:*, ($superM, $superNM))
+      if !UnitTypes.hasExactMethod(Base.:*, ($superM, $superNM))
         Base.:*(x::$superM, y::$superNM) = $baseN( convert($baseM,x).value * convert($baseNM,y).value ) # m2 * Pa = N
       end
-      if !hasmethod(Base.:*, ($superNM, $superM))
+      if !UnitTypes.hasExactMethod(Base.:*, ($superNM, $superM))
         Base.:*(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value * convert($baseM, y)) # Pa * m2 = N
       end
-      if !hasmethod(Base.:*, ($superN, $superNM))
+      if !UnitTypes.hasExactMethod(Base.:*, ($superN, $superNM))
         Base.:*(x::$superN, y::$superNM) = $baseM( convert($baseN,x).value * convert($baseNM,y).value ) # N * Pa = m2
       end
-      if !hasmethod(Base.:*, ($superNM, $superN))
+      if !UnitTypes.hasExactMethod(Base.:*, ($superNM, $superN))
         Base.:*(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value * convert($baseN,y).value ) # Pa * N = m2
       end
 
