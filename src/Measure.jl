@@ -85,7 +85,7 @@ end
     @test isdefined(@__MODULE__, :MeterT)
 
     @makeBaseMeasure DensityTest DensityT "dennyT"
-    @test MeterT(1.2)*DensityT(3.4) isa UnitExpr #catch-all returns UnitExpr when no @relateMeasures is defined
+    @test MeterT(1.2)*DensityT(3.4) isa Catchall #catch-all returns Catchall when no @relateMeasures is defined
   end
   
   @testset "constructor" begin
@@ -193,18 +193,37 @@ end
     # @test_throws ArgumentError macroexpand(@__MODULE__, :( @makeMeasure MeterTNot(1) = MilliMeterT3(5000) "mmT3"  )) # error on LHS not existing
     # @test_throws ArgumentError macroexpand(@__MODULE__, :( @makeMeasure MeterT(1)*Seconds(3) = MilliMeterTS(5000) "mmTS"  )) # error on compound relations
   # end
-
-
 end
 
 """
-  makeSelfConversions(newType) 
-  
+  `struct UnitStepRange{T<:AbstractMeasure}`
+
+  A lazy, allocation-free stepped range over a consistent unit type.
+  Constructed by the `start:step:stop` colon syntax when all three share the same abstract dimension.
+  The element type is determined by `start`; `step` and `stop` are converted to match.
+"""
+struct UnitStepRange{T<:AbstractMeasure} <: AbstractVector{T}
+  start::T
+  step::T
+  stop::T
+end
+Base.size(r::UnitStepRange) = (max(0, floor(Int, (r.stop.value - r.start.value) / r.step.value) + 1),)
+Base.getindex(r::UnitStepRange{T}, i::Int) where T = T(r.start.value + (i - 1) * r.step.value)
+export UnitStepRange
+
+Base.Broadcast.broadcastable(x::AbstractMeasure) = Ref(x)
+Base.:*(r::AbstractRange{<:Number}, m::T) where T<:AbstractMeasure = T.(r .* m.value)
+Base.:*(m::T, r::AbstractRange{<:Number}) where T<:AbstractMeasure = T.(m.value .* r)
+
+"""
+  makeSelfConversions(newType)
+
   Defines function overloads for common operations like `convert`, `isapprox`, `isequal`, `isless`, +-/* between instances of a new UnitType.
 """
 function makeSelfConversion(newType, mod=@__MODULE__)
   # something about lowering requires passing the calling module from @makeBaseMeasure into here as just calling @__MODULE__ is undefined.
   uta = allUnitTypes[newType]
+  abstractType = uta.abstract
   if uta.isAffine
     # if affine, we can only +- within the type, can't Kelvin+Celsius without messing around with zero points.
     mod.eval( quote 
@@ -267,41 +286,19 @@ function makeSelfConversion(newType, mod=@__MODULE__)
       Base.zero(x::$newType) = $newType(0) #zero() seems to be required for _colon()
     end
 
-    # 251105 - implementing colon in v1.11+ causes all sorts of mucking around in Base, omit
-    # if !hasmethod(Base._colon, ($newType, $newType, $newType))
-    #   Base._colon(start::$newType, step::$newType, stop::$newType) = $newType.(start.value : step.value : stop.value)
-    # end
-    # julia1.11 is complaining about the internals of range...:
-    # the point of the range function is for 1m:5m to have a iterand as a Meter...
-    # if !hasmethod(Base.div, ($newType, $newType, RoundingMode))
-    #   Base.div(x::$newType, y::$newType, r::RoundingMode) = $newType(div(x.value, y.value, r))
-    # end
-    # Return a multiplicative identity for x: a value such that one(x)*x == x*one(x) == x.  
-    # Alternatively one(T) can take a type T, in which case one returns a multiplicative identity for any x of type T.
-    # If possible, one(x) returns a value of the same type as x, and one(T) returns a value of type T. However, this may not be the case for types representing dimensionful quantities (e.g. time in days), since the multiplicative identity must   be dimensionless. In that case, one(x) should return an identity value of the same    precision (and shape, for matrices) as x.
-    # Base.one(x::$newType) = $newType(1.0)
-    # Base.Integer(x::$newType) = $newType(Integer(x.value))
-    #Expression: b[1] ≈ MeterT(1) MethodError: no method matching unchecked_oneto(::Main.var"##239".MeterT)
-    # but looking higher in the error:   [8] getindex(v::StepRange{Main.var"##239".MeterT, Main.var"##239".MeterT}, i::Int64)      @ Base .\array.jl:3077
-    # Base.getindex(v::StepRange{$newType}, x::$newType, i::Int64) = 
-    # Base.StepRange(start::$newType, step::S, stop::$newType) where S = Base.StepRange(start, step, $newType(Base.steprange_last(start.value, step, stop.value)))
-
-    # if !hasmethod(Base.Broadcast.broadcastable, ($newType)) #expected tuple type
-    # if !hasmethod(Base.Broadcast.broadcastable, Tuple{$newType})
-      # Base.Broadcast.broadcastable(x::$newType) = Ref(x) 
-      # Base.Broadcast.broadcastable(x::$newType) = x # If x is not an AbstractArray but it supports axes, indexing, and its type supports    ndims, then broadcastable(::typeof(x)) may be implemented to just return itself.      Further, if x defines its own BroadcastStyle, then it must define its broadcastable   method to return itself for the custom style to have any effect.
-    # end
-    # Expression: [1, 2, 3] .* MeterT(4) isa Vector{MeterT} MethodError: no method matching length(::Main.var"##285".MeterT) 
-    # something's not right, chuck it 
-    # https://docs.julialang.org/en/v1/base/arrays/#Base.Broadcast.DefaultArrayStyle
-    # https://github.com/JuliaPhysics/Unitful.jl/blob/9cc01eb486eb1fbf16129e04381ce4817ded4f25/src/range.jl#L152
-    # Base.Broadcast.BroadcastStyle(::Type{$newType}) = Base.Broadcast.DefaultArrayStyle{1}
+    if !hasmethod(Base.:(:), Tuple{$newType, $abstractType, $abstractType})
+      Base.:(:)(start::$newType, step::$abstractType, stop::$abstractType) = UnitTypes.UnitStepRange(start, $newType(step), $newType(stop))
+    end
+    if !hasmethod(Base.:(:), Tuple{$newType, $abstractType})
+      Base.:(:)(start::$newType, stop::$abstractType) = UnitTypes.UnitStepRange(start, $newType(1), $newType(stop))
+    end
+    (::Type{$newType})(r::AbstractRange{<:Number}) = $newType.(r)
 
   end)
 
 end
 @testitem "makeSelfConversion" begin
-  @makeBaseMeasure LengthTest MeterT "mtT" 
+  @makeBaseMeasure LengthTest MeterT "mT" 
   @makeBaseMeasure SoundTest GrowlT "gT" 
   @makeBaseMeasure TemperatureTest KelvinT "KT"
 
@@ -348,13 +345,26 @@ end
     @test MeterT(5) + -MeterT(3) ≈ MeterT(2)
   end
 
-  # @testset "broadcasting" begin
-  #   @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
-  #   for m in MeterT.([1,2,3])
-  #     @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
-  #   end
-  # end
+  @testset "broadcasting" begin
+    @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
+    for m in MeterT.([1,2,3])
+      @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
+    end
+  end
+  @testset "range unit multiply" begin
+    a = MeterT(1:.1:5)
+    @test a[1] ≈ MeterT(1)
 
+    b = MeterT(1:5)
+    @test b[1] ≈ MeterT(1)
+
+    c = (1:5)u"mT"
+    @test c[1].value ≈ 1.0
+
+    d = (1:.1:5)u"mT"
+    @test d[1].value ≈ 1.0
+  end
+ 
   @testset "range" begin
     c = LinRange(MeterT(10), MeterT(20), 4)
     @test c[1] ≈ MeterT(10)
@@ -362,16 +372,31 @@ end
     @test last(c) ≈ MeterT(20)
   end
 
-  # @testset "range _colon" begin # 251105 - implementing colon in v1.11+ causes all sorts of mucking around in Base, omit
-  #   b = MeterT(1) : MeterT(0.3) : MeterT(2)
-  #   @test b[1] ≈ MeterT(1)
-  #   @test b[2] ≈ MeterT(1.3)
-  #   @test last(b) ≈ MeterT(1.9)
+  @testset "range _colon" begin
+    b = MeterT(1) : MeterT(0.3) : MeterT(2)
+    @test b[1] ≈ MeterT(1)
+    @test b[2] ≈ MeterT(1.3)
+    @test last(b) ≈ MeterT(1.9)
 
-  #   @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
-  #   @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
-  #   @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
-  # end
+    @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2)
+    @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2)
+    @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2)
+
+    b = MeterT(2) : MeterT(-0.3) : MeterT(1)
+    @test b[1] ≈ MeterT(2)
+
+    b = MeterT(1) : MeterT(1) : MeterT(5)
+    @test b[1] ≈ MeterT(1)
+    @test b[5] ≈ MeterT(5)
+
+    c = MeterT(1) : MeterT(3)
+    @test c[1] ≈ MeterT(1)
+    @test c[2] ≈ MeterT(2)
+    @test last(c) ≈ MeterT(3)
+    c = MeterT(1) : MeterT(5)
+    @test c[1] ≈ MeterT(1)
+    @test last(c) ≈ MeterT(5)
+  end
 end
 
 """
@@ -574,24 +599,24 @@ end
     @test MeterT(5) + -MeterT(3) ≈ MeterT(2)
   end
   
-  # @makeBaseMeasure AreaT Meter2T "m^2"
-  # @relateMeasures MeterT*MeterT=Meter2T
-  # @testset "multiply between types" begin
-  #   @test MeterT(3)*CentiMeterT(1) ≈ Meter2T(0.03)
-  #   @test MeterT(1)*InchT(1) ≈ Meter2T(0.0254)
-  # end
-  # @testset "divide between types" begin
-  #   @test Meter2T(4)/MeterT(2) ≈ MeterT(2)
-  #   @test Meter2T(1)/CentiMeterT(1) ≈ MeterT(100)
-  #   @test isapprox(Meter2T(1)/InchT(1), MeterT(1/0.0254), atol=1e-3)
-  # end
+  @makeBaseMeasure AreaT Meter2T "m^2"
+  @relateMeasures MeterT*MeterT=Meter2T
+  @testset "multiply between types" begin
+    @test MeterT(3)*CentiMeterT(1) ≈ Meter2T(0.03)
+    @test MeterT(1)*InchT(1) ≈ Meter2T(0.0254)
+  end
+  @testset "divide between types" begin
+    @test Meter2T(4)/MeterT(2) ≈ MeterT(2)
+    @test Meter2T(1)/CentiMeterT(1) ≈ MeterT(100)
+    @test isapprox(Meter2T(1)/InchT(1), MeterT(1/0.0254), atol=1e-3)
+  end
 
-  # @testset "broadcasting" begin
-  #   @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
-  #   for m in MeterT.([1,2,3])
-  #     @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
-  #   end
-  # end
+  @testset "broadcasting" begin
+    @test isa([1,2,3] .* MeterT(4), Vector{MeterT})
+    for m in MeterT.([1,2,3])
+      @test m≈MeterT(1) || m≈MeterT(2) || m≈MeterT(3)
+    end
+  end
 
   @testset "range" begin
     c = LinRange(MeterT(10), MeterT(20), 4)
@@ -600,18 +625,21 @@ end
     @test last(c) ≈ MeterT(20)
   end
 
-  # @testset "range _colon" begin # 251105 - implementing colon in v1.11+ causes all sorts of mucking around in Base, omit
-  #   b = MeterT(1) : MeterT(0.3) : MeterT(2) 
-  #   @test b[1] ≈ MeterT(1)
-  #   @test b[2] ≈ MeterT(1.3)
-  #   @test last(b) ≈ MeterT(1.9)
+  @testset "range _colon" begin
+    b = MeterT(1) : MeterT(0.3) : MeterT(2)
+    @test b[1] ≈ MeterT(1)
+    @test b[2] ≈ MeterT(1.3)
+    @test last(b) ≈ MeterT(1.9)
 
-  #   # = MeterT(1) : CentiMeterT(0.3) : MeterT(2)
+    bc = MeterT(1) : CentiMeterT(30) : MeterT(2)
+    @test bc[1] ≈ MeterT(1)
+    @test bc[2] ≈ MeterT(1.3)
+    @test last(bc) ≈ MeterT(1.9)
 
-  #   @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2) 
-  #   @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2) 
-  #   @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2) 
-  # end
+    @test_throws MethodError GrowlT(1) : MeterT(0.3) : MeterT(2)
+    @test_throws MethodError MeterT(1) : GrowlT(0.3) : MeterT(2)
+    @test_throws MethodError MeterT(1) : MeterT(0.3) : GrowlT(2)
+  end
 end
 
 function skipSymbolBlock(eexp)
@@ -697,7 +725,7 @@ macro u_str(unit::String)
     b = first(first(aut))(1) # MeterT(1)
     return b
   end
-  result = UnitTypes.parseUnitExpr(unit) # defined in UnitExpr.jl, loaded after this file
+  result = UnitTypes.parseCatchall(unit) # defined in Catchall.jl, loaded after this file
   result !== nothing && return result
   @warn "did not find $unit in `allUnitTypes` and could not parse as compound unit expression"
 end
@@ -752,7 +780,7 @@ end
 """
   `getDimensions(x) -> Dict{DataType,Int}`
 
-  Returns the dimension map for a named measure type.  UnitExpr overloads this in UnitExpr.jl.
+  Returns the dimension map for a named measure type.  Catchall overloads this in Catchall.jl.
 """
 getDimensions(x::T) where {T<:AbstractMeasure} = allUnitTypes[T].dimensions
 
