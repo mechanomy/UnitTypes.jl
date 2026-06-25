@@ -784,30 +784,43 @@ end
 """
 getDimensions(x::T) where {T<:AbstractMeasure} = allUnitTypes[T].dimensions
 
+# Flattens a left-associative binary-op expression into parallel ops and type-symbol vectors.
+# E.g., /(/(*(A, B), C), D) → ([:*, :/, :/], [:A, :B, :C, :D])
+function flattenRelationExpr(expr)
+  ops = Symbol[]
+  typeSyms = Any[]
+  function walk(e)
+    if e isa Symbol || e isa Number
+      push!(typeSyms, e)
+    elseif e isa Expr && e.head == :call
+      walk(e.args[2])
+      push!(ops, Symbol(e.args[1]))
+      push!(typeSyms, e.args[3])
+    end
+  end
+  walk(expr)
+  return ops, typeSyms
+end
+
 """
   `macro relateMeasures(relation)`
 
   Adds a multiplicative relationship between the left and right sides of the equation, allowing units to be multiplied and divided with consistent units.
-  All types must already be defined and only one * or / is supported on the left side, while the right should be the resultant type.
+  All types must already be defined; the right side is the resultant type.
 
+  Single binary operations:
   ```
     @relateMeasures Meter*Newton = NewtonMeter
     @relateMeasures Newton/Meter2 = Pascal
     @relateMeasures 1/Second = Hertz   # inverse: sets Hertz dims to {AbstractTime=>-1}
   ```
 
-  To add a compound unit like kg*m/s^2, build incrementally:
-
+  Compound expressions with multiple `*` and `/` are also supported.  Intermediate types are
+  created automatically, named by concatenating type names (`*`) or inserting "Per" (`/`):
   ```
-    @makeBaseMeasure Frequency Hertz "Hz"
-    @relateMeasures 1/Second = Hertz
-    @makeMeasure 1 Hertz = 1 PerSecond "s^-1"
-    @makeBaseMeasure Velocity MeterPerSecond "m/s"
-    @relateMeasures Meter*PerSecond = MeterPerSecond
-    @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
-    @relateMeasures MeterPerSecond*PerSecond = MeterPerSecond2
     @makeBaseMeasure Force Newton "N"
-    @relateMeasures KiloGram*MeterPerSecond2 = Newton
+    @relateMeasures KiloGram*Meter/Second/Second = Newton
+    # creates KiloGramMeter and KiloGramMeterPerSecond as intermediate types
   ```
 """
 macro relateMeasures(relation)
@@ -824,6 +837,55 @@ macro relateMeasures(relation)
       return esc(quote
         UnitTypes.addInverseRelation($TX, $TY, @__MODULE__)
       end)
+    end
+
+    # Compound case: lhs1 is itself a nested expression (more than one binary operation).
+    # Evaluate all type symbols at macro-expansion time to compute intermediate dims/abbrevs,
+    # then generate inline type-creation + addRelations code (avoids Julia 1.12 world-age issues).
+    if lhs1 isa Expr
+      ops, typeSyms = flattenRelationExpr(relation.args[1])
+      typeVals = [__module__.eval(s) for s in typeSyms]
+      currentDims = allUnitTypes[typeVals[1]].dimensions
+      currentAbbr = allUnitTypes[typeVals[1]].abbreviation
+      currentTypeSym = typeSyms[1]
+      allStmts = Expr[]
+      for i in 1:length(ops)
+        op = ops[i]
+        nextVal = typeVals[i+1]
+        nextSym = typeSyms[i+1]
+        nextDims = allUnitTypes[getBaseType(nextVal)].dimensions
+        nextAbbr = allUnitTypes[nextVal].abbreviation
+        newDims = mergeBaseDimensions(currentDims, nextDims, op == :* ? 1 : -1)
+        if i == length(ops)
+          push!(allStmts, quote
+            UnitTypes.addRelations($(QuoteNode(op)), $currentTypeSym, $nextSym, $TNM, @__MODULE__)
+          end)
+        else
+          interNameStr = op == :* ? (string(currentTypeSym) * string(nextSym)) : (string(currentTypeSym) * "Per" * string(nextSym))
+          interName = Symbol(interNameStr)
+          interAbstractName = Symbol("Abstract" * interNameStr)
+          newAbbr = op == :* ? (currentAbbr * "*" * nextAbbr) : (currentAbbr * "/" * nextAbbr)
+          dimPairs = [:($(nameof(k)) => $v) for (k, v) in newDims]
+          push!(allStmts, quote
+            if !isdefined(@__MODULE__, $(QuoteNode(interName)))
+              abstract type $interAbstractName <: UnitTypes.AbstractMeasure end
+              export $interAbstractName
+              struct $interName <: $interAbstractName
+                value::Float64
+              end
+              $interName(x::T where T<:$interAbstractName) = $interName(UnitTypes.allUnitTypes[typeof(x)].toBase(x.value))
+              export $interName
+              UnitTypes.allUnitTypes[$interName] = UnitTypes.UnitTypeAttributes($interAbstractName, $interName, x->x, x->x, $newAbbr, false, Dict{DataType,Int}($(dimPairs...)))
+              UnitTypes.makeSelfConversion($interName, @__MODULE__)
+            end
+            UnitTypes.addRelations($(QuoteNode(op)), $currentTypeSym, $nextSym, $interName, @__MODULE__)
+          end)
+          currentDims = newDims
+          currentAbbr = newAbbr
+          currentTypeSym = interName
+        end
+      end
+      return esc(Expr(:block, allStmts...))
     end
 
     TM = lhs1
@@ -969,6 +1031,8 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
     throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
   end
 end
+
+
 @testitem "relateMeasures" begin
   @makeBaseMeasure LengthTest MeterT "mT"
   @makeBaseMeasure AreaTest Meter2T "m2T"
@@ -1009,5 +1073,41 @@ end
   # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT & Meter2T = NewtonT  )) # operator is not defined on this
 
   # coefficient of thermal expansion?, to check with affine unit:
+end
+
+@testitem "@relateMeasures compound expressions" begin
+  @makeBaseMeasure MassC KiloGramC "kgC"
+  @makeBaseMeasure LengthC MeterC "mC"
+  @makeBaseMeasure TimeC SecondC "sC"
+  @makeBaseMeasure ForceC NewtonC "NC"
+
+  @relateMeasures KiloGramC*MeterC/SecondC/SecondC = NewtonC
+
+  @testset "intermediate types created" begin
+    @test isdefined(@__MODULE__, :KiloGramCMeterC)
+    @test isdefined(@__MODULE__, :KiloGramCMeterCPerSecondC)
+    @test haskey(UnitTypes.allUnitTypes, KiloGramCMeterC)
+    @test haskey(UnitTypes.allUnitTypes, KiloGramCMeterCPerSecondC)
+    @test KiloGramC(1)*MeterC(2)/SecondC(3)/SecondC(4) isa NewtonC
+    @test MeterC(2)*KiloGramC(1)/SecondC(3)/SecondC(4) isa NewtonC
+    # @test 1/SecondC(4)*MeterC(2)*KiloGramC(1)/SecondC(3) isa NewtonC
+  end
+
+  @testset "intermediate abbreviations" begin
+    @test UnitTypes.allUnitTypes[KiloGramCMeterC].abbreviation == "kgC*mC"
+    @test UnitTypes.allUnitTypes[KiloGramCMeterCPerSecondC].abbreviation == "kgC*mC/sC"
+  end
+
+  @testset "compound arithmetic resolves to named type" begin
+    @test KiloGramC(1)*MeterC(1)/SecondC(1)/SecondC(1) isa NewtonC
+    @test KiloGramC(1)*MeterC(1)/SecondC(1)/SecondC(1) ≈ NewtonC(1)
+    @test KiloGramC(2)*MeterC(3)/SecondC(2)/SecondC(1) ≈ NewtonC(3)
+  end
+
+  @testset "result type dimension map" begin
+    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractMassC] == 1
+    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractLengthC] == 1
+    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractTimeC] == -2
+  end
 end
 
