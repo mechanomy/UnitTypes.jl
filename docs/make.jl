@@ -1,5 +1,5 @@
-# to run: ] add ../#main to UnitfulTypesDocs package, then run via: cd /w/sync/mechgits/julia/UnitTypes.jl_public/docs $ julia --project make.jl 
-# to serve: cd UnitTypes/docs, > using LiveServer; servedocs(foldername=".")
+# to run: use the docs/ package
+# to serve: cd UnitTypes/docs, > using LiveServer; servedocs(foldername=".") ; this must be done in a WSL or other git terminal, not the devcontainer
 
 using Documenter
 using DocumenterTools
@@ -19,7 +19,7 @@ makedocs(
   modules=[UnitTypes],
   sitename="UnitTypes.jl",
   warnonly=[:missing_docs, :cross_references],
-  format=Documenter.HTML(assets=["assets/mechanomy.css"]),
+  format=Documenter.HTML(assets=["assets/mechanomy.css", "assets/favicon.ico"]),
   clean=true, #clean build/
 )
 
