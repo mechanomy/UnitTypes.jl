@@ -6,9 +6,10 @@ AbstractMeasure
 │  └─ Radian
 ├─ AbstractArea
 │  ├─ Acre
+│  ├─ Foot2
+│  ├─ Inch2
 │  ├─ Meter2
-│  ├─ SquareFoot
-│  └─ SquareMile
+│  └─ Mile2
 ├─ AbstractCapacitance
 │  ├─ Farad
 │  ├─ MicroFarad
@@ -31,7 +32,8 @@ AbstractMeasure
 ├─ AbstractForce
 │  ├─ KiloNewton
 │  ├─ MilliNewton
-│  └─ Newton
+│  ├─ Newton
+│  └─ PoundForce
 ├─ AbstractFrequency
 │  ├─ Hertz
 │  └─ PerSecond
@@ -106,11 +108,12 @@ AbstractMeasure
 ├─ AbstractVelocity
 │  ├─ FootPerSecond
 │  └─ MeterPerSecond
-└─ AbstractVolume
-   ├─ FluidOunce
-   ├─ Gallon
-   ├─ Liter
-   ├─ Meter3
-   ├─ MilliLiter
-   ├─ Pint
-   └─ Quart
+├─ AbstractVolume
+│  ├─ FluidOunce
+│  ├─ Gallon
+│  ├─ Liter
+│  ├─ Meter3
+│  ├─ MilliLiter
+│  ├─ Pint
+│  └─ Quart
+└─ Catchall

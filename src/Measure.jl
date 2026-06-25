@@ -650,90 +650,6 @@ function skipSymbolBlock(eexp)
   end
 end
 
-"""
-  `function measure2String(m::AbstractMeasure)::String`
-
-  Returns a string representing measure `m` in the format "1.23mm".
-"""
-function measure2String(m::AbstractMeasure)::String
-  # return @sprintf("%3.3f []", m)
-  return "$(m.value)$(abbreviation(m))"
-end
-@testitem "Measure measure2string()" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @test UnitTypes.measure2String(MeterT(3.4)) == "3.4mT"
-  @test string(MeterT(3.4)) == "3.4mT"
-end
-
-"""
-  `function Base.show(io::IO, m::AbstractMeasure)`
-
-  @show functionality for Measures via `measure2String()`.
-"""
-function Base.show(io::IO, m::AbstractMeasure)
-  print(io, measure2String(m))
-end
-
-"""
-  `function getBaseType(mtype::DataType) :: DataType`
-  Returns the base type of some child type, so getBaseType(MilliMeter) returns Meter.
-"""
-function getBaseType(mtype::DataType) :: DataType
-  ret = UnitTypes.allUnitTypes[mtype].base
-  # println("getBase: ", mtype, " -> ", ret)
-  return ret
-end
-@testitem "getBaseType" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @test UnitTypes.getBaseType( MeterT ) == MeterT
-
-  @makeMeasure 1e-2 MeterT = 1 CentiMeterT "cmT"
-  @test UnitTypes.getBaseType( CentiMeterT ) == MeterT
-end
-
-"""
-  `function toBaseFloat(m::AbstractMeasure) :: Float64`
-
-  Returns measure `m` as a float in the base unit.
-""" 
-function toBaseFloat(m::AbstractMeasure) :: Float64
-  return UnitTypes.allUnitTypes[typeof(m)].toBase(m.value)
-end
-@testitem "toBaseFloat" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @makeMeasure (x->x/100) MeterT = (x->x*100) CentiMeterT "cmT"
-  @makeMeasure (x->x*1000) MeterT = (x->x/1000) KiloMeterT "kmT"
-
-  @test toBaseFloat(CentiMeterT(100)) ≈ 1
-  @test toBaseFloat(KiloMeterT(1)) ≈ 1000
-end
-
-"""
-  `macro u_str(unit::String)`
-
-  Macro to provide the 1.2u"cm" inline unit assignment.
-  ```
-  a = 1.2u"cm" 
-  ```
-
-  This works by looking up the unit string in `allUnitTypes` and returning the corresponding type.
-  See https://docs.julialang.org/en/v1/manual/metaprogramming/#meta-non-standard-string-literals
-"""
-macro u_str(unit::String)
-  aut = filter( pairKV -> last(pairKV).abbreviation == unit, UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).abbreviation ==unit
-  if !isempty(aut)
-    b = first(first(aut))(1) # MeterT(1)
-    return b
-  end
-  result = UnitTypes.parseCatchall(unit) # defined in Catchall.jl, loaded after this file
-  result !== nothing && return result
-  @warn "did not find $unit in `allUnitTypes` and could not parse as compound unit expression"
-end
-@testitem "u_str" begin
-  @makeBaseMeasure UStrTest UsT "usT"
-  @test isa(1u"usT", UsT) 
-end
-
 # hasmethod() returns true for parametric catch-alls (e.g. *(T<:AbstractMeasure, U<:AbstractMeasure)),
 # which causes addRelations to skip defining specific abstract-type methods like *(AbstractLength, AbstractLength).
 # This checks for an exact non-parametric signature only.
@@ -900,8 +816,86 @@ macro relateMeasures(relation)
   end
 end
 
+@testitem "relateMeasures" begin
+  @makeBaseMeasure LengthTest MeterT "mT"
+  @makeBaseMeasure AreaTest Meter2T "m2T"
+  @relateMeasures MeterT*MeterT = Meter2T
+  @makeMeasure 1e-3 MeterT = 1 MilliMeterT "mmT"
+
+  # @show which(Base.:*, (MilliMeterT, MilliMeterT))
+  # @show which(Base.:*, (MilliMeterT, MeterT))
+  # @show which(Base.:*, (MeterT, MilliMeterT))
+
+  # multiplicative same
+  @test MeterT(2)*MeterT(3) ≈ Meter2T(6)
+  @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
+  @test MeterT(2)*MilliMeterT(3) ≈ Meter2T(6e-3)
+  @test MilliMeterT(2)*MeterT(3) ≈ Meter2T(6e-3)
+
+  # multiplicative different
+  @makeBaseMeasure TorqueTest NewtonMeterT "NMT"
+  @makeBaseMeasure ForceTest NewtonT "NT"
+  @relateMeasures NewtonT*MeterT = NewtonMeterT
+  @test NewtonT(2) * MeterT(3) ≈ NewtonMeterT(6) # as defined
+  @test MeterT(2) * NewtonT(3) ≈ NewtonMeterT(6) # swapped
+  @test NewtonMeterT(6) / MeterT(2) ≈ NewtonT(3)
+  @test NewtonMeterT(6) / NewtonT(2) ≈ MeterT(3)
+  
+  # sqrt
+  @test sqrt(Meter2T(4)) ≈ MeterT(2)
+
+  # division 
+  @makeBaseMeasure PressureTest PascalT "PaT"
+  @relateMeasures NewtonT / Meter2T = PascalT
+  @test NewtonT(6)/Meter2T(2) ≈ PascalT(3)
+  @test PascalT(3)*Meter2T(2) ≈ NewtonT(6)
+  @test Meter2T(2)*PascalT(3) ≈ NewtonT(6)
+
+  #non-operator
+  # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT Meter2T = NewtonT  )) # missing operator
+  # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT & Meter2T = NewtonT  )) # operator is not defined on this
+
+  # coefficient of thermal expansion?, to check with affine unit:
+end
+
+@testitem "@relateMeasures compound expressions" begin
+  @makeBaseMeasure MassC KiloGramC "kgC"
+  @makeBaseMeasure LengthC MeterC "mC"
+  @makeBaseMeasure TimeC SecondC "sC"
+  @makeBaseMeasure ForceC NewtonC "NC"
+
+  @relateMeasures KiloGramC*MeterC/SecondC/SecondC = NewtonC
+
+  @testset "intermediate types created" begin
+    @test isdefined(@__MODULE__, :KiloGramCMeterC)
+    @test isdefined(@__MODULE__, :KiloGramCMeterCPerSecondC)
+    @test haskey(UnitTypes.allUnitTypes, KiloGramCMeterC)
+    @test haskey(UnitTypes.allUnitTypes, KiloGramCMeterCPerSecondC)
+    @test KiloGramC(1)*MeterC(2)/SecondC(3)/SecondC(4) isa NewtonC
+    @test MeterC(2)*KiloGramC(1)/SecondC(3)/SecondC(4) isa NewtonC
+    # @test 1/SecondC(4)*MeterC(2)*KiloGramC(1)/SecondC(3) isa NewtonC
+  end
+
+  @testset "intermediate abbreviations" begin
+    @test UnitTypes.allUnitTypes[KiloGramCMeterC].abbreviation == "kgC*mC"
+    @test UnitTypes.allUnitTypes[KiloGramCMeterCPerSecondC].abbreviation == "kgC*mC/sC"
+  end
+
+  @testset "compound arithmetic resolves to named type" begin
+    @test KiloGramC(1)*MeterC(1)/SecondC(1)/SecondC(1) isa NewtonC
+    @test KiloGramC(1)*MeterC(1)/SecondC(1)/SecondC(1) ≈ NewtonC(1)
+    @test KiloGramC(2)*MeterC(3)/SecondC(2)/SecondC(1) ≈ NewtonC(3)
+  end
+
+  @testset "result type dimension map" begin
+    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractMassC] == 1
+    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractLengthC] == 1
+    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractTimeC] == -2
+  end
+end
+
 """
-  `function addInverseRelation(TX, TY, mod)`
+  `addInverseRelation(TX, TY, mod)`
 
   Establishes that `TY = 1/TX` (and `TX = 1/TY`):
   - defines `Base.:/(n::Number, x::AbstractTX) = baseY(n/toBaseFloat(x))` and the reverse
@@ -952,7 +946,7 @@ function registerPower(abstractType::DataType, n::Int, baseResultType::DataType,
 end
 
 """
-  function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
+  `addRelations(operator, TM, TN, TNM, mod=@__MODULE__)`
 
   Adds */ relations between the given UnitTypes by eval()ing in the given module.
   The arguments are such that TM <operator> TN = TNM.
@@ -1032,82 +1026,102 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
   end
 end
 
+"""
+  `measure2String(m::AbstractMeasure)::String`
 
-@testitem "relateMeasures" begin
-  @makeBaseMeasure LengthTest MeterT "mT"
-  @makeBaseMeasure AreaTest Meter2T "m2T"
-  @relateMeasures MeterT*MeterT = Meter2T
-  @makeMeasure 1e-3 MeterT = 1 MilliMeterT "mmT"
-
-  # @show which(Base.:*, (MilliMeterT, MilliMeterT))
-  # @show which(Base.:*, (MilliMeterT, MeterT))
-  # @show which(Base.:*, (MeterT, MilliMeterT))
-
-  # multiplicative same
-  @test MeterT(2)*MeterT(3) ≈ Meter2T(6)
-  @test Meter2T(1) / MeterT(1) ≈ MeterT(1)
-  @test MeterT(2)*MilliMeterT(3) ≈ Meter2T(6e-3)
-  @test MilliMeterT(2)*MeterT(3) ≈ Meter2T(6e-3)
-
-  # multiplicative different
-  @makeBaseMeasure TorqueTest NewtonMeterT "NMT"
-  @makeBaseMeasure ForceTest NewtonT "NT"
-  @relateMeasures NewtonT*MeterT = NewtonMeterT
-  @test NewtonT(2) * MeterT(3) ≈ NewtonMeterT(6) # as defined
-  @test MeterT(2) * NewtonT(3) ≈ NewtonMeterT(6) # swapped
-  @test NewtonMeterT(6) / MeterT(2) ≈ NewtonT(3)
-  @test NewtonMeterT(6) / NewtonT(2) ≈ MeterT(3)
-  
-  # sqrt
-  @test sqrt(Meter2T(4)) ≈ MeterT(2)
-
-  # division 
-  @makeBaseMeasure PressureTest PascalT "PaT"
-  @relateMeasures NewtonT / Meter2T = PascalT
-  @test NewtonT(6)/Meter2T(2) ≈ PascalT(3)
-  @test PascalT(3)*Meter2T(2) ≈ NewtonT(6)
-  @test Meter2T(2)*PascalT(3) ≈ NewtonT(6)
-
-  #non-operator
-  # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT Meter2T = NewtonT  )) # missing operator
-  # @test_throws ArgumentError macroexpand(@__MODULE__, :( @relateMeasures MeterT & Meter2T = NewtonT  )) # operator is not defined on this
-
-  # coefficient of thermal expansion?, to check with affine unit:
+  Returns a string representing measure `m` in the format "1.23mm".
+"""
+function measure2String(m::AbstractMeasure)::String
+  # return @sprintf("%3.3f []", m)
+  return "$(m.value)$(abbreviation(m))"
+end
+@testitem "Measure measure2string()" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @test UnitTypes.measure2String(MeterT(3.4)) == "3.4mT"
+  @test string(MeterT(3.4)) == "3.4mT"
 end
 
-@testitem "@relateMeasures compound expressions" begin
-  @makeBaseMeasure MassC KiloGramC "kgC"
-  @makeBaseMeasure LengthC MeterC "mC"
-  @makeBaseMeasure TimeC SecondC "sC"
-  @makeBaseMeasure ForceC NewtonC "NC"
+"""
+  `Base.show(io::IO, m::AbstractMeasure)`
 
-  @relateMeasures KiloGramC*MeterC/SecondC/SecondC = NewtonC
-
-  @testset "intermediate types created" begin
-    @test isdefined(@__MODULE__, :KiloGramCMeterC)
-    @test isdefined(@__MODULE__, :KiloGramCMeterCPerSecondC)
-    @test haskey(UnitTypes.allUnitTypes, KiloGramCMeterC)
-    @test haskey(UnitTypes.allUnitTypes, KiloGramCMeterCPerSecondC)
-    @test KiloGramC(1)*MeterC(2)/SecondC(3)/SecondC(4) isa NewtonC
-    @test MeterC(2)*KiloGramC(1)/SecondC(3)/SecondC(4) isa NewtonC
-    # @test 1/SecondC(4)*MeterC(2)*KiloGramC(1)/SecondC(3) isa NewtonC
-  end
-
-  @testset "intermediate abbreviations" begin
-    @test UnitTypes.allUnitTypes[KiloGramCMeterC].abbreviation == "kgC*mC"
-    @test UnitTypes.allUnitTypes[KiloGramCMeterCPerSecondC].abbreviation == "kgC*mC/sC"
-  end
-
-  @testset "compound arithmetic resolves to named type" begin
-    @test KiloGramC(1)*MeterC(1)/SecondC(1)/SecondC(1) isa NewtonC
-    @test KiloGramC(1)*MeterC(1)/SecondC(1)/SecondC(1) ≈ NewtonC(1)
-    @test KiloGramC(2)*MeterC(3)/SecondC(2)/SecondC(1) ≈ NewtonC(3)
-  end
-
-  @testset "result type dimension map" begin
-    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractMassC] == 1
-    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractLengthC] == 1
-    @test UnitTypes.allUnitTypes[NewtonC].dimensions[AbstractTimeC] == -2
-  end
+  @show functionality for Measures via `measure2String()`.
+"""
+function Base.show(io::IO, m::AbstractMeasure)
+  print(io, measure2String(m))
 end
 
+"""
+  `getBaseType(mtype::DataType) :: DataType`
+  Returns the base type of some child type, so getBaseType(MilliMeter) returns Meter.
+"""
+function getBaseType(mtype::DataType) :: DataType
+  ret = UnitTypes.allUnitTypes[mtype].base
+  # println("getBase: ", mtype, " -> ", ret)
+  return ret
+end
+@testitem "getBaseType" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @test UnitTypes.getBaseType( MeterT ) == MeterT
+
+  @makeMeasure 1e-2 MeterT = 1 CentiMeterT "cmT"
+  @test UnitTypes.getBaseType( CentiMeterT ) == MeterT
+end
+
+"""
+  `toBaseFloat(m::AbstractMeasure) :: Float64`
+
+  Returns measure `m` as a float in the base unit.
+""" 
+function toBaseFloat(m::AbstractMeasure) :: Float64
+  return UnitTypes.allUnitTypes[typeof(m)].toBase(m.value)
+end
+@testitem "toBaseFloat" begin
+  @makeBaseMeasure LengthT MeterT "mT"
+  @makeMeasure (x->x/100) MeterT = (x->x*100) CentiMeterT "cmT"
+  @makeMeasure (x->x*1000) MeterT = (x->x/1000) KiloMeterT "kmT"
+
+  @test toBaseFloat(CentiMeterT(100)) ≈ 1
+  @test toBaseFloat(KiloMeterT(1)) ≈ 1000
+end
+
+"""
+  `macro u_str(unit::String)`
+
+  Macro to provide the 1.2u"cm" inline unit assignment.
+  ```
+  a = 1.2u"cm" 
+  ```
+
+  This works by looking up the unit string in `allUnitTypes` and returning the corresponding type.
+  See https://docs.julialang.org/en/v1/manual/metaprogramming/#meta-non-standard-string-literals
+"""
+macro u_str(unit::String)
+  aut = filter( pairKV -> last(pairKV).abbreviation == unit, UnitTypes.allUnitTypes) # last(pairKV) == value == UnitTypeAttributes).abbreviation ==unit
+  if !isempty(aut)
+    b = first(first(aut))(1) # MeterT(1)
+    return b
+  end
+  result = UnitTypes.parseCatchall(unit) # defined in Catchall.jl, loaded after this file
+  result !== nothing && return result
+  @warn "did not find $unit in `allUnitTypes` and could not parse as compound unit expression"
+end
+@testitem "u_str" begin
+  @makeBaseMeasure UStrTest UsT "usT"
+  @test isa(1u"usT", UsT) 
+end
+
+
+"""
+`displayInUnits(x::T, units::DataType...) where T<:AbstractMeasure`
+
+Displays the measure `x` in the units listed.
+"""
+function displayInUnits(x::T, units::DataType...) where T<:AbstractMeasure
+    superT = supertype(T)
+    strs = String[]
+    for U in units
+        U <: superT || throw(ArgumentError("$U is not a subtype of $superT"))
+        push!(strs, @sprintf("%3.2f%s", U(x).value, unitString(U(x))))
+    end
+    println(join(strs, " == "))
+end

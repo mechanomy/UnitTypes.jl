@@ -42,9 +42,10 @@ AbstractMeasure
 │  └─ Radian
 ├─ AbstractArea
 │  ├─ Acre
+│  ├─ Foot2
+│  ├─ Inch2
 │  ├─ Meter2
-│  ├─ SquareFoot
-│  └─ SquareMile
+│  └─ Mile2
 ├...and so on
 ```
 
@@ -53,15 +54,15 @@ See docs/unitTypesTree.md for the full tree of predefined types.
 Internally, a Measure is represented by
 ```julia
 struct Meter <: AbstractLength
-  value::Number
-  toBase::Number
-  unit::String
+  value::Float64  # the value as measured in this unit
 end
 ```
-and a Dimension by
+The unit abbreviation and conversion function to/from the base unit are stored in `UnitTypes.allUnitTypes`, a package-level dictionary keyed by type.
+
+A Dimension wraps a Measure to add geometric or physical context:
 ```julia
 struct Diameter{T <: AbstractLength } <: AbstractDimension
-  value::T
+  measure::T
 end
 ```
 
@@ -71,22 +72,20 @@ Within a Dimension multiple Measures may logically be used as long as they are d
 For instance, a circle may be described by its radius, diameter, or circumference, concepts that can be interchangeably converted, using any Measure of extent (<:AbstractLength).
 A function creating a circle can then internally store radii while accepting Radius, Diameter, or Circumference arguments as the user prefers, since the type system provides conversion between the argument and the function's internal convention.
 
-
 Please open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues) _with a minimal working example_ if you run into conversion errors or think additional units should be defined by the package.
 
 ## Introducing new types
 Macros are used to introduce and create relationships around new types:
-* `@makeBaseMeasure Length Meter "m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume, this should be rarely used!
-* `@makeMeasure Meter(1000) = KiloMeter(1) "km"` - derives a new measure (KiloMeter) from some an existing measure (Meter) with a conversion ratio (1000m = 1km)
+* `@makeBaseMeasure Length Meter "m"` - introduces a new basic Measure like Meter for Length or Meter3 for Volume, this should be rarely used!
+* `@makeMeasure 1e3 Meter = 1 KiloMeter "km"` - derives a new measure (KiloMeter) from an existing measure (Meter) with a conversion ratio (1000m = 1km)
 * `@relateMeasures KiloGram*MeterPerSecond2=Newton` - relates the product of types to another type, all types preexisting.
 
 For working with Dimensions:
 * `@makeDimension Diameter Meter` - creates the Dimension Diameter measured in Meters
 * `@relateDimensions Diameter = 2.0*Radius` - relates the Dimensions Diameter and Radius by the scalar 2.0.
 
-The macros in Measure.jl and Dimension.jl define the necessary convert()s and other operators.
-While these macros suffice for most units, defining nonlinear units (like temperature) requires additional plumbing.
-See the temperature converts in Temperature.jl for an example.
+The macros in Measure.jl and Dimension.jl define the convert()s and other operators needed for common operations.
+If these are insufficient you will receive undefined method errors and can then work around the missing defitions, define them yourself, and/or open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues).
 
 ## Logical operations
 Using units correctly requires distinguishing between valid and invalid operations, which in some cases means not allowing apparently convenient operations.
@@ -95,6 +94,13 @@ Inch * 3 is convenient while 3 / Inch is unlikely to be desirable.
 These conceptual gotchas are especially obvious in affine units like Temperature, where 0°C + 10°F is not 42°F but rather -12.2°C.
 
 With use, patience, and [issues](https://github.com/mechanomy/UnitTypes.jl/issues), these coherence rules will become more clear and explained by example.
+
+## Naming conventions
+Combining the names of units to get the resulting type name follows these simple rules:
+1. Multiplication is concatenation: Newton * Meter = NewtonMeter (==MeterNewton)
+1. Division and negative exponents are indicated by `Per`: N*m/s^2 = NewtonMeterPerSecond2
+1. Numeric powers are preferred over words: Meter2, not SquareMeter
+1. No plurals: Meter, not Meters
 
 ## Comparison with other packages
 
@@ -122,21 +128,33 @@ But this performant representation hurts readability, and while the unit represe
 
 ### UnitTypes.jl
 In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
-The limitation is that _UnitTypes does not have a catch-all unit representation_.
-Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units.
-See Temperature.jl for an example of manual unit conversion.
+Only units that have been defined by one of the macros may be represented with a named type.
+Arithmetic that produces a novel unit combination falls back to `Catchall`, which carries a dimension map but lacks a named type.
+Complex units may also need additional methods to correctly convert between units — see Temperature.jl for an example of manual unit conversion.
 
 ## Package macros and functions
 ```@meta
 CurrentModule=UnitTypes
 ```
 
+### Measure.jl
 ```@docs
 UnitTypes.@makeBaseMeasure
 UnitTypes.@makeMeasure
 UnitTypes.@relateMeasures
+UnitTypes.@u_str
+UnitTypes.toBaseFloat
+UnitTypes.abbreviation
 ```
 
+### Catchall.jl
+```@docs
+UnitTypes.Catchall
+UnitTypes.parseCatchall
+UnitTypes.UnitStepRange
+```
+
+### Dimension.jl
 ```@docs
 UnitTypes.@makeDimension
 UnitTypes.@relateDimensions

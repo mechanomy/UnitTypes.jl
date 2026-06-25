@@ -1,6 +1,6 @@
 # UnitTypes.jl
 This package provides physical units as Julia types.
-[Docs](https://mechanomy.github.io/UnitTypes.jl/dev/)
+[Docs](https://mechanomy.github.io/UnitTypes.jl/dev/).
 
 ```julia
 julia> using UnitTypes
@@ -43,13 +43,14 @@ AbstractMeasure
 │  └─ Radian
 ├─ AbstractArea
 │  ├─ Acre
+│  ├─ Foot2
+│  ├─ Inch2
 │  ├─ Meter2
-│  ├─ SquareFoot
-│  └─ SquareMile
+│  └─ Mile2
 ├...and so on
 ```
 
-See docs/unitTypesTree.md for the full tree of predefined types.
+See [](./docs/unitTypesTree.md) for the full tree of predefined types.
 
 Internally, a Measure is represented by
 ```julia
@@ -60,7 +61,7 @@ end
 and a Dimension by
 ```julia
 struct Diameter{T <: AbstractLength } <: AbstractDimension
-  value::T
+  measure::T
 end
 ```
 
@@ -76,7 +77,7 @@ Please open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues) _with a
 ## Introducing new types
 Macros are used to introduce and create relationships around new types:
 * `@makeBaseMeasure Length Meter "m"` - introduces a new basic Measure like Meter for Length or Meter3 Volume, this should be rarely used!
-* `@makeMeasure Meter = KiloMeter "km" 1000` - derives a new measure (KiloMeter) from some an existing measure (Meter) with a conversion ratio (1000m = 1km)
+* `@makeMeasure 1e3 Meter = 1 KiloMeter "km"` - derives a new measure (KiloMeter) from an existing measure (Meter) with a conversion ratio (1000m = 1km)
 * `@relateMeasures KiloGram*MeterPerSecond2=Newton` - relates the product of types to another type, all types preexisting.
 
 For working with Dimensions:
@@ -84,8 +85,17 @@ For working with Dimensions:
 * `@relateDimensions Diameter = 2.0*Radius` - relates the Dimensions Diameter and Radius by the scalar 2.0.
 
 The macros in Measure.jl and Dimension.jl define the necessary convert()s and other operators.
-While these macros suffice for most units, defining affine units (like temperature) requires additional plumbing.
-See the temperature converts in Temperature.jl for an example.
+If these are insufficient you will receive undefined method errors and can then work around the missing defitions, define them yourself, and/or open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues).
+
+## Catch-all type
+When an arithmetic operation produces a unit combination with no named type, the result is a `Catchall`:
+```julia
+julia> Yard(2) * Second(3)  # no named type with yd*s
+6.0yd*s   # Catchall with value=6.0, dimensions={AbstractLength=>1, AbstractTime=>1}
+```
+The price of operations producing undefined UnitTypes is that Catchalls are allocated; these can be eliminated by defining the needed types.
+
+Compound unit strings are also parsed `1u"mm*s/kg"`, returning an explicit type or a `Catchall` for that combination.
 
 ## Logical operations
 Using units correctly requires distinguishing between valid and invalid operations, which in some cases means not allowing apparently convenient operations.
@@ -123,17 +133,13 @@ As Unitful is the dominant unit package and has wide use and support, we provide
 
 ### DynamicQuantities.jl
 [DynamicQuantities](https://github.com/SymbolicML/DynamicQuantities.jl) is newer and faster than Unitful because it "defines a simple statically-typed Quantity type for storing physical units."
-It does this by storing the exponents on the basic units, allowing any unit traceable to SI to be used.
+It does this by storing the exponents on the basic units, like the Catchall type, allowing any unit traceable to SI to be used.
 But this performant representation hurts readability, and while the unit representation may be able to be hidden behind overrides of show(), Julia is designed for types to be read and manipulated directly by users.
 
-### UnitTypes.jl
-In the presence of Julia's type-heavy UI, these two, good attempts feel misdirected and motivate this package's literal typing of units.
-The limitation is that _UnitTypes does not have a catch-all unit representation_.
-Only units that have been defined by one of the macros may be represented, and complex units may need to have additional methods written to correctly convert between units.
-See Temperature.jl for an example of manual unit conversion.
+In the presence of Julia's type-first design, these two, good attempts feel misdirected and motivate this package's literal typing of units.
 
 ## Copyright
-Copyright (c) 2025 - [Mechanomy LLC](https://mechanomy.com)
+Copyright (c) 2026 - [Mechanomy LLC](https://mechanomy.com)
 
 ## License
 Released under [MIT](./license.md).
