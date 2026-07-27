@@ -5,6 +5,7 @@ const inPerFt = 12
 const ftPerMi = 5280
 
 @makeMeasure mPerIn Meter = 1 Inch "in"
+@makeMeasure mPerIn*1e-3 Meter = 1 Mil "mil"
 @makeMeasure mPerIn*inPerFt Meter = 1 Foot "ft"
 @makeMeasure mPerIn*inPerFt*3 Meter = 1 Yard "yd"
 @makeMeasure mPerIn*inPerFt*ftPerMi Meter = 1 Mile "mi"
@@ -15,7 +16,14 @@ const ftPerMi = 5280
 @makeMeasure 4.046873e3 Meter2 = 1 Acre "ac"
 @makeMeasure (mPerIn*inPerFt*ftPerMi)^2 Meter2 = 1 Mile2 "sqmi"
 
-@makeMeasure 1/mPerIn*inPerFt MeterPerSecond = 1 FootPerSecond "ft/s"
+@makeMeasure mPerIn*inPerFt MeterPerSecond = 1 FootPerSecond "ft/s"
+@makeMeasure 0.44704 MeterPerSecond = 1 MilePerHour "mi/hr"
+@makeMeasure 0.44704 MeterPerSecond = 1 MilesPerHour "mph"
+
+@testitem "Velocity" begin
+  @test isapprox( MilePerHour(1), KiloMeterPerHour(1.609), atol=1e-3)
+end
+
 
 @makeMeasure 28.4130625e-3 Meter3 = 1 FluidOunce "floz"
 @makeMeasure 568.26126e-3 Meter3 = 1 Pint "pt"
@@ -24,9 +32,14 @@ const ftPerMi = 5280
 
 @makeMeasure 28.349523125e-3 KiloGram = 1 Ounce "oz"
 @makeMeasure 0.45359237 KiloGram = 1 PoundMass "lbm"
+@makeMeasure 0.0017718451953125 KiloGram = 1 Dram "dr"
+@makeMeasure 6.479891e-5 KiloGram = 1 Grain "gr"
 
 @makeMeasure 14.59390294 KiloGram = 1 Slug "slug"
-@makeMeasure 4.448 Newton = 1 PoundForce "lbf"
+@makeMeasure 4.4482216152605 Newton = 1 PoundForce "lbf"
+@makeMeasure 6894.757293168361 Pascal = 1 PoundsPerSquareInch "psi"
+@makeMeasure 4.184 Joule = 1 Calorie "cal"
+@makeMeasure 1055.06 Joule = 1 BritishThermalUnit "btu"
 
 @testitem "Imperial" begin
   @test isapprox(Inch(12), Foot(1), atol=1e-3) # @test Inch(12) ≈ Foot(1)

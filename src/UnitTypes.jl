@@ -8,8 +8,10 @@ module UnitTypes
   include("Catchall.jl")
   include("SI.jl")
   include("Imperial.jl")
+  include("CGS.jl")
   include("Angle.jl")
   include("Temperature.jl")
+  include("OtherSystems.jl")
 
   #Dimensions built on Measures
   include("Dimension.jl")

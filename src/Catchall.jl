@@ -305,9 +305,9 @@ end
   @relateMeasures 1/SecondT = HertzT
   @test 1/SecondT(4) ≈ HertzT(0.25)
 
-  @makeMeasure 1 HertzT = 1 PerSecondT "s^-1"
+  @makeMeasure 1 HertzT = 1 PerSecondT "sT^-1"
 
-  @makeBaseMeasure VelocityT MeterPerSecondT "m/s"
+  @makeBaseMeasure VelocityT MeterPerSecondT "mT/sT"
   @relateMeasures MeterT * PerSecondT = MeterPerSecondT
   # PerSecondT shares AbstractFreqT with HertzT, so *(AbstractLengthT, AbstractFreqT) already dispatches to ProdT.
   # The numeric value is the same; compare via base float rather than isapprox(ProdT, MeterPerSecondT).

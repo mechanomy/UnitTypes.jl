@@ -26,6 +26,7 @@
 @makeBaseMeasure Length Meter "m"
 @makeBaseMeasure Mass KiloGram "kg"
 @makeBaseMeasure Time Second "s"
+@makeBaseMeasure Amount Mole "mol"
 
 # Length powers
 @makeMeasure 1e-15 Meter = 1 FemtoMeter "fm"
@@ -35,6 +36,7 @@
 @makeMeasure 1e-3 Meter = 1 MilliMeter "mm"
 @makeMeasure 1e-2 Meter = 1 CentiMeter "cm"
 @makeMeasure 1e3 Meter = 1 KiloMeter "km"
+@makeMeasure 1e-10 Meter = 1 Angstrom "Å"
 
 @testitem "Length powers of 10" begin
   @test Meter(1.0) == Meter(1.0)
@@ -48,18 +50,27 @@ end
   @test MilliMeter(1)*Meter(3) / MilliMeter(1) ≈ Meter(3)
 end
 
+@makeMeasure 1e-3 KiloGram = 1 Gram "g"
+
 @makeBaseMeasure Area Meter2 "m^2"
 @relateMeasures Meter*Meter=Meter2
+@makeMeasure 100 Meter2 = 1 Are "a"
+@makeMeasure 1e4 Meter2 = 1 Hectare "ha"
+@makeMeasure 1e-28 Meter2 = 1 Barn "b"
+
+@makeBaseMeasure SolidAngle Steradian "sr"
 
 @makeBaseMeasure Volume Meter3 "m^3"
 @relateMeasures Meter2*Meter=Meter3
-@makeMeasure 1e3 Meter3 = 1 Liter "L"
-@makeMeasure 1e3 Liter = 1 MilliLiter "mL"
+@makeMeasure 1e-3 Meter3 = 1 Liter "L"
+@makeMeasure 1e-3 Liter = 1 MilliLiter "mL"
 
 @makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
 @makeBaseMeasure SpecificVolume M3PerKg "m^3/kg"
 Base.convert(::Type{KgPerM3}, x::T) where {T<:AbstractSpecificVolume} = KgPerM3(1/toBaseFloat(x))
 Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBaseFloat(x))
+
+@makeMeasure 1e-3 KgPerM3 = 1 GramPerCentiMeter3 "g/cm^3"
 
 @makeBaseMeasure SurfaceDensity KgPerM2 "kg/m^2"
 @makeBaseMeasure CurrentDensity APerM2 "A/m^2"
@@ -67,13 +78,19 @@ Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBas
 
 # time
 @makeMeasure 1e-3 Second = 1 MilliSecond "ms"
-@makeMeasure 1/60 Second = 1 Minute "min"
-@makeMeasure 1/3600 Second = 1 Hour "hr"
-@makeMeasure 1/24 Hour = 1 Day "days"
+@makeMeasure 60 Second = 1 Minute "min"
+@makeMeasure 3600 Second = 1 Hour "hr"
+@makeMeasure 86400 Second = 1 Day "days"
+@makeMeasure 604800 Second = 1 Week "wk"
+@makeMeasure 31557600 Second = 1 Year "yr"
 
 @makeBaseMeasure Frequency Hertz "Hz"
 @relateMeasures 1/Second = Hertz  # sets Hertz dims to {AbstractTime=>-1}; must precede @makeMeasure so PerSecond inherits correctly
 @makeMeasure 1 Hertz = 1 PerSecond "s^-1"
+@makeMeasure 1 Hertz = 1 Becquerel "Bq"
+@makeMeasure 1/60 Hertz = 1 RevolutionsPerMinute "rpm"
+@makeMeasure 1 Hertz = 1 RevolutionsPerSecond "rps"
+@makeMeasure 2π Hertz = 1 AngHertz "Hz2π"
 
 Base.convert(::Type{Second}, x::T) where {T<:AbstractFrequency} = 1/x #Second(1/toBaseFloat(x))
 Base.convert(::Type{Hertz}, x::T) where {T<:AbstractTime} = 1/x #Hertz(1/toBaseFloat(x))
@@ -86,6 +103,13 @@ end
 
 @makeBaseMeasure Velocity MeterPerSecond "m/s" 
 @relateMeasures Meter*PerSecond=MeterPerSecond
+@makeMeasure 1 MeterPerSecond = 60 MeterPerMinute "m/min"
+@makeMeasure 1 MeterPerSecond = 3600 MeterPerHour "m/hr"
+@makeMeasure 1000 MeterPerSecond = 3600 KiloMeterPerHour "km/hr"
+@testitem "Velocity" begin
+  @test isapprox(KiloMeterPerHour(1), MeterPerSecond(0.27778), atol=1e-4)
+  @test isapprox(MeterPerHour(3600), MeterPerSecond(1), atol=1e-10)
+end
 
 @makeBaseMeasure Acceleration MeterPerSecond2 "m/s^2"
 @relateMeasures MeterPerSecond*PerSecond=MeterPerSecond2
@@ -140,11 +164,23 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistan
 
 @makeBaseMeasure LuminousFlux Lumen "lm"
 @makeBaseMeasure Illuminance Lux "lx"
-#these are waiting for a request and mwe for unit test
-# @makeBaseMeasure DecayRate Becquerel "Bq"
-# @makeBaseMeasure AbsorbedDose Gray "Gy"
-# @makeBaseMeasure EquivalentDose Sievert "Sv"
 
-# others..?:
-@makeBaseMeasure Percentage Percent "%" # not a physical unit...
-@makeMeasure 1e-2 Percent = 1 BasisPoints "bps" # 100bps in 1%
+@makeBaseMeasure Energy Joule "J"
+@makeMeasure 1e3 Joule = 1 KiloJoule "kJ"
+@makeMeasure 1e6 Joule = 1 MegaJoule "MJ"
+@makeMeasure 1e-3 Joule = 1 MilliJoule "mJ"
+@makeMeasure 1.602_176_634e-19 Joule = 1 ElectronVolt "eV"
+
+@makeBaseMeasure AbsorbedDose Gray "Gy"
+@makeMeasure 1 Gray = 1 Sievert "Sv"
+
+@makeBaseMeasure CatalyticActivity Katal "kat"
+
+@makeBaseMeasure DynamicViscosity PascalSecond "Pa*s"
+@makeBaseMeasure KinematicViscosity MeterSquaredPerSecond "m^2/s"
+
+@makeBaseMeasure MolarConcentration Molar "M"
+
+@makeMeasure 100000 Pascal = 1 Bar "bar"
+@makeMeasure 101325 Pascal = 1 Atmosphere "atm"
+@makeMeasure 101325/760 Pascal = 1 Torr "Torr"
