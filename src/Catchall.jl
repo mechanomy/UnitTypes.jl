@@ -3,40 +3,143 @@
 #   "Resolve back to named types by adding dimension tracking to UnitTypeAttributes"
 #   "We always want to prefer the named, concrete types over Catchall"
 #   "Add exponent handling to UnitTypes via Catchall; restrict to integer powers"
-# Catch-all unit representation for unanticipated unit combinations arising from arithmetic
-# or from u_str strings that don't match a registered abbreviation.  Named concrete types
-# always take priority: resolveOrExpr() attempts a reverse dimension-map lookup first and
-# only falls back to Catchall when no registered type matches.
+#   "Redesign Catchall to store BaseDimensions instead of Dict{DataType,Int}"
+# Catch-all unit representation for unanticipated unit combinations arising from arithmetic or from u_str strings that don't match a registered abbreviation. Named concrete types always take priority: resolveOrExpr() attempts a reverse dimension-map lookup first and only falls back to Catchall when no registered type matches.
 
-export Catchall, parseCatchall
+export Catchall, parseCatchall, getDimensions, mergeBaseDimensions, findNamedType, BaseDimensions, abstractToSI, toSIDimensions, getBaseDims, findNamedTypeFromSI
+"""
+  `struct BaseDimensions`
+
+  Fixed-field SI base-dimension representation used by Catchall.
+  Each field holds the integer exponent of that SI base unit: s (time), m (length), kg (mass), A (current), K (temperature), mol (amount), cd (intensity).
+  Using fixed fields instead of a Dict{DataType,Int} guarantees all Catchall values share a canonical representation regardless of which abstract types were used to build them.
+"""
+struct BaseDimensions
+  time::Int8
+  length::Int8
+  mass::Int8
+  current::Int8
+  temperature::Int8
+  amount::Int8
+  intensity::Int8
+end
+BaseDimensions(; time::Integer=0, length::Integer=0, mass::Integer=0, current::Integer=0, temperature::Integer=0, amount::Integer=0, intensity::Integer=0) = BaseDimensions(time, length, mass, current, temperature, amount, intensity)
+
+Base.:+(a::BaseDimensions, b::BaseDimensions) = BaseDimensions(a.time+b.time, a.length+b.length, a.mass+b.mass, a.current+b.current, a.temperature+b.temperature, a.amount+b.amount, a.intensity+b.intensity)
+Base.:-(a::BaseDimensions, b::BaseDimensions) = BaseDimensions(a.time-b.time, a.length-b.length, a.mass-b.mass, a.current-b.current, a.temperature-b.temperature, a.amount-b.amount, a.intensity-b.intensity)
+Base.:*(a::BaseDimensions, n::Integer) = BaseDimensions(a.time*n, a.length*n, a.mass*n, a.current*n, a.temperature*n, a.amount*n, a.intensity*n)
+Base.:*(n::Integer, a::BaseDimensions) = a * n
+Base.:-(a::BaseDimensions) = BaseDimensions(-a.time, -a.length, -a.mass, -a.current, -a.temperature, -a.amount, -a.intensity)
+Base.iszero(d::BaseDimensions) = d.time==0 && d.length==0 && d.mass==0 && d.current==0 && d.temperature==0 && d.amount==0 && d.intensity==0
+
+"""
+  `abstractToSI::Dict{DataType, BaseDimensions}`
+
+  Registry mapping each abstract dimension type (e.g. AbstractForce) to its SI base dimensions.
+  Seeded for the seven SI base abstract types in SI.jl and Temperature.jl; extended by addRelations and addInverseRelation as @relateMeasures chains are processed.
+"""
+const abstractToSI = Dict{DataType, BaseDimensions}()
+
+"""
+  `toSIDimensions(dict; silent=false) -> BaseDimensions`
+
+  Converts a Dict{DataType,Int} dimension map to a BaseDimensions struct by looking up each abstract type key in abstractToSI.
+  Unknown types are skipped with a warning (suppressed when silent=true, used internally when searching allUnitTypes).
+"""
+function toSIDimensions(dict::Dict{DataType,Int}; silent::Bool=false)::BaseDimensions
+  result = BaseDimensions()
+  for (absT, exp) in dict
+    if haskey(abstractToSI, absT)
+      result = result + abstractToSI[absT] * exp
+    elseif !silent
+      @warn "No SI dimension mapping for $absT; Catchall will not track this dimension. Connect it via @relateMeasures to the SI base units."
+    end
+  end
+  return result
+end
+
+"""
+  `findNamedTypeFromSI(dims) -> Union{DataType, Nothing}`
+
+  Returns the registered base concrete type whose allUnitTypes dimension dict converts to exactly `dims` via toSIDimensions; returns nothing if no match exists.
+"""
+function findNamedTypeFromSI(dims::BaseDimensions)::Union{DataType, Nothing}
+  iszero(dims) && return nothing
+  for (T, uta) in allUnitTypes
+    uta.base == T || continue
+    toSIDimensions(uta.dimensions, silent=true) == dims && return T
+  end
+  return nothing
+end
+
+"""
+  `getBaseDims(x) -> BaseDimensions`
+
+  Returns the SI base dimensions for any AbstractMeasure.
+  For named types converts the allUnitTypes Dict through the abstractToSI registry; for Catchall returns x.dimensions directly (overloaded below).
+"""
+getBaseDims(x::T) where {T<:AbstractMeasure} = toSIDimensions(allUnitTypes[T].dimensions)
+
+"""
+  `mergeBaseDimensions(d1, d2, sign=1) -> Dict{DataType,Int}`
+
+  Combines two dimension maps: result = d1 * d2^sign (sign=1 for multiply, -1 for divide).
+  Zero-exponent entries are removed so the map stays canonical.
+"""
+function mergeBaseDimensions(d1::Dict{DataType,Int}, d2::Dict{DataType,Int}, sign::Int=1)::Dict{DataType,Int}
+  result = copy(d1)
+  for (k, v) in d2
+    result[k] = get(result, k, 0) + sign * v
+  end
+  filter!(kv -> last(kv) != 0, result)
+  return result
+end
+
+"""
+  `findNamedType(dims) -> Union{DataType, Nothing}`
+
+  Returns the registered type whose dimension signature exactly matches `dims`, preferring base types (where `allUnitTypes[T].base == T`) over scaled variants like Inch2 vs Meter2.
+  Returns nothing if no match exists.
+"""
+function findNamedType(dims::Dict{DataType,Int})::Union{DataType, Nothing}
+  candidate = nothing
+  for (T, uta) in allUnitTypes
+    if uta.dimensions == dims
+      if uta.base == T          # base types beat scaled variants; return immediately
+        return T
+      end
+      candidate === nothing && (candidate = T)  # keep first non-base match as fallback
+    end
+  end
+  return candidate
+end
+
+
 
 """
   `struct Catchall <: AbstractMeasure`
 
-  Catch-all for unit expressions with no defined named type.  The stored `value` is in SI
-  base units; `dimensions` maps abstract dimension types to their integer exponents, e.g.
-  `{AbstractLength=>1, AbstractTime=>-1}` for velocity.
-
-  Prefer registered named types (Meter, Second, Newton …) wherever possible.
-  Catchall is produced only when arithmetic or u_str parsing yields a combination that has
-  no matching entry in `allUnitTypes`.
+  Catch-all for unit expressions with no defined named type.
+  The stored `value` is in SI base units; `dimensions` is a BaseDimensions struct encoding the seven SI base-unit exponents.
+  Using BaseDimensions (fixed fields) rather than Dict{DataType,Int} ensures all Catchall values share a canonical representation: e.g. KiloNewton and Newton both convert to BaseDimensions(mass=1,length=1,time=-2) via abstractToSI, preventing the stale-dict bug.
+  Prefer registered named types (Meter, Second, Newton …) wherever possible; Catchall is produced only when arithmetic or u_str parsing yields a combination with no matching entry in allUnitTypes.
 """
 struct Catchall <: AbstractMeasure
   value::Float64           # in SI base units
-  dimensions::Dict{DataType,Int}
+  dimensions::BaseDimensions
 end
+
+# Catchall-specific overload of getBaseDims (named-type overload is in Measure.jl)
+getBaseDims(x::Catchall) = x.dimensions
 
 getDimensions(x::Catchall) = x.dimensions
 toBaseFloat(x::Catchall)   = x.value
 
-function _dimAbbreviation(dims::Dict{DataType,Int})::String
-  isempty(dims) && return "dimensionless"
+function _dimAbbreviation(dims::BaseDimensions)::String
+  iszero(dims) && return "dimensionless"
   parts = String[]
-  for (absT, exp) in sort(collect(dims), by = x -> string(x[1]))
-    # find the base type (i.e. the type that is its own base) for this abstract
-    entries = filter(kv -> kv[2].abstract == absT && kv[2].base == kv[1], allUnitTypes)
-    isempty(entries) && continue
-    abbr = first(entries)[2].abbreviation
+  for (abbr, exp) in [("s", dims.time), ("m", dims.length), ("kg", dims.mass), ("A", dims.current), ("K", dims.temperature), ("mol", dims.amount), ("cd", dims.intensity)]
+    exp == 0 && continue
     push!(parts, exp == 1 ? abbr : "$(abbr)^$(exp)")
   end
   return join(parts, "*")
@@ -55,13 +158,19 @@ Base.show(io::IO, u::Catchall) = print(io, measure2String(u))
 """
   `resolveOrExpr(value, dims) -> AbstractMeasure`
 
-  Returns a named type instance if `dims` exactly matches a registered type's dimension
-  signature; otherwise returns `Catchall(value, dims)`.
+  Returns a named type instance if `dims` exactly matches a registered type's SI dimension signature; otherwise returns `Catchall(value, dims)`.
+  Two overloads: BaseDimensions uses findNamedTypeFromSI; Dict{DataType,Int} uses findNamedType first then falls back to toSIDimensions.
 """
-function resolveOrExpr(value::Float64, dims::Dict{DataType,Int})::AbstractMeasure
-  T = findNamedType(dims)
+function resolveOrExpr(value::Float64, dims::BaseDimensions)::AbstractMeasure
+  T = findNamedTypeFromSI(dims)
   T !== nothing && return T(allUnitTypes[T].fromBase(value))
   return Catchall(value, dims)
+end
+
+function resolveOrExpr(value::Float64, dict::Dict{DataType,Int})::AbstractMeasure
+  T = findNamedType(dict)
+  T !== nothing && return T(allUnitTypes[T].fromBase(value))
+  return Catchall(value, toSIDimensions(dict))
 end
 
 Base.:*(x::Catchall, y::Number) = resolveOrExpr(x.value * Float64(y), x.dimensions)
@@ -69,47 +178,28 @@ Base.:*(x::Number,   y::Catchall) = resolveOrExpr(Float64(x) * y.value, y.dimens
 Base.:/(x::Catchall, y::Number) = resolveOrExpr(x.value / Float64(y), x.dimensions)
 Base.:-(x::Catchall) = Catchall(-x.value, x.dimensions)
 
-Base.:+(x::Catchall, y::Catchall) =
-  x.dimensions == y.dimensions ?
-    resolveOrExpr(x.value + y.value, x.dimensions) :
-    throw(ArgumentError("Cannot add incompatible Catchall: $(abbreviation(x)) + $(abbreviation(y))"))
+Base.:+(x::Catchall, y::Catchall) = x.dimensions == y.dimensions ? resolveOrExpr(x.value + y.value, x.dimensions) : throw(ArgumentError("Cannot add incompatible Catchall: $(abbreviation(x)) + $(abbreviation(y))"))
 
-Base.:-(x::Catchall, y::Catchall) =
-  x.dimensions == y.dimensions ?
-    resolveOrExpr(x.value - y.value, x.dimensions) :
-    throw(ArgumentError("Cannot subtract incompatible Catchall: $(abbreviation(x)) - $(abbreviation(y))"))
+Base.:-(x::Catchall, y::Catchall) = x.dimensions == y.dimensions ? resolveOrExpr(x.value - y.value, x.dimensions) : throw(ArgumentError("Cannot subtract incompatible Catchall: $(abbreviation(x)) - $(abbreviation(y))"))
 
-Base.isapprox(x::Catchall, y::Catchall; atol::Real=0, rtol::Real=atol) =
-  x.dimensions == y.dimensions && isapprox(x.value, y.value; atol=atol, rtol=rtol)
+Base.isapprox(x::Catchall, y::Catchall; atol::Real=0, rtol::Real=atol) = x.dimensions == y.dimensions && isapprox(x.value, y.value; atol=atol, rtol=rtol)
 
-Base.isapprox(x::Catchall, y::T; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure} =
-  x.dimensions == getDimensions(y) && isapprox(x.value, toBaseFloat(y); atol=atol, rtol=rtol)
+Base.isapprox(x::Catchall, y::T; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure} = x.dimensions == getBaseDims(y) && isapprox(x.value, toBaseFloat(y); atol=atol, rtol=rtol)
 
-Base.isapprox(x::T, y::Catchall; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure} =
-  isapprox(y, x; atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::Catchall; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure} = isapprox(y, x; atol=atol, rtol=rtol)
 
-# Catch-all unit × unit arithmetic:
-# These fire only when no more-specific method (from @relateMeasures) exists.
-# Julia dispatch gives the (AbstractX, AbstractY) methods from addRelations priority over these (AbstractMeasure, AbstractMeasure) methods, so named-type results are always preferred automatically.
+# Catch-all unit × unit arithmetic: fire only when no more-specific method (from @relateMeasures) exists; Julia dispatch gives addRelations methods priority so named-type results are always preferred automatically.
+Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = resolveOrExpr(toBaseFloat(x) * toBaseFloat(y), getBaseDims(x) + getBaseDims(y))
 
-Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} =
-  resolveOrExpr(toBaseFloat(x) * toBaseFloat(y),
-                mergeBaseDimensions(getDimensions(x), getDimensions(y), 1))
+Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = resolveOrExpr(toBaseFloat(x) / toBaseFloat(y), getBaseDims(x) - getBaseDims(y))
 
-Base.:/(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} =
-  resolveOrExpr(toBaseFloat(x) / toBaseFloat(y),
-                mergeBaseDimensions(getDimensions(x), getDimensions(y), -1))
+# Integer exponentiation: (2mm)^3 = 8mm^3; Integer exponents keep dimension maps exact. A single method covers named types and Catchall since both define toBaseFloat/getBaseDims. Base.inv handles literal_pow(^,x,Val{-1}) for compile-time -1 exponents.
+Base.:^(x::AbstractMeasure, n::Integer) = resolveOrExpr(toBaseFloat(x)^n, getBaseDims(x) * n)
 
-# Integer exponentiation: (2mm)^3 = 8mm^3; Integer exponents keep dimension maps exact.
-# A single method covers both named types and Catchall since both define toBaseFloat/getDimensions.
-# Base.inv handles literal_pow(^, x, Val{-1}), which Julia emits for compile-time literal -1 exponents.
-Base.:^(x::AbstractMeasure, n::Integer) = resolveOrExpr(toBaseFloat(x)^n, Dict{DataType,Int}(k => v*n for (k, v) in getDimensions(x) if v*n != 0))
-
-Base.inv(x::AbstractMeasure) =
-  resolveOrExpr(1.0 / toBaseFloat(x),
-                Dict{DataType,Int}(k => -v for (k, v) in getDimensions(x) if v != 0))
+Base.inv(x::AbstractMeasure) = resolveOrExpr(1.0 / toBaseFloat(x), -getBaseDims(x))
 
 @testitem "AbstractMeasure integer exponentiation" begin
+  # Uses real SI types; BaseDimensions lookup resolves named types correctly.
   @testset "design: type resolution" begin
     @test (2u"mm")^3 isa Meter3       # resolves to named base type
     @test (2u"mm")^2 isa Meter2
@@ -130,9 +220,11 @@ Base.inv(x::AbstractMeasure) =
 end
 
 @testitem "Catchall integer exponentiation" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @makeBaseMeasure ForceT NewtonT "nT"
-  expr = MeterT(2.0) * NewtonT(3.0)   # Catchall with value 6.0
+  # Catchall tests use real SI types (Meter, Mole) rather than isolated @makeBaseMeasure
+  # test types.  The previous isolation strategy was superseded when Catchall moved to
+  # BaseDimensions: isolated test types have no entry in abstractToSI and would produce
+  # all-zero (dimensionless) Catchall values.  Real SI types are always resolvable.
+  expr = Meter(2.0) * Mole(3.0)   # no @relateMeasures between Length and Amount → Catchall
 
   @testset "design: type" begin
     @test expr^2 isa Catchall
@@ -142,80 +234,28 @@ end
 
   @testset "functional: values and dimensions" begin
     @test (expr^2).value ≈ 36.0
-    @test (expr^2).dimensions[AbstractLengthT] == 2
-    @test (expr^2).dimensions[AbstractForceT] == 2
+    @test (expr^2).dimensions.length == 2
+    @test (expr^2).dimensions.amount == 2
     @test (expr^1).value ≈ 6.0
     @test (expr^0).value ≈ 1.0
   end
 end
 
-"""
-  `parseCatchall(str) -> Union{AbstractMeasure, Nothing}`
-
-  Parses a compound unit string such as `"mm*s/kg"` or `"m^2"` into a measure.
-  Each token is looked up by abbreviation in `allUnitTypes`; the combined scale factor
-  and dimension map are computed, and `resolveOrExpr` is applied so a named type is
-  returned whenever one matches.
-
-  Returns `nothing` if any token is unrecognised or affine (Temperature-style).
-
-  Syntax supported:
-  - `*` separates numerator factors
-  - `/` introduces denominator factors (applies to all tokens after the first `/` per `*`-group)
-  - `^N` applies an integer exponent (may be negative) to the preceding abbreviation
-"""
-function parseCatchall(str::String)::Union{AbstractMeasure, Nothing}
-  dims       = Dict{DataType,Int}()
-  baseFactor = 1.0
-
-  # split on '*' first, then on '/' within each group
-  for starPart in split(str, '*')
-    slashParts = split(string(starPart), '/')
-    for (j, rawPart) in enumerate(slashParts)
-      sign = j == 1 ? 1 : -1   # first piece is numerator, rest are denominators
-
-      # parse optional exponent suffix:  "m^2" → ("m", 2),  "kg^-1" → ("kg", -1)
-      expMatch = match(r"^(.+)\^(-?\d+)$", string(rawPart))
-      if expMatch !== nothing
-        abbr    = string(expMatch[1])
-        unitExp = parse(Int, expMatch[2])
-      else
-        abbr    = string(rawPart)
-        unitExp = 1
-      end
-
-      matched = filter(kv -> kv[2].abbreviation == abbr, allUnitTypes)
-      isempty(matched) && return nothing
-
-      T, uta = first(matched)
-      uta.isAffine && return nothing   # affine units (e.g. °F) cannot compose
-
-      totalExp    = sign * unitExp
-      baseFactor *= uta.toBase(1.0)^totalExp
-      for (k, v) in uta.dimensions
-        dims[k] = get(dims, k, 0) + totalExp * v
-      end
-    end
-  end
-
-  filter!(kv -> last(kv) != 0, dims)
-  return resolveOrExpr(baseFactor, dims)
-end
-
 @testitem "Catchall catch-all arithmetic" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @makeBaseMeasure ForceT NewtonT "nT"
+  # Catchall tests use real SI types (Meter, Mole) — see note in "Catchall integer
+  # exponentiation" above for why isolated test types can no longer be used.
+  r = Meter(2.0) * Mole(3.0)    # m*mol → Catchall, value=6, dims={length:1, amount:1}
+  d = Meter(6.0) / Mole(2.0)    # m/mol → Catchall, value=3, dims={length:1, amount:-1}
 
-  r = MeterT(2.0) * NewtonT(3.0)
-  # @show r, r.dimensions, r.dimensions[AbstractLengthT], r.dimensions[AbstractForceT]
   @test r isa Catchall
   @test r.value ≈ 6.0
-  @test r.dimensions[AbstractLengthT] ≈ 1
+  @test r.dimensions.length == 1
+  @test r.dimensions.amount == 1
 
-  d = MeterT(6.0) / NewtonT(2.0)
   @test d isa Catchall
   @test d.value ≈ 3.0
-  @test d.dimensions[AbstractLengthT] ≈ 1
+  @test d.dimensions.length == 1
+  @test d.dimensions.amount == -1
 
   @test r * 2.0 isa Catchall
   @test (r * 2.0).value ≈ 12.0
@@ -227,32 +267,34 @@ end
 end
 
 @testitem "Catchall resolves back to named type" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @makeBaseMeasure FreqT HertzT "hzT"
-  @makeBaseMeasure ProductT ProdT "pT"
-  @relateMeasures MeterT*HertzT = ProdT
-
-  # direct multiplication goes through the specific method — should give ProdT
-  @test MeterT(2.0) * HertzT(3.0) isa ProdT
-  @test MeterT(2.0) * HertzT(3.0) ≈ ProdT(6.0)
-  @test ProdT(6.0) / HertzT(3.0) ≈ MeterT(2.0)
-
-  # construct Catchall manually with matching dims, then verify resolution
-  u = Catchall(6.0, Dict{DataType,Int}(AbstractLengthT => 1, AbstractFreqT => 1))
+  # A Catchall whose BaseDimensions match a named type's SI signature resolves back.
+  # NewtonMeter = kg*m^2*s^-2 → BaseDimensions(mass=1,length=2,time=-2)
+  nmDims = BaseDimensions(Int8(-2), Int8(2), Int8(1), 0, 0, 0, 0)
+  u = Catchall(6.0, nmDims)
   resolved = UnitTypes.resolveOrExpr(6.0, u.dimensions)
-  @test resolved isa ProdT
-  @test resolved ≈ ProdT(6.0)
+  @test resolved isa NewtonMeter
+  @test resolved ≈ NewtonMeter(6.0)
+
+  # Catchall * Number triggers resolveOrExpr on the same dims → resolves to named type
+  @test (u * 2.0) isa NewtonMeter
+  @test (u * 2.0) ≈ NewtonMeter(12.0)
+
+  # Two Catchalls whose combined SI dims match a named type also resolve
+  fDims = BaseDimensions(Int8(-2), Int8(1), Int8(1), 0, 0, 0, 0)  # Newton: kg*m*s^-2
+  lDims = BaseDimensions(0, Int8(1), 0, 0, 0, 0, 0)                # Meter: m
+  cf = Catchall(2.0, fDims)
+  cl = Catchall(3.0, lDims)
+  @test cf * cl isa NewtonMeter
+  @test cf * cl ≈ NewtonMeter(6.0)
 end
 
 @testitem "Catchall isapprox" begin
-  @makeBaseMeasure LengthT MeterT "mT"
-  @makeBaseMeasure ForceT NewtonT "NT"
-
-  r1 = MeterT(2.0) * NewtonT(3.0)   # Catchall
-  r2 = MeterT(3.0) * NewtonT(2.0)
+  # See isolation note in "Catchall integer exponentiation" above.
+  r1 = Meter(2.0) * Mole(3.0)   # value=6, dims={length:1, amount:1}
+  r2 = Meter(3.0) * Mole(2.0)   # same dims and value
   @test r1 ≈ r2
 
-  r3 = MeterT(2.0) * NewtonT(4.0)
+  r3 = Meter(2.0) * Mole(4.0)   # same dims, different value
   @test !(r1 ≈ r3)
 end
 
@@ -266,7 +308,7 @@ end
   @test result2 isa Catchall
   @test result2.value ≈ 1e-3
 
-  # squared unit
+  # squared unit resolves to named type
   result3 = UnitTypes.parseCatchall("m^2")
   @test result3 isa Meter2   # @relateMeasures Meter*Meter=Meter2 is in SI.jl
 
@@ -314,9 +356,62 @@ end
   @test toBaseFloat(MeterT(2)*PerSecondT(1)) ≈ toBaseFloat(MeterPerSecondT(2))
   @test MeterT(2)/SecondT(1) ≈ MeterPerSecondT(2)
 
-  # check complex exponent counting
-  a = MeterPerSecondT(4)*MeterT(3)
-  @test a.dimensions[AbstractLengthT] == 2
-  b = MeterPerSecondT(4)/SecondT(2)
-  @test b.dimensions[AbstractTimeT] == -2
+  # Catchall dimension exponent accumulation — use real SI types (Meter, MeterPerSecond,
+  # Mole) so abstractToSI can resolve BaseDimensions correctly.
+  a = MeterPerSecond(4) * Meter(3)   # m/s * m = m^2/s → Catchall
+  @test a isa Catchall
+  @test a.dimensions.length == 2
+  @test a.dimensions.time == -1
+
+  b = Meter(4) * Mole(3) / Second(2)  # m*mol/s → Catchall
+  @test b isa Catchall
+  @test b.dimensions.time == -1
+  @test b.dimensions.length == 1
+  @test b.dimensions.amount == 1
+end
+
+"""
+  `parseCatchall(str) -> Union{AbstractMeasure, Nothing}`
+
+  Parses a compound unit string such as `"mm*s/kg"` or `"m^2"` into a measure.
+  Each token is looked up by abbreviation in `allUnitTypes`; the combined scale factor and dimension map are computed, and `resolveOrExpr` is applied so a named type is returned whenever one matches.
+  Returns `nothing` if any token is unrecognised or affine (Temperature-style).
+  Syntax: `*` separates numerator factors; `/` introduces denominator factors; `^N` applies an integer exponent (may be negative) to the preceding abbreviation.
+"""
+function parseCatchall(str::String)::Union{AbstractMeasure, Nothing}
+  dims       = Dict{DataType,Int}()
+  baseFactor = 1.0
+
+  # split on '*' first, then on '/' within each group
+  for starPart in split(str, '*')
+    slashParts = split(string(starPart), '/')
+    for (j, rawPart) in enumerate(slashParts)
+      sign = j == 1 ? 1 : -1   # first piece is numerator, rest are denominators
+
+      # parse optional exponent suffix:  "m^2" → ("m", 2),  "kg^-1" → ("kg", -1)
+      expMatch = match(r"^(.+)\^(-?\d+)$", string(rawPart))
+      if expMatch !== nothing
+        abbr    = string(expMatch[1])
+        unitExp = parse(Int, expMatch[2])
+      else
+        abbr    = string(rawPart)
+        unitExp = 1
+      end
+
+      matched = filter(kv -> kv[2].abbreviation == abbr, allUnitTypes)
+      isempty(matched) && return nothing
+
+      T, uta = first(matched)
+      uta.isAffine && return nothing   # affine units (e.g. °F) cannot compose
+
+      totalExp    = sign * unitExp
+      baseFactor *= uta.toBase(1.0)^totalExp
+      for (k, v) in uta.dimensions
+        dims[k] = get(dims, k, 0) + totalExp * v
+      end
+    end
+  end
+
+  filter!(kv -> last(kv) != 0, dims)
+  return resolveOrExpr(baseFactor, dims)
 end

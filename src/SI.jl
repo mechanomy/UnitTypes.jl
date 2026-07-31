@@ -28,6 +28,17 @@
 @makeBaseMeasure Time Second "s"
 @makeBaseMeasure Amount Mole "mol"
 
+# Seed the abstractToSI registry with the six SI base abstract types defined above.
+# AbstractTemperature is seeded in Temperature.jl after Kelvin is defined.
+# All derived abstract types (AbstractForce, AbstractVelocity, …) are populated
+# automatically when @relateMeasures processes their defining relations.
+UnitTypes.abstractToSI[AbstractCurrent]   = UnitTypes.BaseDimensions(current=1)
+UnitTypes.abstractToSI[AbstractIntensity] = UnitTypes.BaseDimensions(intensity=1)
+UnitTypes.abstractToSI[AbstractLength]    = UnitTypes.BaseDimensions(length=1)
+UnitTypes.abstractToSI[AbstractMass]      = UnitTypes.BaseDimensions(mass=1)
+UnitTypes.abstractToSI[AbstractTime]      = UnitTypes.BaseDimensions(time=1)
+UnitTypes.abstractToSI[AbstractAmount]    = UnitTypes.BaseDimensions(amount=1)
+
 # Length powers
 @makeMeasure 1e-15 Meter = 1 FemtoMeter "fm"
 @makeMeasure 1e-12 Meter = 1 PicoMeter "pm"
@@ -118,6 +129,23 @@ end
 @makeMeasure 1e3 Newton = 1 KiloNewton "kN"
 @makeMeasure 1e-3 Newton = 1 MilliNewton "mN"
 @relateMeasures KiloGram*MeterPerSecond2=Newton
+
+@testitem "Newton/KiloNewton Catchall arithmetic parity" begin
+  # allUnitTypes Dict inconsistency: @makeMeasure captured Newton's dims as {AbstractForce:1}
+  # before @relateMeasures updated Newton to {AbstractMass:1,AbstractLength:1,AbstractTime:-2}.
+  # KiloNewton's dict entry is therefore stale — this is a known Dict-representation artifact.
+  @test UnitTypes.allUnitTypes[Newton].dimensions != UnitTypes.allUnitTypes[KiloNewton].dimensions
+
+  # Catchall arithmetic is correct despite the dict inconsistency: getBaseDims goes through
+  # abstractToSI[AbstractForce] which was populated by @relateMeasures and always maps to
+  # the same BaseDimensions(mass=1,length=1,time=-2) regardless of which concrete Force type
+  # is used.  So Newton*s and KiloNewton*s produce identical BaseDimensions and compare equal.
+  nSec = Newton(2.0) * Second(1.0)
+  kNSec = KiloNewton(2e-3) * Second(1.0)
+  @test nSec isa Catchall
+  @test kNSec isa Catchall
+  @test nSec ≈ kNSec
+end
 
 @makeBaseMeasure Torque NewtonMeter "N*m"
 @relateMeasures Newton*Meter=NewtonMeter

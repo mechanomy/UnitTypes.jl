@@ -1,6 +1,7 @@
 #temperature: https://en.wikipedia.org/wiki/Conversion_of_scales_of_temperature
 
 @makeBaseMeasure Temperature Kelvin "°K"
+UnitTypes.abstractToSI[AbstractTemperature] = UnitTypes.BaseDimensions(temperature=1)
 @makeMeasure (x->x+273.15) Kelvin = (x->x-273.15) Celsius "°C"
 @testitem "Celsius" begin
   @test isapprox( convert(Celsius, Kelvin(273.15)), Celsius(0), atol=1e-3)

@@ -1,4 +1,4 @@
-export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes, getDimensions, mergeBaseDimensions, findNamedType
+export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes
 abstract type AbstractMeasure end
 
 struct UnitTypeAttributes
@@ -659,41 +659,6 @@ function hasExactMethod(f, types)
 end
 
 """
-  `mergeBaseDimensions(d1, d2, sign=1) -> Dict{DataType,Int}`
-
-  Combines two dimension maps: result = d1 * d2^sign (sign=1 for multiply, -1 for divide).
-  Zero-exponent entries are removed so the map stays canonical.
-"""
-function mergeBaseDimensions(d1::Dict{DataType,Int}, d2::Dict{DataType,Int}, sign::Int=1)::Dict{DataType,Int}
-  result = copy(d1)
-  for (k, v) in d2
-    result[k] = get(result, k, 0) + sign * v
-  end
-  filter!(kv -> last(kv) != 0, result)
-  return result
-end
-
-"""
-  `findNamedType(dims) -> Union{DataType, Nothing}`
-
-  Returns the registered type whose dimension signature exactly matches `dims`, preferring
-  base types (where `allUnitTypes[T].base == T`) over scaled variants like Inch2 vs Meter2.
-  Returns nothing if no match exists.
-"""
-function findNamedType(dims::Dict{DataType,Int})::Union{DataType, Nothing}
-  candidate = nothing
-  for (T, uta) in allUnitTypes
-    if uta.dimensions == dims
-      if uta.base == T          # base types beat scaled variants; return immediately
-        return T
-      end
-      candidate === nothing && (candidate = T)  # keep first non-base match as fallback
-    end
-  end
-  return candidate
-end
-
-"""
   `getDimensions(x) -> Dict{DataType,Int}`
 
   Returns the dimension map for a named measure type.  Catchall overloads this in Catchall.jl.
@@ -920,6 +885,9 @@ function addInverseRelation(TX, TY, mod=@__MODULE__)
   dimsY = mergeBaseDimensions(Dict{DataType,Int}(), allUnitTypes[baseX].dimensions, -1)
   uta = allUnitTypes[baseY]
   allUnitTypes[baseY] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsY)
+  if haskey(abstractToSI, superX)
+    abstractToSI[superY] = -abstractToSI[superX]
+  end
 end
 
 """
@@ -983,6 +951,10 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
     dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, 1)
     uta = allUnitTypes[baseNM]
     allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
+    # propagate SI base dimensions for the result's abstract type
+    if haskey(abstractToSI, superM) && haskey(abstractToSI, superN)
+      abstractToSI[superNM] = abstractToSI[superM] + abstractToSI[superN]
+    end
 
     # register power relations for zero-alloc literal_pow dispatch
     if TM == TN
@@ -1021,6 +993,10 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
     dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, -1)
     uta = allUnitTypes[baseNM]
     allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
+    # propagate SI base dimensions for the result's abstract type
+    if haskey(abstractToSI, superM) && haskey(abstractToSI, superN)
+      abstractToSI[superNM] = abstractToSI[superM] - abstractToSI[superN]
+    end
   else
     throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
   end
