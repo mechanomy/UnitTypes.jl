@@ -8,6 +8,7 @@ module UnitTypes
   include("Catchall.jl")
   include("SI.jl")
   include("Imperial.jl")
+  include("USCustomary.jl")
   include("CGS.jl")
   include("Angle.jl")
   include("Temperature.jl")

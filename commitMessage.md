@@ -44,3 +44,25 @@ Effort: low
 * Lowered the `julia` compat bound from "1" to "1.10" (the LTS) so the General registry AutoMerge no longer tries to install on Julia 1.1.1.
 * Relaxed the Printf compat from "1.11.0" to "1"; the stdlib version tracks Julia, so the old bound silently required Julia 1.11.
 * Added Julia 1.10 back to the CI matrix; all 494 tests pass on 1.10 and 1.12.
+* Bumped version to 3.1.0 instead of 3.0.2, because the registry forbids a patch release from narrowing the supported Julia range; the new angle dimension and Catchall conversions also make this a minor release.
+
+# United States customary units
+
+Date: 2026-10-06
+Model: claude-opus-5-5
+Effort: low
+
+* Added src/USCustomary.jl following https://en.wikipedia.org/wiki/United_States_customary_units, included after Imperial.jl; units shared with the imperial system (Inch, Foot, Yard, Mile, Ounce, PoundMass, Grain, Dram) stay in Imperial.jl.
+* Volumes whose US and imperial definitions differ carry a US prefix (USGallon "usgal", USQuart, USPint, USCup, USFluidOunce, USPeck, USBushel, ...), so the existing imperial Gallon, Quart, Pint, and FluidOunce are unchanged in name.
+* Length: Point, Pica, Fathom, Cable, Link, Rod, Chain, Furlong, League (on the international foot, per NIST since 2023), plus SurveyFoot "ftUS" and SurveyMile "miUS".
+* Area: Yard2, Chain2, Section, Township; volume: Inch3, Foot3, Yard3, AcreFoot.
+* Fluid volume: USMinim, USFluidDram, USTeaspoon, USTablespoon, USFluidOunce, USJigger, USGill, USCup, USPint, USQuart, USGallon, USBarrel, OilBarrel, USHogshead; dry volume: USDryPint, USDryQuart, USDryGallon, USPeck, USBushel, USDryBarrel.
+* Mass: ShortHundredweight, LongHundredweight, ShortTon, LongTon, and troy Pennyweight, TroyOunce, TroyPound.
+* Force and pressure: KiloPoundForce "kip", PoundsPerSquareFoot "psf", KiloPoundsPerSquareInch "ksi", InchOfMercury, InchOfWater; torque: PoundFoot "lbf*ft", PoundInch "lbf*in".
+* Energy and power: FootPound "ft*lbf", Therm, Horsepower, BritishThermalUnitPerHour, TonOfRefrigeration; velocity and acceleration: FootPerMinute, InchPerSecond, Knot, FootPerSecond2; density: PoundMassPerFoot3, PoundMassPerInch3.
+* Each group is followed by its own testitem; tests use isapprox with an explicit rtol because the package's isapprox defaults to exact comparison.
+* Fixed the imperial FluidOunce, Pint, Quart, and Gallon, which were 1000x too large (e.g. Gallon was 4.546 m^3); also corrected the Pint value from 568.26126 to 568.26125 mL; added an "Imperial volume" regression testitem.
+* Fixed MilliLiter, which referenced Liter rather than the base unit Meter3, so MilliLiter(1000) equaled 1 m^3; added a "Volume" regression testitem.
+* Regenerated docs/unitTypesTree.md; all 583 tests pass and the benchmark reports 0 allocations.
+* Switched Acre from the old US survey acre (4046.873 m^2) to the international acre, 43560 international square feet = 4046.8564224 m^2; Acre(640) now equals Mile2(1) to rtol=1e-12, and Chain2(10) equals Acre(1).
+* Bumped version to 3.2.0.

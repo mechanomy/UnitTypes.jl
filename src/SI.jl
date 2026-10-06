@@ -119,7 +119,11 @@ end
 @makeBaseMeasure Volume Meter3 "m^3"
 @relateMeasures Meter2*Meter=Meter3
 @makeMeasure 1e-3 Meter3 = 1 Liter "L"
-@makeMeasure 1e-3 Liter = 1 MilliLiter "mL"
+@makeMeasure 1e-6 Meter3 = 1 MilliLiter "mL" # must reference the base unit Meter3, since toBase converts into the referenced type
+@testitem "Volume" begin
+  @test isapprox(MilliLiter(1000), Liter(1), rtol=1e-12) # regression: MilliLiter referenced Liter, so 1000 mL equaled 1 m^3
+  @test isapprox(Liter(1000), Meter3(1), rtol=1e-12)
+end
 
 @makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
 @relateMeasures KiloGram/Meter3=KgPerM3 # gives Density its SI dimensions so mass cancels correctly through Catchall arithmetic

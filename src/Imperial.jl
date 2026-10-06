@@ -13,7 +13,7 @@ const ftPerMi = 5280
 
 @makeMeasure mPerIn^2 Meter2 = 1 Inch2 "in^2"
 @makeMeasure (mPerIn*inPerFt)^2 Meter2 = 1 Foot2 "sqft"
-@makeMeasure 4.046873e3 Meter2 = 1 Acre "ac"
+@makeMeasure (mPerIn*inPerFt)^2*43560 Meter2 = 1 Acre "ac" # international acre, 4046.8564224 m^2
 @makeMeasure (mPerIn*inPerFt*ftPerMi)^2 Meter2 = 1 Mile2 "sqmi"
 
 @makeMeasure mPerIn*inPerFt MeterPerSecond = 1 FootPerSecond "ft/s"
@@ -25,10 +25,16 @@ const ftPerMi = 5280
 end
 
 
-@makeMeasure 28.4130625e-3 Meter3 = 1 FluidOunce "floz"
-@makeMeasure 568.26126e-3 Meter3 = 1 Pint "pt"
-@makeMeasure 1136.5225e-3 Meter3 = 1 Quart "qt"
-@makeMeasure 4546.09e-3 Meter3 = 1 Gallon "gal"
+@makeMeasure 28.4130625e-6 Meter3 = 1 FluidOunce "floz"
+@makeMeasure 568.26125e-6 Meter3 = 1 Pint "pt"
+@makeMeasure 1136.5225e-6 Meter3 = 1 Quart "qt"
+@makeMeasure 4546.09e-6 Meter3 = 1 Gallon "gal"
+@testitem "Imperial volume" begin
+  @test isapprox(Gallon(1), Liter(4.54609), rtol=1e-12) # regression: these were defined 1000x too large
+  @test isapprox(Gallon(1), Quart(4), rtol=1e-12)
+  @test isapprox(Quart(1), Pint(2), rtol=1e-12)
+  @test isapprox(Pint(1), FluidOunce(20), rtol=1e-12)
+end
 
 @makeMeasure 28.349523125e-3 KiloGram = 1 Ounce "oz"
 @makeMeasure 0.45359237 KiloGram = 1 PoundMass "lbm"
@@ -45,7 +51,8 @@ end
   @test isapprox(Inch(12), Foot(1), atol=1e-3) # @test Inch(12) ≈ Foot(1)
   @test Foot(3) ≈ Yard(1)
   @test Foot(5280) ≈ Mile(1)
-  @test isapprox(Acre(640), Mile2(1), atol=0.1)
+  @test isapprox(Acre(640), Mile2(1), rtol=1e-12)
+  @test isapprox(Acre(1), Meter2(4046.8564224), rtol=1e-12)
   @test isapprox(Foot2(5280^2), Mile2(1), atol=0.1)
 
   @test isapprox(Slug(1), PoundMass(32.174), atol=1e-3)
