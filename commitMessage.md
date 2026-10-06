@@ -34,3 +34,13 @@ Effort: low
 * Moved the Steradian, Lumen, and Lux relations into SI.jl next to their definitions, each followed by its own testitem.
 * Moved the generic `sameUnitValue` into Measure.jl and its Catchall overload into Catchall.jl (Catchall is not yet defined when Measure.jl loads), each with a testitem; the error message no longer names atan.
 * Bumped version to 3.0.2.
+
+# Julia compat lower bound
+
+Date: 2026-10-06
+Model: claude-opus-5-5
+Effort: low
+
+* Lowered the `julia` compat bound from "1" to "1.10" (the LTS) so the General registry AutoMerge no longer tries to install on Julia 1.1.1.
+* Relaxed the Printf compat from "1.11.0" to "1"; the stdlib version tracks Julia, so the old bound silently required Julia 1.11.
+* Added Julia 1.10 back to the CI matrix; all 494 tests pass on 1.10 and 1.12.
