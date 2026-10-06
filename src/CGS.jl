@@ -14,7 +14,7 @@
 
 @makeMeasure 1e-4 Tesla = 1 Gauss "Gauss"
 
-@makeMeasure 1000/(4*pi) APerM = 1 Oersted "Oe"
+@makeMeasure 1000/(4*Base.pi) APerM = 1 Oersted "Oe"
 
 @makeMeasure 1e-8 Weber = 1 Maxwell "Mx"
 
@@ -27,4 +27,5 @@
   @test isapprox(Stokes(1e4), MeterSquaredPerSecond(1), atol=1e-10)
   @test isapprox(Gauss(1e4), Tesla(1), atol=1e-10)
   @test isapprox(Maxwell(1e8), Weber(1), atol=1e-3)
+  @test isapprox(convert(APerM, Oersted(1)), APerM(1000/(4π)), atol=1e-10) # regression: UnitTypes.pi is a Radian, so CGS must use Base.pi
 end

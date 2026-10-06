@@ -61,3 +61,31 @@ display(@benchmark isapprox(1.0Unitful.@u_str("m"), 1000.0Unitful.@u_str("mm")))
 
 println("\nUnitTypes:")
 display(@benchmark isapprox(UnitTypes.Meter(1.0), UnitTypes.MilliMeter(1000.0)))
+
+# ── Trigonometry: sin(30°), asin(0.5) → °, atan(1m, 500mm) ───────────────────
+println("\n=== trigonometry: sin(30°) ===")
+println("floats:")
+display(@benchmark sind(30.0))
+
+println("\nUnitful:")
+display(@benchmark sin(30.0Unitful.@u_str("°")))
+
+println("\nUnitTypes:")
+display(@benchmark sin(UnitTypes.Degree(30.0)))
+
+println("\n=== inverse trigonometry: asin(0.5) as Degree ===")
+println("floats:")
+display(@benchmark asind(0.5))
+
+println("\nUnitTypes:")
+display(@benchmark asin(UnitTypes.Degree, 0.5))
+
+println("\n=== two-argument atan: atan(1m, 500mm) ===")
+println("floats:")
+display(@benchmark atan(1.0, 0.5))
+
+println("\nUnitful:")
+display(@benchmark atan(1.0Unitful.@u_str("m"), 500.0Unitful.@u_str("mm")))
+
+println("\nUnitTypes:")
+display(@benchmark atan(UnitTypes.Meter(1.0), UnitTypes.MilliMeter(500.0)))

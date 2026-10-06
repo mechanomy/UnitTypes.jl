@@ -1,10 +1,16 @@
-* Fixed velocity unit chain in SI.jl: MetersPerHour and KiloMeterPerHour were defined as indirect children (chained through MetersPerMinute and MetersPerHour respectively), causing cross-type isapprox/convert to fail; redefined all velocity units as direct children of MeterPerSecond
-* Fixed Imperial.jl velocity: MilePerHour now defined directly relative to MeterPerSecond (0.44704 m/s) instead of via KiloMeterPerHour chain; added atol=1e-3 to velocity test
-* Fixed FootPerSecond factor: was 1/mPerIn*inPerFt (=472 m/s, wrong) now mPerIn*inPerFt (=0.3048 m/s, correct)
-* Fixed MilesPerHour alias: now defined directly relative to MeterPerSecond
-* Fixed SI Velocity testitem: was using u"m/s" which returns test-local MeterPerSecondT (registered in Catchall.jl testitem with same abbreviation); changed to use MeterPerSecond constructor directly
-* Fixed pre-existing bugs: MeterPerMinute typo (was MetersPerMinute), inverted time unit factors (Minute/Hour/Day), inverted Liter/MilliLiter volume factors
-* SI.jl: added Amount/Mole, Gram, Angstrom, Are/Hectare/Barn, SolidAngle/Steradian, Week/Year, Becquerel/RevolutionsPerSecond/RevolutionsPerMinute/AngHertz, Energy/Joule with kJ/MJ/mJ/eV, AbsorbedDose/Gray/Sievert, CatalyticActivity/Katal, DynamicViscosity/PascalSecond, KinematicViscosity/MeterSquaredPerSecond, Permille through Perquadrillion, MolarConcentration/Molar, Bar/Atmosphere/Torr
-* Imperial.jl: added Mil, Dram, Grain, PoundsPerSquareInch, Calorie, BritishThermalUnit; corrected PoundForce factor
-* src/CGS.jl (new): CGS units Gal/Dyne/Erg/Barye/Poise/Stokes/Gauss/Oersted/Maxwell
-* src/OtherSystems.jl (new): Percentages 
+# Trigonometry on AbstractAngle
+
+Date: 2026-10-06
+Model: claude-opus-5-5
+Effort: low
+
+* Forward trig `sin`, `cos`, `tan`, `sec`, `csc`, `cot`, `sincos` are defined once on `AbstractAngle`, returning `Float64`.
+* `Degree` dispatches to Base's `sind`, `cosd`, etc., so values at multiples of 90° are exact, e.g. `sin(Degree(180)) === 0.0`.
+* Inverse trig takes the result angle type first: `asin(Radian, 0.5)`, `acos(Degree, x)`, plus `atan`, `asec`, `acsc`, `acot`; Base's `asin(::Real)` is unchanged.
+* Two-argument `atan(y, x)` accepts measures of the same dimension in any units and returns `Radian`; `atan(Degree, y, x)` selects the angle type; mismatched dimensions throw an ArgumentError.
+* `pi` and `tau` are no longer exported, which fixes `pi` being undefined in user code after `using UnitTypes`; they remain as `const UnitTypes.pi` and `UnitTypes.tau`.
+* Fixed `Oersted` conversion, which threw a MethodError because CGS.jl's `pi` resolved to the Radian constant; it now uses `Base.pi`, with a regression test.
+* New conversions use `convert()` rather than `toBaseFloat()` or conversion constructors, keeping every new method allocation-free.
+* Added testitems for reciprocal functions, sincos, exact degree values, inverse trig, two-argument atan, and the unexported constants.
+* Added trigonometry, inverse trigonometry, and two-argument atan sections to benchmark/benchmark.jl; all report 0 allocations.
+* Postponed: angle as a dimension in BaseDimensions, additional angle units (ArcMinute, Turn, Gradian, RPM).

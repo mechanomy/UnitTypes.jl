@@ -186,7 +186,7 @@ The include order in `UnitTypes.jl` reflects the dependency chain:
 2. **Catchall.jl** — the catch-all `Catchall` type, the generic `*`/`/`/`^` operators, `resolveOrExpr`, `parseUnitExpr`
 3. **SI.jl** — all SI units and relations (Length, Mass, Time, Frequency, Velocity, Force, Torque, Pressure, Charge, Voltage, …)
 4. **Imperial.jl** — Imperial units (Inch, Foot, Yard, Mile, fluid volumes, mass, force)
-5. **Angle.jl** — `Radian`, `Degree`, typed `sin`/`cos`/`tan`, and the `pi`/`tau` constants as `Radian` values
+5. **Angle.jl** — `Radian`, `Degree`; forward trig (`sin`, `cos`, `tan`, `sec`, `csc`, `cot`, `sincos`) on any `AbstractAngle` returning `Float64`, with `Degree` routed to `sind` etc. for exactness; typed inverse trig such as `asin(Degree, 0.5)` and `atan(y, x)` on like measures returning an angle; unexported `UnitTypes.pi`/`UnitTypes.tau` as `Radian` values (internal code must use `Base.pi` for the number)
 6. **Temperature.jl** — `Kelvin`, `Celsius`, `Fahrenheit`, `Rankine` with affine conversions
 7. **Dimension.jl** — the `@makeDimension` and `@relateDimensions` macros
 8. **CommonDimensions.jl** — pre-built dimensions: `Diameter`, `Radius`, `Height`, `Width`, `Depth`, `Duration`
