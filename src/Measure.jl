@@ -293,6 +293,7 @@ function makeSelfConversion(newType, mod=@__MODULE__)
       Base.:(:)(start::$newType, stop::$abstractType) = UnitTypes.UnitStepRange(start, $newType(1), $newType(stop))
     end
     (::Type{$newType})(r::AbstractRange{<:Number}) = $newType.(r)
+    (::Type{$newType})(x::UnitTypes.Catchall) = convert($newType, x) # Gram(rho*l*w*h), defined per type since a generic method is ambiguous with the struct's untyped constructor
 
   end)
 
@@ -304,6 +305,7 @@ end
 
   @testset "convert" begin
     @test isa( convert(MeterT, MeterT(1.2)), MeterT)
+    @test Meter(Catchall(1.2, BaseDimensions(length=1))) ≈ Meter(1.2) # per-type T(x::Catchall) constructor
     @test_throws MethodError convert(GrowlT, MeterT(1.2)) #  MethodError: Cannot `convert` an object of type Main.var"##238".MeterT to an object of type Main.var"##238".GrowlT
   end
 
@@ -975,17 +977,14 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
       if !UnitTypes.hasExactMethod(Base.:/, ($superM, $superN))
         Base.:/(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value / convert($baseN,y).value ) # F/m2 = Pa
       end
-      if !UnitTypes.hasExactMethod(Base.:*, ($superM, $superNM))
-        Base.:*(x::$superM, y::$superNM) = $baseN( convert($baseM,x).value * convert($baseNM,y).value ) # m2 * Pa = N
-      end
-      if !UnitTypes.hasExactMethod(Base.:*, ($superNM, $superM))
-        Base.:*(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value * convert($baseM, y)) # Pa * m2 = N
+      if !UnitTypes.hasExactMethod(Base.:/, ($superM, $superNM))
+        Base.:/(x::$superM, y::$superNM) = $baseN( convert($baseM,x).value / convert($baseNM,y).value ) # N / Pa = m2
       end
       if !UnitTypes.hasExactMethod(Base.:*, ($superN, $superNM))
-        Base.:*(x::$superN, y::$superNM) = $baseM( convert($baseN,x).value * convert($baseNM,y).value ) # N * Pa = m2
+        Base.:*(x::$superN, y::$superNM) = $baseM( convert($baseN,x).value * convert($baseNM,y).value ) # m2 * Pa = N
       end
       if !UnitTypes.hasExactMethod(Base.:*, ($superNM, $superN))
-        Base.:*(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value * convert($baseN,y).value ) # Pa * N = m2
+        Base.:*(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value * convert($baseN,y).value ) # Pa * m2 = N
       end
 
     end)
@@ -1000,6 +999,15 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
   else
     throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))
   end
+end
+@testitem "addRelations division form" begin
+  # Newton/Meter2=Pascal defines N/m2 = Pa, N/Pa = m2, m2*Pa = N, and Pa*m2 = N
+  @test Newton(6) / Meter2(3) ≈ Pascal(2)
+  @test Newton(6) / Pascal(2) ≈ Meter2(3)
+  @test Meter2(3) * Pascal(2) ≈ Newton(6)
+  @test Pascal(2) * Meter2(3) ≈ Newton(6)
+  @test Newton(2) * Pascal(3) isa Catchall # regression: was Meter2
+  @test Pascal(3) * Newton(2) isa Catchall # regression: was a MethodError
 end
 
 """
@@ -1058,6 +1066,22 @@ end
 
   @test toBaseFloat(CentiMeterT(100)) ≈ 1
   @test toBaseFloat(KiloMeterT(1)) ≈ 1000
+end
+
+"""
+  `sameUnitValue(y, x)`
+
+  Returns x's value expressed in y's unit, throwing an ArgumentError if the measures differ in dimension.
+  Used by two-argument functions such as atan(y, x) that operate on raw values; the Catchall overload is in Catchall.jl.
+"""
+function sameUnitValue(y::T, x::U) where {T<:AbstractMeasure, U<:AbstractMeasure}
+  supertype(T) == supertype(U) || throw(ArgumentError("Measures must share the same dimension, given $T and $U"))
+  return convert(T, x).value
+end
+@testitem "sameUnitValue" begin
+  @test UnitTypes.sameUnitValue(Meter(1), MilliMeter(500)) ≈ 0.5
+  @test UnitTypes.sameUnitValue(MilliMeter(1), Meter(0.5)) ≈ 500
+  @test_throws ArgumentError UnitTypes.sameUnitValue(Meter(1), Second(1))
 end
 
 """

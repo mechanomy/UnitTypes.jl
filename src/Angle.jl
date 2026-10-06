@@ -1,7 +1,3 @@
-@makeBaseMeasure Angle Radian "rad"
-@makeMeasure π/180 Radian = 1 Degree "°"
-
-
 # @makeMeasure arcmin
 
 # constants: https://github.com/JuliaLang/julia/blob/master/base/mathconstants.jl
@@ -10,24 +6,6 @@
 # Within this module `pi` is a Radian, so unitless uses must be written Base.pi.
 const pi = Radian(Base.pi)
 const tau = Radian(Base.pi*2)
-
-
-@testitem "Angle Radian Degree definitions" begin
-  @test convert(Radian, Degree(180)) ≈ Radian(π)
-  @test convert(Degree, Radian(π)) ≈ Degree(180)
-
-  @test Radian(π) ≈ Degree(180)
-  @test Degree(180) ≈ Radian(π)
-  @test Radian(Degree(180)) ≈ Radian(π)
-  @test Degree(Radian(π)) ≈ Degree(180)
-
-  @test Degree(1) + Degree(2) ≈ Degree(3)
-  @test isapprox(Degree(3) - Degree(1), Degree(2), atol=1e-3)
-
-  @test Radian(1)*2 ≈ Radian(2)
-  @test Degree(1)*2 ≈ Degree(2)
-  @test -Degree(45) ≈ Degree(-45)
-end
 
 # Forward trigonometry: AbstractAngle → Float64.
 # Every AbstractAngle is evaluated through its Radian value; convert() is used rather than toBaseFloat() to stay allocation-free.
@@ -61,16 +39,6 @@ Base.atan(::Type{T}, y::AbstractMeasure, x::AbstractMeasure) where T<:AbstractAn
 Base.atan(::Type{Degree}, y::AbstractMeasure, x::AbstractMeasure) = Degree(atand(y.value, sameUnitValue(y, x)))
 Base.atan(::Type{T}, y::Real, x::Real) where T<:AbstractAngle = convert(T, Radian(atan(y, x)))
 Base.atan(::Type{Degree}, y::Real, x::Real) = Degree(atand(y, x))
-
-# Returns x's value expressed in y's unit, rejecting measures of differing dimension.
-function sameUnitValue(y::T, x::U) where {T<:AbstractMeasure, U<:AbstractMeasure}
-  supertype(T) == supertype(U) || throw(ArgumentError("atan requires measures of the same dimension, given $T and $U"))
-  return convert(T, x).value
-end
-function sameUnitValue(y::Catchall, x::Catchall)
-  y.dimensions == x.dimensions || throw(ArgumentError("atan requires measures of the same dimension, given $(abbreviation(y)) and $(abbreviation(x))"))
-  return x.value
-end
 
 @testitem "Angle trigonometry" begin
   @test isapprox( √2/2, sin(Radian(π/4)), atol=1e-3 )

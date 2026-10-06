@@ -39,6 +39,44 @@ UnitTypes.abstractToSI[AbstractMass]      = UnitTypes.BaseDimensions(mass=1)
 UnitTypes.abstractToSI[AbstractTime]      = UnitTypes.BaseDimensions(time=1)
 UnitTypes.abstractToSI[AbstractAmount]    = UnitTypes.BaseDimensions(amount=1)
 
+# Angle is not an SI base unit but is tracked as its own dimension so it does not silently cancel; it must precede Steradian, Lumen, and Lux, whose relations need AbstractAngle mapped.
+@makeBaseMeasure Angle Radian "rad"
+UnitTypes.abstractToSI[AbstractAngle] = UnitTypes.BaseDimensions(angle=1)
+@makeMeasure π/180 Radian = 1 Degree "°"
+
+@testitem "Angle base dimension" begin
+  @test getBaseDims(Radian(1)) == BaseDimensions(angle=1)
+  @test getBaseDims(Degree(1)) == BaseDimensions(angle=1)
+
+  rm = Radian(2) * Meter(3) # arc length times radius has no named type, angle must not cancel
+  @test rm isa Catchall
+  @test rm.dimensions == BaseDimensions(angle=1, length=1)
+  @test rm.value ≈ 6.0
+  @test abbreviation(rm) == "m*rad"
+
+  @test Degree(180) * Meter(1) ≈ Radian(π) * Meter(1)
+  @test (Radian(2) * Meter(3)) / Meter(3) ≈ Radian(2) # resolves back to Radian
+  @test Radian(Catchall(1.5, BaseDimensions(angle=1))) ≈ Radian(1.5)
+  @test_throws ArgumentError Radian(Catchall(1.5, BaseDimensions(length=1)))
+end
+
+@testitem "Angle Radian Degree definitions" begin
+  @test convert(Radian, Degree(180)) ≈ Radian(π)
+  @test convert(Degree, Radian(π)) ≈ Degree(180)
+
+  @test Radian(π) ≈ Degree(180)
+  @test Degree(180) ≈ Radian(π)
+  @test Radian(Degree(180)) ≈ Radian(π)
+  @test Degree(Radian(π)) ≈ Degree(180)
+
+  @test Degree(1) + Degree(2) ≈ Degree(3)
+  @test isapprox(Degree(3) - Degree(1), Degree(2), atol=1e-3)
+
+  @test Radian(1)*2 ≈ Radian(2)
+  @test Degree(1)*2 ≈ Degree(2)
+  @test -Degree(45) ≈ Degree(-45)
+end
+
 # Length powers
 @makeMeasure 1e-15 Meter = 1 FemtoMeter "fm"
 @makeMeasure 1e-12 Meter = 1 PicoMeter "pm"
@@ -70,6 +108,13 @@ end
 @makeMeasure 1e-28 Meter2 = 1 Barn "b"
 
 @makeBaseMeasure SolidAngle Steradian "sr"
+@relateMeasures Radian*Radian=Steradian
+@testitem "Steradian" begin
+  @test getBaseDims(Steradian(1)) == BaseDimensions(angle=2)
+  @test Radian(2) * Radian(3) ≈ Steradian(6)
+  @test Radian(2)^2 ≈ Steradian(4)
+  @test sqrt(Steradian(4)) ≈ Radian(2)
+end
 
 @makeBaseMeasure Volume Meter3 "m^3"
 @relateMeasures Meter2*Meter=Meter3
@@ -77,13 +122,43 @@ end
 @makeMeasure 1e-3 Liter = 1 MilliLiter "mL"
 
 @makeBaseMeasure Density KgPerM3 "kg/m^3" # this is making the case to add a default constructor Density(3) with assumed units kg/m3
+@relateMeasures KiloGram/Meter3=KgPerM3 # gives Density its SI dimensions so mass cancels correctly through Catchall arithmetic
+@makeMeasure 1000 KgPerM3 = 1 GramPerCentiMeter3 "g/cm^3"
+
+@testitem "Density" begin
+  @test GramPerCentiMeter3(1) ≈ KgPerM3(1000)
+  @test KgPerM3(2) * Meter3(3) ≈ KiloGram(6)
+  @test Meter3(3) * KgPerM3(2) ≈ KiloGram(6)
+  @test KiloGram(6) / Meter3(3) ≈ KgPerM3(2)
+  @test KiloGram(6) / KgPerM3(2) ≈ Meter3(3)
+  @test KiloGram(1) * KgPerM3(1) isa Catchall # regression: the / relation used to define mass*density = volume
+end
+
 @makeBaseMeasure SpecificVolume M3PerKg "m^3/kg"
+@relateMeasures Meter3/KiloGram=M3PerKg
 Base.convert(::Type{KgPerM3}, x::T) where {T<:AbstractSpecificVolume} = KgPerM3(1/toBaseFloat(x))
 Base.convert(::Type{M3PerKg}, x::T) where {T<:AbstractDensity} = M3PerKg(1/toBaseFloat(x))
-
-@makeMeasure 1e-3 KgPerM3 = 1 GramPerCentiMeter3 "g/cm^3"
+@testitem "SpecificVolume" begin
+  @test Meter3(6) / KiloGram(3) ≈ M3PerKg(2)
+  @test M3PerKg(2) * KiloGram(3) ≈ Meter3(6)
+  @test convert(KgPerM3, M3PerKg(0.5)) ≈ KgPerM3(2)
+  @test convert(M3PerKg, KgPerM3(2)) ≈ M3PerKg(0.5)
+end
 
 @makeBaseMeasure SurfaceDensity KgPerM2 "kg/m^2"
+@relateMeasures KiloGram/Meter2=KgPerM2
+@testitem "SurfaceDensity" begin
+  @test KgPerM2(2) * Meter2(3) ≈ KiloGram(6)
+  @test KgPerM3(2) * Meter(3) ≈ KgPerM2(6) # resolves from Catchall via SI dimensions
+
+  # density * length * length * length cancels through Catchall back to mass
+  rhoAcrylic = 1.2u"g/cm^3"
+  mAcrylic = rhoAcrylic * 6.35u"mm" * 558.55u"mm" * 342.25u"mm"
+  @test mAcrylic isa KiloGram
+  @test mAcrylic ≈ KiloGram(1.2e3 * 6.35e-3 * 558.55e-3 * 342.25e-3)
+  @test Gram(mAcrylic) ≈ Gram(1.2 * 0.635 * 55.855 * 34.225)
+end
+
 @makeBaseMeasure CurrentDensity APerM2 "A/m^2"
 @makeBaseMeasure MagneticFieldStrength APerM "A/m"
 
@@ -191,7 +266,22 @@ Base.convert(::Type{U}, x::T) where {U<:AbstractConductance, T<:AbstractResistan
 @makeMeasure 1e-3 Henry = 1 MilliHenry "mH"
 
 @makeBaseMeasure LuminousFlux Lumen "lm"
+@relateMeasures Candela*Steradian=Lumen
 @makeBaseMeasure Illuminance Lux "lx"
+@relateMeasures Lumen/Meter2=Lux
+@testitem "Lumen Lux" begin
+  @test getBaseDims(Lumen(1)) == BaseDimensions(intensity=1, angle=2)
+  @test getBaseDims(Lux(1)) == BaseDimensions(intensity=1, angle=2, length=-2)
+  @test Candela(2) * Steradian(3) ≈ Lumen(6)
+  @test Lumen(6) / Steradian(3) ≈ Candela(2)
+  @test Lumen(6) / Meter2(3) ≈ Lux(2)
+  @test Lux(2) * Meter2(3) ≈ Lumen(6)
+
+  # chains through Catchall resolve back to named types
+  @test Candela(2) * Radian(3) * Radian(1) ≈ Lumen(6)
+  @test Lumen(12) / Meter(2) / Meter(3) ≈ Lux(2)
+  @test Candela(2) * Steradian(3) / Meter(1)^2 isa Lux
+end
 
 @makeBaseMeasure Energy Joule "J"
 @makeMeasure 1e3 Joule = 1 KiloJoule "kJ"

@@ -1,6 +1,6 @@
 name = "UnitTypes"
 uuid = "b0895f2b-ad30-48b9-9e38-efbd1231cd91"
-version = "3.0.1"
+version = "3.0.2"
 authors = ["Mechanomy LLC dev@mechanomy.com"]
 
 [workspace]

@@ -12,6 +12,7 @@ export Catchall, parseCatchall, getDimensions, mergeBaseDimensions, findNamedTyp
 
   Fixed-field SI base-dimension representation used by Catchall.
   Each field holds the integer exponent of that SI base unit: s (time), m (length), kg (mass), A (current), K (temperature), mol (amount), cd (intensity).
+  The `angle` field (rad) is not an SI base unit but is tracked explicitly so angular quantities do not silently cancel, e.g. Radian*Meter stays rad*m rather than collapsing to Meter.
   Using fixed fields instead of a Dict{DataType,Int} guarantees all Catchall values share a canonical representation regardless of which abstract types were used to build them.
 """
 struct BaseDimensions
@@ -22,21 +23,22 @@ struct BaseDimensions
   temperature::Int8
   amount::Int8
   intensity::Int8
+  angle::Int8
 end
-BaseDimensions(; time::Integer=0, length::Integer=0, mass::Integer=0, current::Integer=0, temperature::Integer=0, amount::Integer=0, intensity::Integer=0) = BaseDimensions(time, length, mass, current, temperature, amount, intensity)
+BaseDimensions(; time::Integer=0, length::Integer=0, mass::Integer=0, current::Integer=0, temperature::Integer=0, amount::Integer=0, intensity::Integer=0, angle::Integer=0) = BaseDimensions(time, length, mass, current, temperature, amount, intensity, angle)
 
-Base.:+(a::BaseDimensions, b::BaseDimensions) = BaseDimensions(a.time+b.time, a.length+b.length, a.mass+b.mass, a.current+b.current, a.temperature+b.temperature, a.amount+b.amount, a.intensity+b.intensity)
-Base.:-(a::BaseDimensions, b::BaseDimensions) = BaseDimensions(a.time-b.time, a.length-b.length, a.mass-b.mass, a.current-b.current, a.temperature-b.temperature, a.amount-b.amount, a.intensity-b.intensity)
-Base.:*(a::BaseDimensions, n::Integer) = BaseDimensions(a.time*n, a.length*n, a.mass*n, a.current*n, a.temperature*n, a.amount*n, a.intensity*n)
+Base.:+(a::BaseDimensions, b::BaseDimensions) = BaseDimensions(a.time+b.time, a.length+b.length, a.mass+b.mass, a.current+b.current, a.temperature+b.temperature, a.amount+b.amount, a.intensity+b.intensity, a.angle+b.angle)
+Base.:-(a::BaseDimensions, b::BaseDimensions) = BaseDimensions(a.time-b.time, a.length-b.length, a.mass-b.mass, a.current-b.current, a.temperature-b.temperature, a.amount-b.amount, a.intensity-b.intensity, a.angle-b.angle)
+Base.:*(a::BaseDimensions, n::Integer) = BaseDimensions(a.time*n, a.length*n, a.mass*n, a.current*n, a.temperature*n, a.amount*n, a.intensity*n, a.angle*n)
 Base.:*(n::Integer, a::BaseDimensions) = a * n
-Base.:-(a::BaseDimensions) = BaseDimensions(-a.time, -a.length, -a.mass, -a.current, -a.temperature, -a.amount, -a.intensity)
-Base.iszero(d::BaseDimensions) = d.time==0 && d.length==0 && d.mass==0 && d.current==0 && d.temperature==0 && d.amount==0 && d.intensity==0
+Base.:-(a::BaseDimensions) = BaseDimensions(-a.time, -a.length, -a.mass, -a.current, -a.temperature, -a.amount, -a.intensity, -a.angle)
+Base.iszero(d::BaseDimensions) = d.time==0 && d.length==0 && d.mass==0 && d.current==0 && d.temperature==0 && d.amount==0 && d.intensity==0 && d.angle==0
 
 """
   `abstractToSI::Dict{DataType, BaseDimensions}`
 
   Registry mapping each abstract dimension type (e.g. AbstractForce) to its SI base dimensions.
-  Seeded for the seven SI base abstract types in SI.jl and Temperature.jl; extended by addRelations and addInverseRelation as @relateMeasures chains are processed.
+  Seeded for the seven SI base abstract types in SI.jl and Temperature.jl, plus AbstractAngle in Angle.jl; extended by addRelations and addInverseRelation as @relateMeasures chains are processed.
 """
 const abstractToSI = Dict{DataType, BaseDimensions}()
 
@@ -120,7 +122,7 @@ end
   `struct Catchall <: AbstractMeasure`
 
   Catch-all for unit expressions with no defined named type.
-  The stored `value` is in SI base units; `dimensions` is a BaseDimensions struct encoding the seven SI base-unit exponents.
+  The stored `value` is in SI base units; `dimensions` is a BaseDimensions struct encoding the seven SI base-unit exponents plus angle.
   Using BaseDimensions (fixed fields) rather than Dict{DataType,Int} ensures all Catchall values share a canonical representation: e.g. KiloNewton and Newton both convert to BaseDimensions(mass=1,length=1,time=-2) via abstractToSI, preventing the stale-dict bug.
   Prefer registered named types (Meter, Second, Newton …) wherever possible; Catchall is produced only when arithmetic or u_str parsing yields a combination with no matching entry in allUnitTypes.
 """
@@ -138,7 +140,7 @@ toBaseFloat(x::Catchall)   = x.value
 function _dimAbbreviation(dims::BaseDimensions)::String
   iszero(dims) && return "dimensionless"
   parts = String[]
-  for (abbr, exp) in [("s", dims.time), ("m", dims.length), ("kg", dims.mass), ("A", dims.current), ("K", dims.temperature), ("mol", dims.amount), ("cd", dims.intensity)]
+  for (abbr, exp) in [("s", dims.time), ("m", dims.length), ("kg", dims.mass), ("A", dims.current), ("K", dims.temperature), ("mol", dims.amount), ("cd", dims.intensity), ("rad", dims.angle)]
     exp == 0 && continue
     push!(parts, exp == 1 ? abbr : "$(abbr)^$(exp)")
   end
@@ -173,12 +175,41 @@ function resolveOrExpr(value::Float64, dict::Dict{DataType,Int})::AbstractMeasur
   return Catchall(value, toSIDimensions(dict))
 end
 
+"""
+  `convert(T, x::Catchall)` and `T(x::Catchall)`
+
+  Converts a Catchall to the named type `T` when their SI base dimensions agree, e.g. `Gram(rho * l * w * h)`; throws an ArgumentError otherwise.
+"""
+function Base.convert(::Type{T}, x::Catchall) where {T<:AbstractMeasure}
+  dimsT = toSIDimensions(allUnitTypes[T].dimensions)
+  dimsT == x.dimensions || throw(ArgumentError("Cannot convert $(abbreviation(x)) to $T, which has dimensions $(_dimAbbreviation(dimsT))"))
+  return T(allUnitTypes[T].fromBase(x.value))
+end
+Base.convert(::Type{Catchall}, x::Catchall) = x
+Catchall(x::Catchall) = x # named types get T(x::Catchall) from makeSelfConversion
+@testitem "Catchall conversion to named types" begin
+  c = Catchall(1.5, BaseDimensions(mass=1))
+  @test Gram(c) ≈ Gram(1500)
+  @test convert(KiloGram, c) ≈ KiloGram(1.5)
+  @test_throws ArgumentError Meter(c)
+  @test Catchall(c) === c
+end
+
 Base.:*(x::Catchall, y::Number) = resolveOrExpr(x.value * Float64(y), x.dimensions)
 Base.:*(x::Number,   y::Catchall) = resolveOrExpr(Float64(x) * y.value, y.dimensions)
 Base.:/(x::Catchall, y::Number) = resolveOrExpr(x.value / Float64(y), x.dimensions)
 Base.:-(x::Catchall) = Catchall(-x.value, x.dimensions)
 
 Base.:+(x::Catchall, y::Catchall) = x.dimensions == y.dimensions ? resolveOrExpr(x.value + y.value, x.dimensions) : throw(ArgumentError("Cannot add incompatible Catchall: $(abbreviation(x)) + $(abbreviation(y))"))
+
+function sameUnitValue(y::Catchall, x::Catchall)
+  y.dimensions == x.dimensions || throw(ArgumentError("Measures must share the same dimension, given $(abbreviation(y)) and $(abbreviation(x))"))
+  return x.value
+end
+@testitem "sameUnitValue Catchall" begin
+  @test UnitTypes.sameUnitValue(Catchall(1.0, BaseDimensions(length=1, amount=1)), Catchall(2.5, BaseDimensions(length=1, amount=1))) ≈ 2.5
+  @test_throws ArgumentError UnitTypes.sameUnitValue(Catchall(1.0, BaseDimensions(length=1)), Catchall(1.0, BaseDimensions(mass=1)))
+end
 
 Base.:-(x::Catchall, y::Catchall) = x.dimensions == y.dimensions ? resolveOrExpr(x.value - y.value, x.dimensions) : throw(ArgumentError("Cannot subtract incompatible Catchall: $(abbreviation(x)) - $(abbreviation(y))"))
 
@@ -269,7 +300,7 @@ end
 @testitem "Catchall resolves back to named type" begin
   # A Catchall whose BaseDimensions match a named type's SI signature resolves back.
   # NewtonMeter = kg*m^2*s^-2 → BaseDimensions(mass=1,length=2,time=-2)
-  nmDims = BaseDimensions(Int8(-2), Int8(2), Int8(1), 0, 0, 0, 0)
+  nmDims = BaseDimensions(time=-2, length=2, mass=1)
   u = Catchall(6.0, nmDims)
   resolved = UnitTypes.resolveOrExpr(6.0, u.dimensions)
   @test resolved isa NewtonMeter
@@ -280,8 +311,8 @@ end
   @test (u * 2.0) ≈ NewtonMeter(12.0)
 
   # Two Catchalls whose combined SI dims match a named type also resolve
-  fDims = BaseDimensions(Int8(-2), Int8(1), Int8(1), 0, 0, 0, 0)  # Newton: kg*m*s^-2
-  lDims = BaseDimensions(0, Int8(1), 0, 0, 0, 0, 0)                # Meter: m
+  fDims = BaseDimensions(time=-2, length=1, mass=1)  # Newton: kg*m*s^-2
+  lDims = BaseDimensions(length=1) # Meter: m
   cf = Catchall(2.0, fDims)
   cl = Catchall(3.0, lDims)
   @test cf * cl isa NewtonMeter
