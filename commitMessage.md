@@ -66,3 +66,15 @@ Effort: low
 * Regenerated docs/unitTypesTree.md; all 583 tests pass and the benchmark reports 0 allocations.
 * Switched Acre from the old US survey acre (4046.873 m^2) to the international acre, 43560 international square feet = 4046.8564224 m^2; Acre(640) now equals Mile2(1) to rtol=1e-12, and Chain2(10) equals Acre(1).
 * Bumped version to 3.2.0.
+
+# Fix and test displayInUnits
+
+Date: 2026-10-06
+Model: claude-opus-5-5
+Effort: low
+
+* Fixed `displayInUnits`, which always threw an UndefVarError because it called the nonexistent `unitString`; it now uses the registered abbreviation and `convert()`.
+* The dimension check now compares registered abstract types rather than `supertype`, and the error message names the expected quantity.
+* Added an optional leading `io::IO` argument so output can be captured; the method returns `nothing`.
+* Exported `displayInUnits` and expanded its docstring with an example.
+* Added a "displayInUnits" testitem covering multiple units, same unit, no units, angles, mass, mismatched units, and the stdout method; full suite passes (592 tests).

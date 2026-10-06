@@ -1,4 +1,4 @@
-export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes
+export AbstractMeasure, @makeBaseMeasure, @makeMeasure, @relateMeasures, toBaseFloat, abbreviation, @u_str, displayUnitTypes, displayInUnits
 abstract type AbstractMeasure end
 
 struct UnitTypeAttributes
@@ -1112,16 +1112,30 @@ end
 
 
 """
-`displayInUnits(x::T, units::DataType...) where T<:AbstractMeasure`
+`displayInUnits([io::IO], x::AbstractMeasure, units::Type{<:AbstractMeasure}...)`
 
-Displays the measure `x` in the units listed.
+Prints the measure `x` converted to each of `units`, joined by " == ", as in `displayInUnits(Meter(1.5), MilliMeter, Inch)` printing "1500.00mm == 59.06in".
+Throws an ArgumentError if a unit does not measure the same quantity as `x`.
 """
-function displayInUnits(x::T, units::DataType...) where T<:AbstractMeasure
-    superT = supertype(T)
-    strs = String[]
-    for U in units
-        U <: superT || throw(ArgumentError("$U is not a subtype of $superT"))
-        push!(strs, @sprintf("%3.2f%s", U(x).value, unitString(U(x))))
-    end
-    println(join(strs, " == "))
+function displayInUnits(io::IO, x::T, units::Type{<:AbstractMeasure}...) where T<:AbstractMeasure
+  abstractT = allUnitTypes[T].abstract
+  strs = String[]
+  for U in units
+    allUnitTypes[U].abstract == abstractT || throw(ArgumentError("$U is not a $abstractT"))
+    push!(strs, @sprintf("%3.2f%s", convert(U, x).value, allUnitTypes[U].abbreviation))
+  end
+  println(io, join(strs, " == "))
+  return nothing
+end
+displayInUnits(x::AbstractMeasure, units::Type{<:AbstractMeasure}...) = displayInUnits(stdout, x, units...)
+@testitem "displayInUnits" begin
+  inUnits(x, units...) = sprint(io -> displayInUnits(io, x, units...))
+  @test inUnits(Meter(1.5), MilliMeter, Inch) == "1500.00mm == 59.06in\n"
+  @test inUnits(Meter(1.5), Meter) == "1.50m\n"
+  @test inUnits(Meter(1.5)) == "\n"
+  @test inUnits(Degree(180), Radian) == "3.14rad\n"
+  @test inUnits(KiloGram(1), Gram, PoundMass) == "1000.00g == 2.20lbm\n"
+  @test_throws ArgumentError inUnits(Meter(1), Second)
+  @test_throws ArgumentError inUnits(Meter(1), MilliMeter, KiloGram)
+  @test isnothing(redirect_stdout(devnull) do; displayInUnits(Meter(1), MilliMeter); end)
 end
