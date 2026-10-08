@@ -78,3 +78,12 @@ Effort: low
 * Added an optional leading `io::IO` argument so output can be captured; the method returns `nothing`.
 * Exported `displayInUnits` and expanded its docstring with an example.
 * Added a "displayInUnits" testitem covering multiple units, same unit, no units, angles, mass, mismatched units, and the stdout method; full suite passes (592 tests).
+
+# Fix @relateMeasures for relations not expressed in base units
+2026-10-08, claude-opus-5-5, effort: low
+
+* `@relateMeasures Dollar/Foot = DollarPerFoot` gave wrong results because addRelations multiplied raw base values, treating $/ft as $/m (4307mm * 2.79$/ft gave 12.02$ instead of 39.42$).
+* Added `relationScale` to compute the base-value scale factor implied by the relation's own units; addRelations folds it into every generated method.
+* Base-consistent relations (all existing SI relations) have a scale of exactly 1, so their behavior is unchanged.
+* Power registration is skipped for scaled relations since registerPower assumes base-consistent types.
+* Added testitems for relationScale and for non-base relations; all tests pass and the benchmark stays at zero allocations.

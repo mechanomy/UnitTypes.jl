@@ -916,10 +916,41 @@ function registerPower(abstractType::DataType, n::Int, baseResultType::DataType,
 end
 
 """
+  `relationScale(operator, TM, TN, TNM)::Float64`
+
+  Returns the factor k relating base values in the relation TM <operator> TN = TNM, such that base(TNM) = k * base(TM) <operator> base(TN).
+  k is 1 when the base types are mutually consistent, as in Newton*Meter = NewtonMeter, and differs when they are not, as in Dollar/Foot = DollarPerFoot, where DollarPerFoot is a base type but Foot is not.
+  Affine types have no multiplicative scale and return 1.
+"""
+function relationScale(operator, TM, TN, TNM)::Float64
+  utaM = allUnitTypes[TM]
+  utaN = allUnitTypes[TN]
+  utaNM = allUnitTypes[TNM]
+  (utaM.isAffine || utaN.isAffine || utaNM.isAffine) && return 1.0
+  a = Float64(utaM.toBase(1.0))
+  b = Float64(utaN.toBase(1.0))
+  c = Float64(utaNM.toBase(1.0))
+  if operator == :* || operator == *
+    return c / (a * b)
+  elseif operator == :/ || operator == /
+    return c * b / a
+  end
+  throw(ArgumentError("Operator $operator unknown"))
+end
+@testitem "relationScale" begin
+  @test UnitTypes.relationScale(:*, Newton, Meter, NewtonMeter) == 1
+  @test UnitTypes.relationScale(:/, Newton, Meter2, Pascal) == 1
+  @makeBaseMeasure ValueRS DollarRS "\$RS"
+  @makeBaseMeasure LinearValueRS DollarPerFootRS "\$RS/ft"
+  @test UnitTypes.relationScale(:/, DollarRS, Foot, DollarPerFootRS) ≈ 0.3048
+end
+
+"""
   `addRelations(operator, TM, TN, TNM, mod=@__MODULE__)`
 
   Adds */ relations between the given UnitTypes by eval()ing in the given module.
   The arguments are such that TM <operator> TN = TNM.
+  The generated methods operate on base values, scaled by `relationScale` so that the relation holds in the given units even when the base types are not mutually consistent, as in `Dollar/Foot = DollarPerFoot` where the base length is Meter.
 """
 function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
   superM = supertype(TM) # these are abstract
@@ -928,21 +959,22 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
   baseM = getBaseType(TM)
   baseN = getBaseType(TN)
   baseNM = getBaseType(TNM)
+  k = relationScale(operator, TM, TN, TNM)
 
   if operator==:* || operator==*
     mod.eval( quote
       if !UnitTypes.hasExactMethod(Base.:*, ($superM, $superN))
-        Base.:*(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value * convert($baseN,y).value) # ensure the operation is defined for the base units, in case the relation was not given in base: ft*lbs = Nm
+        Base.:*(x::$superM, y::$superN) = $baseNM( $k * convert($baseM, x).value * convert($baseN,y).value) # ensure the operation is defined for the base units, in case the relation was not given in base: ft*lbs = Nm
       end
       if !UnitTypes.hasExactMethod(Base.:*, ($superN, $superM))
-        Base.:*(x::$superN, y::$superM) = $baseNM( convert($baseN, x).value * convert($baseM,y).value)
+        Base.:*(x::$superN, y::$superM) = $baseNM( $k * convert($baseN, x).value * convert($baseM,y).value)
       end
 
       if !UnitTypes.hasExactMethod(Base.:/, ($superNM, $superM))
-        Base.:/(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value / convert($baseM,y).value )
+        Base.:/(x::$superNM, y::$superM) = $baseN( convert($baseNM,x).value / ($k * convert($baseM,y).value) )
       end
       if !UnitTypes.hasExactMethod(Base.:/, ($superNM, $superN))
-        Base.:/(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value / convert($baseN,y).value )
+        Base.:/(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value / ($k * convert($baseN,y).value) )
       end
 
       if $TM == $TN
@@ -958,8 +990,9 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
       abstractToSI[superNM] = abstractToSI[superM] + abstractToSI[superN]
     end
 
-    # register power relations for zero-alloc literal_pow dispatch
-    if TM == TN
+    # register power relations for zero-alloc literal_pow dispatch; registerPower assumes base-consistent types, so skip scaled relations
+    if k != 1
+    elseif TM == TN
       # direct square: TM^2 = TNM
       registerPower(superM, 2, baseNM, mod)
     else
@@ -975,16 +1008,16 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
   elseif operator==:/ || operator==/ # as in pressure: N/m^2 = Pa
     mod.eval(quote
       if !UnitTypes.hasExactMethod(Base.:/, ($superM, $superN))
-        Base.:/(x::$superM, y::$superN) = $baseNM( convert($baseM, x).value / convert($baseN,y).value ) # F/m2 = Pa
+        Base.:/(x::$superM, y::$superN) = $baseNM( $k * convert($baseM, x).value / convert($baseN,y).value ) # F/m2 = Pa
       end
       if !UnitTypes.hasExactMethod(Base.:/, ($superM, $superNM))
-        Base.:/(x::$superM, y::$superNM) = $baseN( convert($baseM,x).value / convert($baseNM,y).value ) # N / Pa = m2
+        Base.:/(x::$superM, y::$superNM) = $baseN( $k * convert($baseM,x).value / convert($baseNM,y).value ) # N / Pa = m2
       end
       if !UnitTypes.hasExactMethod(Base.:*, ($superN, $superNM))
-        Base.:*(x::$superN, y::$superNM) = $baseM( convert($baseN,x).value * convert($baseNM,y).value ) # m2 * Pa = N
+        Base.:*(x::$superN, y::$superNM) = $baseM( convert($baseN,x).value * convert($baseNM,y).value / $k ) # m2 * Pa = N
       end
       if !UnitTypes.hasExactMethod(Base.:*, ($superNM, $superN))
-        Base.:*(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value * convert($baseN,y).value ) # Pa * m2 = N
+        Base.:*(x::$superNM, y::$superN) = $baseM( convert($baseNM,x).value * convert($baseN,y).value / $k ) # Pa * m2 = N
       end
 
     end)
@@ -1008,6 +1041,18 @@ end
   @test Pascal(2) * Meter2(3) ≈ Newton(6)
   @test Newton(2) * Pascal(3) isa Catchall # regression: was Meter2
   @test Pascal(3) * Newton(2) isa Catchall # regression: was a MethodError
+end
+@testitem "addRelations with non-base relation units" begin
+  # DollarPerFootAR is a base type but Foot is not, so the relation must be honored in feet, not meters
+  @makeBaseMeasure ValueAR DollarAR "\$AR"
+  @makeBaseMeasure LinearValueAR DollarPerFootAR "\$AR/ft"
+  @relateMeasures DollarAR/Foot = DollarPerFootAR
+  @test DollarAR(6) / Foot(2) ≈ DollarPerFootAR(3)
+  @test isapprox(DollarAR(6) / Meter(2), DollarPerFootAR(3 * 0.3048), rtol=1e-12)
+  @test Foot(2) * DollarPerFootAR(3) ≈ DollarAR(6)
+  @test DollarPerFootAR(3) * Foot(2) ≈ DollarAR(6)
+  @test DollarAR(6) / DollarPerFootAR(3) ≈ Foot(2)
+  @test isapprox((347.25u"mm"*4 + 1459u"mm"*2) * DollarPerFootAR(2.79), DollarAR(4307 / 304.8 * 2.79), rtol=1e-12)
 end
 
 """
