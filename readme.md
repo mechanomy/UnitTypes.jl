@@ -87,6 +87,21 @@ For working with Dimensions:
 The macros in Measure.jl and Dimension.jl define the necessary convert()s and other operators.
 If these are insufficient you will receive undefined method errors and can then work around the missing defitions, define them yourself, and/or open an [issue](https://github.com/mechanomy/UnitTypes.jl/issues).
 
+### Defining measures in another package
+A package that uses `@makeBaseMeasure`, `@makeMeasure` or `@relateMeasures` must call `@registerMeasures` from its `__init__`:
+```julia
+module MyMeasures
+  using UnitTypes
+  @makeBaseMeasure HyperVolume Meter5 "m^5"
+  @relateMeasures Meter4*Meter=Meter5
+  function __init__()
+    @registerMeasures
+  end
+end
+```
+The macros record their registrations in the defining module, and `@registerMeasures` replays them into UnitTypes' tables when the package loads.
+Without it the package works from source but, once precompiled, its types are missing from UnitTypes' tables and lookups throw a KeyError or return Catchall.
+
 ## Catch-all type
 When an arithmetic operation produces a unit combination with no named type, the result is a `Catchall`:
 ```julia

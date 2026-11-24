@@ -107,3 +107,16 @@ Effort: low
 * `RevolutionsPerMinute` and `RevolutionsPerSecond` move from Frequency (Hertz basis) to AngularVelocity (RadianPerSecond basis), 1 rpm = 2π/60 rad/s; this is a breaking change for code treating rpm as a frequency.
 * The abstract type of `Meter4` is renamed from SecondMomentOfArea to `AbstractAreaMomentOfInertia`, distinct from `AbstractMassMomentOfInertia` of `KiloGramMeter2`.
 * Regenerated docs/unitTypesTree.md; all 633 tests pass and the benchmark stays at zero allocations.
+
+# Measures registered by other packages survive precompilation; zero, round and isapprox requests
+2026-11-24, claude-opus-5-5, effort: low
+
+* Implements item 1 of dev/261124_requestsForDynamics.md: every write to allUnitTypes, powerTypes and abstractToSI now goes through setUnitType!, setPowerType! or setAbstractToSI!, which also record the entry in a `unitTypesRegistry` constant in the calling module (not for UnitTypes itself).
+* New `@registerMeasures`, called from a package's `__init__`, replays that record into the global tables, so a package defining measures no longer needs `__precompile__(false)`; replaying is idempotent.
+* Registry access uses invokelatest to avoid Julia 1.12's world-age warning for bindings created by Core.eval.
+* Added test/fixtures/RegisterFixture, a package defining Meter5F, and a testitem that develops it into a temporary environment, precompiles it in a fresh process and checks the registrations; without the `__init__` call the fixture reproduces the missing entries.
+* Drafted notes/261124_packageLoadCallbackRequest.md, a feature request to Julia for a public package-load callback that would remove the need for the `__init__` call.
+* Implements dev/261120_requestsFromPlecto.md: `zero(T)`, `oneunit(T)` and `oneunit(x)` for measure types; `round`, `floor`, `ceil` and `trunc` with `digits`/`sigdigits`, rounding in the measure's own unit; Catchall versions of these on instances.
+* `isapprox` between measures now follows Base's default, `rtol = atol > 0 ? 0 : √eps`, instead of exact equality, and accepts a measure `atol` converted to the units of the first argument (SI base units for Catchall).
+* The USCustomary inHg test relied on the old `rtol = atol` default and now passes an explicit rtol.
+* Documented `@registerMeasures` in the readme; added isapprox-with-measure-atol, round and zero benchmarks; all 679 tests pass and every benchmark reports zero allocations.

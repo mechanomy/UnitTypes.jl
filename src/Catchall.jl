@@ -213,11 +213,26 @@ end
 
 Base.:-(x::Catchall, y::Catchall) = x.dimensions == y.dimensions ? resolveOrExpr(x.value - y.value, x.dimensions) : throw(ArgumentError("Cannot subtract incompatible Catchall: $(abbreviation(x)) - $(abbreviation(y))"))
 
-Base.isapprox(x::Catchall, y::Catchall; atol::Real=0, rtol::Real=atol) = x.dimensions == y.dimensions && isapprox(x.value, y.value; atol=atol, rtol=rtol)
+Base.isapprox(x::Catchall, y::Catchall; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) = x.dimensions == y.dimensions && isapprox(x.value, y.value; atol=toleranceBase(atol), rtol=rtol)
 
-Base.isapprox(x::Catchall, y::T; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure} = x.dimensions == getBaseDims(y) && isapprox(x.value, toBaseFloat(y); atol=atol, rtol=rtol)
+Base.isapprox(x::Catchall, y::T; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:AbstractMeasure} = x.dimensions == getBaseDims(y) && isapprox(x.value, toBaseFloat(y); atol=toleranceBase(atol), rtol=rtol)
 
-Base.isapprox(x::T, y::Catchall; atol::Real=0, rtol::Real=atol) where {T<:AbstractMeasure} = isapprox(y, x; atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::Catchall; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:AbstractMeasure} = isapprox(y, x; atol=atol, rtol=rtol)
+
+# A Catchall's value is in SI base units and its type carries no dimensions, so zero, oneunit and round work on instances, in SI base units.
+Base.zero(x::Catchall) = Catchall(0.0, x.dimensions)
+Base.oneunit(x::Catchall) = Catchall(1.0, x.dimensions)
+Base.zero(::Type{Catchall}) = throw(ArgumentError("zero(Catchall) is undefined because the Catchall type carries no dimensions; use zero(x) on an instance"))
+Base.oneunit(::Type{Catchall}) = throw(ArgumentError("oneunit(Catchall) is undefined because the Catchall type carries no dimensions; use oneunit(x) on an instance"))
+Base.round(x::Catchall, r::RoundingMode=RoundNearest; kwargs...) = Catchall(round(x.value, r; kwargs...), x.dimensions)
+@testitem "Catchall zero oneunit round" begin
+  x = Newton(2) * Ampere(3.456)
+  @test zero(x) ≈ Newton(0) * Ampere(1)
+  @test oneunit(x) ≈ Newton(1) * Ampere(1)
+  @test round(x; digits=1) ≈ Newton(1) * Ampere(6.9)
+  @test floor(x) ≈ Newton(1) * Ampere(6)
+  @test_throws ArgumentError zero(Catchall)
+end
 
 # Catch-all unit × unit arithmetic: fire only when no more-specific method (from @relateMeasures) exists; Julia dispatch gives addRelations methods priority so named-type results are always preferred automatically.
 Base.:*(x::T, y::U) where {T<:AbstractMeasure, U<:AbstractMeasure} = resolveOrExpr(toBaseFloat(x) * toBaseFloat(y), getBaseDims(x) + getBaseDims(y))

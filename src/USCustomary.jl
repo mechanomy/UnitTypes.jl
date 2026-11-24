@@ -163,7 +163,7 @@ end
   @test isapprox(PoundsPerSquareInch(1), PoundsPerSquareFoot(144), rtol=1e-12)
   @test isapprox(KiloPoundsPerSquareInch(1), PoundsPerSquareInch(1000), rtol=1e-12)
   @test isapprox(PoundForce(1)/Foot2(1), PoundsPerSquareFoot(1), rtol=1e-12)
-  @test isapprox(InchOfMercury(29.92), Atmosphere(1), atol=1e-3)
+  @test isapprox(InchOfMercury(29.92), Atmosphere(1), rtol=1e-4) # 29.92inHg is 0.99997atm
   @test isapprox(InchOfWater(1), Pascal(249.08891), atol=1e-6)
 end
 

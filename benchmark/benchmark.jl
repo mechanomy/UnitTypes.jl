@@ -89,3 +89,21 @@ display(@benchmark atan(1.0Unitful.@u_str("m"), 500.0Unitful.@u_str("mm")))
 
 println("\nUnitTypes:")
 display(@benchmark atan(UnitTypes.Meter(1.0), UnitTypes.MilliMeter(500.0)))
+
+println("\n=== isapprox with a measure atol: isapprox(1m, 1000mm; atol=1μm) ===")
+println("floats:")
+display(@benchmark isapprox(1.0, 1.0; atol=1e-6))
+
+println("\nUnitTypes:")
+display(@benchmark isapprox(UnitTypes.Meter(1.0), UnitTypes.MilliMeter(1000.0); atol=UnitTypes.MicroMeter(1.0)))
+
+println("\n=== rounding: round(12.00000003mm; digits=3) ===")
+println("floats:")
+display(@benchmark round(12.00000003; digits=3))
+
+println("\nUnitTypes:")
+display(@benchmark round(UnitTypes.MilliMeter(12.00000003); digits=3))
+
+println("\n=== zero of a type: zero(MilliMeter) ===")
+println("UnitTypes:")
+display(@benchmark zero(UnitTypes.MilliMeter))

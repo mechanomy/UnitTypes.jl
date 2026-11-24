@@ -32,7 +32,7 @@ macro makeDimension(dimName, measure) # a dimension is a measurement applied to 
       export $dimName
       
       # Base.convert(::Type{T}, x::U) where {T<:abstractMeas, U<:AbstractDimension} = T(x.measure) # this should be convert(Meter, Diameter.measure), but just use .measure instead
-      Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
+      Base.isapprox(x::T, y::U; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:$abstractName, U<:$abstractName} = isapprox(x.measure, y.measure, atol=atol, rtol=rtol)
       Base.:<(x::T, y::U) where {T<:$abstractName, U<:$abstractName} = x.measure < convert(T,y).measure # can compare the same Dimension via the Measure; other <> ops are defined from this
 
       Base.zero(x::T) where T<:$abstractName = T(0) # required for LinRange()
@@ -153,8 +153,8 @@ macro relateDimensions(relation)
         Base.convert(::Type{$type2}, y::supertype($type1)) = $type2(y) # Base.convert(::Type{RadiusT}, y::AbstractDiameterT) = RadiusT(y) 
         Base.convert(::Type{$type1}, y::supertype($type2)) = $type1(y) # Base.convert(::Type{DiameterT}, y::AbstractRadiusT) = DiameterT(y)
 
-        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:supertype($type1), U<:supertype($type2)} = isapprox(x.measure, eval(Expr(:call, $operator, y.measure, $factor)), atol=atol, rtol=rtol) # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = isapprox(x.measure, y.measure*2, atol=atol, rtol=rtol)
-        Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:supertype($type2), U<:supertype($type1)} = isapprox(x.measure, eval(Expr(:call, $operator, y.measure, 1/$factor)), atol=atol, rtol=rtol) # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = isapprox(x.measure, y.measure/2, atol=atol, rtol=rtol)
+        Base.isapprox(x::T, y::U; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:supertype($type1), U<:supertype($type2)} = isapprox(x.measure, eval(Expr(:call, $operator, y.measure, $factor)), atol=atol, rtol=rtol) # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = isapprox(x.measure, y.measure*2, atol=atol, rtol=rtol)
+        Base.isapprox(x::T, y::U; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:supertype($type2), U<:supertype($type1)} = isapprox(x.measure, eval(Expr(:call, $operator, y.measure, 1/$factor)), atol=atol, rtol=rtol) # Base.isapprox(x::T, y::U, atol::Real=0, rtol::Real=atol) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = isapprox(x.measure, y.measure/2, atol=atol, rtol=rtol)
 
         Base.:<(x::T, y::U) where {T<:supertype($type1), U<:supertype($type2)} = x.measure < eval(Expr(:call, $operator, y.measure, $factor))  # only need eval(Expr to interpolate the $operator and $factor, # Base.:<(x::T, y::U) where {T<:AbstractDiameterT, U<:AbstractRadiusT} = x.measure < y.measure*2
         Base.:<(x::T, y::U) where {T<:supertype($type2), U<:supertype($type1)} = x.measure < eval(Expr(:call, $operator, y.measure, 1/$factor))  # Base.:<(x::T, y::U) where {T<:AbstractRadiusT, U<:AbstractDiameterT} = x.measure < y.measure* 1/2

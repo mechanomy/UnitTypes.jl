@@ -6,6 +6,7 @@ module UnitTypes
 
   include("Measure.jl")
   include("Catchall.jl")
+  include("Registry.jl")
   include("SI.jl")
   include("Imperial.jl")
   include("USCustomary.jl")

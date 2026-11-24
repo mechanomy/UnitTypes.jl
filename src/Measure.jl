@@ -68,7 +68,7 @@ macro makeBaseMeasure(quantityName, unitName, abbreviation::String)
       $unitName(x::T where T<:$abstractName) = $unitName( UnitTypes.allUnitTypes[typeof(x)].toBase(x.value) ) # conversion constructor: MilliMeter(Inch(1.0)) = 25.4mm
       export $unitName
 
-      UnitTypes.allUnitTypes[$unitName] = UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false, Dict{DataType,Int}($abstractName => 1)) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
+      UnitTypes.setUnitType!(@__MODULE__, $unitName, UnitTypes.UnitTypeAttributes($abstractName, $unitName, x->x, x->x, $abbreviation, false, Dict{DataType,Int}($abstractName => 1))) # A base unit cannot be converted into another base unit, so its to/fromBase functions are =
 
       UnitTypes.makeSelfConversion($unitName, @__MODULE__)
       # UnitTypes.makeJointConversions($unitName) # define operations only on itself, as there cannot be any child measures yet
@@ -145,7 +145,7 @@ macro makeMeasure(xFactor, relation, newType, newAbbreviation)
     $newType(x::T where T<:existingSupertype) = $newType( $fromBase(UnitTypes.allUnitTypes[typeof(x)].toBase(x.value) )) # conversion constructor
     export $newType
 
-    UnitTypes.allUnitTypes[$newType] = UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine, UnitTypes.allUnitTypes[$existingType].dimensions)
+    UnitTypes.setUnitType!(@__MODULE__, $newType, UnitTypes.UnitTypeAttributes(existingSupertype, $existingType, $toBase, $fromBase, $newAbbreviation, $isAffine, UnitTypes.allUnitTypes[$existingType].dimensions))
 
     UnitTypes.makeSelfConversion($newType, @__MODULE__)
     UnitTypes.makeJointConversions($newType, @__MODULE__)
@@ -216,6 +216,73 @@ Base.:*(r::AbstractRange{<:Number}, m::T) where T<:AbstractMeasure = T.(r .* m.v
 Base.:*(m::T, r::AbstractRange{<:Number}) where T<:AbstractMeasure = T.(m.value .* r)
 
 """
+  `zero(T)`, `oneunit(T)` for a measure type or instance.
+
+  `zero(MilliMeter)` is `MilliMeter(0)` and `oneunit(MilliMeter(2))` is `MilliMeter(1)`, as generic code like `zeros(T, n)`, `sum` of an empty collection and StaticArrays expects.
+"""
+Base.zero(::Type{T}) where {T<:AbstractMeasure} = T(0)
+Base.oneunit(::Type{T}) where {T<:AbstractMeasure} = T(1)
+Base.oneunit(x::T) where {T<:AbstractMeasure} = T(1)
+@testitem "zero and oneunit" begin
+  @test zero(MilliMeter) === MilliMeter(0)
+  @test zero(MilliMeter(3)) === MilliMeter(0)
+  @test oneunit(MilliMeter) === MilliMeter(1)
+  @test oneunit(MilliMeter(2)) === MilliMeter(1)
+  @test zeros(MilliMeter, 3) == [MilliMeter(0), MilliMeter(0), MilliMeter(0)]
+  @test sum(MilliMeter[]) === MilliMeter(0)
+  @test fill(zero(Newton), 2) == [Newton(0), Newton(0)]
+end
+
+"""
+  `round(x, r=RoundNearest; digits, sigdigits, base)`, and likewise `floor`, `ceil` and `trunc`.
+
+  Rounds in the measure's own unit, so `round(MilliMeter(12.00000003); digits=3)` is `MilliMeter(12.0)`.
+"""
+Base.round(x::T, r::RoundingMode=RoundNearest; kwargs...) where {T<:AbstractMeasure} = T(round(x.value, r; kwargs...))
+Base.floor(x::AbstractMeasure; kwargs...) = round(x, RoundDown; kwargs...)
+Base.ceil(x::AbstractMeasure; kwargs...) = round(x, RoundUp; kwargs...)
+Base.trunc(x::AbstractMeasure; kwargs...) = round(x, RoundToZero; kwargs...)
+@testitem "round floor ceil trunc" begin
+  @test round(MilliMeter(12.00000003); digits=3) === MilliMeter(12.0)
+  @test round(MilliMeter(12.5)) === MilliMeter(12.0)
+  @test round(MilliMeter(12.5), RoundUp) === MilliMeter(13.0)
+  @test round(Meter(1234.5678); sigdigits=3) === Meter(1230.0)
+  @test round.([MilliMeter(1.23456), MilliMeter(2.34567)]; digits=2) == [MilliMeter(1.23), MilliMeter(2.35)]
+  @test floor(Inch(1.79); digits=1) === Inch(1.7)
+  @test ceil(Inch(1.71); digits=1) === Inch(1.8)
+  @test trunc(Degree(-1.7)) === Degree(-1.0)
+  @test floor(Celsius(-0.5)) === Celsius(-1.0)
+end
+
+"""
+  `defaultRtol(atol)`, `toleranceIn(T, atol)`, `toleranceBase(atol)`
+
+  Support the measure `isapprox` methods.
+  The default rtol follows Base: zero when atol is positive, otherwise √eps(Float64).
+  A measure atol is converted to the compared measure's units (toleranceIn) or to SI base units for Catchall (toleranceBase); a Real atol is taken as is.
+"""
+defaultRtol(atol::Real) = atol > 0 ? 0.0 : sqrt(eps(Float64))
+defaultRtol(atol::AbstractMeasure) = defaultRtol(atol.value)
+toleranceIn(::Type{T}, atol::Real) where {T} = atol
+toleranceIn(::Type{T}, atol::AbstractMeasure) where {T<:AbstractMeasure} = convert(T, atol).value
+toleranceBase(atol::Real) = atol
+toleranceBase(atol::AbstractMeasure) = toBaseFloat(atol)
+@testitem "isapprox defaults and measure atol" begin
+  @test isapprox(MilliMeter(3), MilliMeter(3.0000000001))
+  @test MilliMeter(3) ≈ MilliMeter(3.0000000001)
+  @test !isapprox(MilliMeter(3), MilliMeter(3.001))
+  @test MilliMeter(25.4) ≈ Inch(1.0000000001)
+  @test isapprox(MilliMeter(3), MilliMeter(3.5); atol=1)
+  @test !isapprox(MilliMeter(3), MilliMeter(3.5); atol=0.1)
+  @test isapprox(Meter(1), Meter(1.0000004); atol=MilliMeter(1e-3))
+  @test !isapprox(Meter(1), Meter(1.000002); atol=MilliMeter(1e-3))
+  @test isapprox(MilliMeter(1000), Meter(1.0000004); atol=MicroMeter(1))
+  @test isapprox(Newton(2)*Ampere(3), Newton(2)*Ampere(3.0000000001))
+  @test isapprox(Newton(2)*Ampere(3), Newton(2)*Ampere(3.1); atol=Newton(1)*Ampere(1))
+  @test_throws Exception isapprox(Meter(1), Meter(1); atol=Second(1)) # atol must share the compared dimension
+end
+
+"""
   makeSelfConversions(newType)
 
   Defines function overloads for common operations like `convert`, `isapprox`, `isequal`, `isless`, +-/* between instances of a new UnitType.
@@ -238,7 +305,7 @@ function makeSelfConversion(newType, mod=@__MODULE__)
 
   mod.eval( quote 
     if !hasmethod(Base.isapprox, Tuple{$newType, $newType})
-      Base.isapprox(x::$newType, y::$newType; atol::Real=0, rtol::Real=atol) = isapprox( x.value, y.value, atol=atol, rtol=rtol) 
+      Base.isapprox(x::$newType, y::$newType; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) = isapprox( x.value, y.value, atol=UnitTypes.toleranceIn($newType, atol), rtol=rtol) 
     end
 
     if !hasmethod(Base.isless, Tuple{$newType, $newType} )
@@ -430,10 +497,10 @@ function makeJointConversions(newType=nothing, mod=@__MODULE__) # optional argum
           end
 
           if !hasmethod(Base.isapprox, ($(a.first), $(b.first)) )
-            Base.isapprox(x::$(a.first), y::$(b.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(a.first),y).value, atol=atol, rtol=rtol) # note this does not modify rtol or atol...but should it scale these in some way between the given unit and its base?
+            Base.isapprox(x::$(a.first), y::$(b.first); atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) = isapprox( x.value, convert($(a.first),y).value, atol=UnitTypes.toleranceIn($(a.first), atol), rtol=rtol) # a measure atol is converted to the units of x; a Real atol is taken in the units of x
           end
           if !hasmethod(Base.isapprox, ($(b.first), $(a.first)) )
-            Base.isapprox(x::$(b.first), y::$(a.first); atol::Real=0, rtol::Real=atol) = isapprox( x.value, convert($(b.first),y).value, atol=atol, rtol=rtol) 
+            Base.isapprox(x::$(b.first), y::$(a.first); atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) = isapprox( x.value, convert($(b.first),y).value, atol=UnitTypes.toleranceIn($(b.first), atol), rtol=rtol) 
           end
 
           if !hasmethod(Base.isequal, ($(a.first), $(b.first)) )
@@ -758,7 +825,7 @@ macro relateMeasures(relation)
               end
               $interName(x::T where T<:$interAbstractName) = $interName(UnitTypes.allUnitTypes[typeof(x)].toBase(x.value))
               export $interName
-              UnitTypes.allUnitTypes[$interName] = UnitTypes.UnitTypeAttributes($interAbstractName, $interName, x->x, x->x, $newAbbr, false, Dict{DataType,Int}($(dimPairs...)))
+              UnitTypes.setUnitType!(@__MODULE__, $interName, UnitTypes.UnitTypeAttributes($interAbstractName, $interName, x->x, x->x, $newAbbr, false, Dict{DataType,Int}($(dimPairs...))))
               UnitTypes.makeSelfConversion($interName, @__MODULE__)
             end
             UnitTypes.addRelations($(QuoteNode(op)), $currentTypeSym, $nextSym, $interName, @__MODULE__)
@@ -886,9 +953,9 @@ function addInverseRelation(TX, TY, mod=@__MODULE__)
   # TY's dimensions = inverse of TX's dimensions
   dimsY = mergeBaseDimensions(Dict{DataType,Int}(), allUnitTypes[baseX].dimensions, -1)
   uta = allUnitTypes[baseY]
-  allUnitTypes[baseY] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsY)
+  setUnitType!(mod, baseY, UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsY))
   if haskey(abstractToSI, superX)
-    abstractToSI[superY] = -abstractToSI[superX]
+    setAbstractToSI!(mod, superY, -abstractToSI[superX])
   end
 end
 
@@ -901,7 +968,7 @@ end
   their method from the power-conversion block inside `makeJointConversions`.
 """
 function registerPower(abstractType::DataType, n::Int, baseResultType::DataType, mod)
-  powerTypes[(abstractType, n)] = baseResultType
+  setPowerType!(mod, (abstractType, n), baseResultType)
   fromBase = allUnitTypes[baseResultType].fromBase
   valN = Val{n}
   for (T, uta) in allUnitTypes
@@ -984,10 +1051,10 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
     # update result type's dimension signature from its factor types
     dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, 1)
     uta = allUnitTypes[baseNM]
-    allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
+    setUnitType!(mod, baseNM, UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM))
     # propagate SI base dimensions for the result's abstract type
     if haskey(abstractToSI, superM) && haskey(abstractToSI, superN)
-      abstractToSI[superNM] = abstractToSI[superM] + abstractToSI[superN]
+      setAbstractToSI!(mod, superNM, abstractToSI[superM] + abstractToSI[superN])
     end
 
     # register power relations for zero-alloc literal_pow dispatch; registerPower assumes base-consistent types, so skip scaled relations
@@ -1024,10 +1091,10 @@ function addRelations(operator, TM, TN, TNM, mod=@__MODULE__)
     # update result type's dimension signature: TNM = TM / TN
     dimsNM = mergeBaseDimensions(allUnitTypes[baseM].dimensions, allUnitTypes[baseN].dimensions, -1)
     uta = allUnitTypes[baseNM]
-    allUnitTypes[baseNM] = UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM)
+    setUnitType!(mod, baseNM, UnitTypeAttributes(uta.abstract, uta.base, uta.toBase, uta.fromBase, uta.abbreviation, uta.isAffine, dimsNM))
     # propagate SI base dimensions for the result's abstract type
     if haskey(abstractToSI, superM) && haskey(abstractToSI, superN)
-      abstractToSI[superNM] = abstractToSI[superM] - abstractToSI[superN]
+      setAbstractToSI!(mod, superNM, abstractToSI[superM] - abstractToSI[superN])
     end
   else
     throw(ArgumentError("Operator $operator unknown, @relateMeasures accepts only multiplicative measures in the format: @relateMeasures Meter*Newton=NewtonMeter"))

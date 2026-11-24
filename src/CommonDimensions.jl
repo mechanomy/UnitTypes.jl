@@ -6,8 +6,8 @@ Radius(d::AbstractDiameter) = Radius(d.measure/2)
 Base.convert(::Type{Radius}, x::AbstractDiameter) = Radius(x)
 Base.convert(::Type{Diameter}, x::AbstractRadius) = Diameter(x)
 
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractDiameter, U<:AbstractRadius} = isapprox(convert(Diameter, y), x, atol=atol, rtol=rtol)
-Base.isapprox(x::T, y::U; atol::Real=0, rtol::Real=atol) where {T<:AbstractRadius, U<:AbstractDiameter} = isapprox(convert(Diameter, x), y, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:AbstractDiameter, U<:AbstractRadius} = isapprox(convert(Diameter, y), x, atol=atol, rtol=rtol)
+Base.isapprox(x::T, y::U; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:AbstractRadius, U<:AbstractDiameter} = isapprox(convert(Diameter, x), y, atol=atol, rtol=rtol)
 
 Base.:+(d::AbstractDiameter, r::AbstractRadius) = Diameter(d.measure + r.measure*2)
 Base.:+(r::AbstractRadius, d::AbstractDiameter) = Radius(r.measure + d.measure/2) 
