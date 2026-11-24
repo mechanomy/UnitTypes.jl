@@ -87,3 +87,15 @@ Effort: low
 * Base-consistent relations (all existing SI relations) have a scale of exactly 1, so their behavior is unchanged.
 * Power registration is skipped for scaled relations since registerPower assumes base-consistent types.
 * Added testitems for relationScale and for non-base relations; all tests pass and the benchmark stays at zero allocations.
+
+# Rigid-body dynamics measures
+2026-11-24, claude-opus-5-5, effort: low
+
+* Implements item 2 of dev/261124_requestsForDynamics.md, requested by Plecto and ImagoDyne.
+* Added base measures with their relations: NewtonSecond (Momentum), NewtonMeterSecond (AngularMomentum), KiloGramMeter2 (MassMomentOfInertia), Meter4 (SecondMomentOfArea), RadianPerSecond and DegreePerSecond (AngularVelocity), RadianPerSecond2 (AngularAcceleration), NewtonPerMeter (LinearStiffness), NewtonSecondPerMeter (LinearDamping), NewtonMeterPerRadian (RotationalStiffness), NewtonMeterSecondPerRadian (RotationalDamping).
+* Meter4 and NewtonPerMeter move here from Mechanics.jl, so Mechanics.jl defines no measures and can drop `__precompile__(false)`.
+* Radian is a dimension, so MassMomentOfInertia*AngularAcceleration and MassMomentOfInertia*AngularVelocity stay Catchall; adding them as relations would overwrite NewtonMeter's dimensions with an angle.
+* An angular-velocity rpm was not added because `RevolutionsPerMinute` already exists as a Frequency.
+* The Newton/KiloNewton Catchall parity test now uses Ampere, since Newton*Second resolves to NewtonSecond.
+* Item 1, registration surviving another package's precompilation, is not yet done.
+* Added a "Rigid-body dynamics measures" testitem; all 623 tests pass and the benchmark stays at zero allocations.

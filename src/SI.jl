@@ -218,9 +218,9 @@ end
   # Catchall arithmetic is correct despite the dict inconsistency: getBaseDims goes through
   # abstractToSI[AbstractForce] which was populated by @relateMeasures and always maps to
   # the same BaseDimensions(mass=1,length=1,time=-2) regardless of which concrete Force type
-  # is used.  So Newton*s and KiloNewton*s produce identical BaseDimensions and compare equal.
-  nSec = Newton(2.0) * Second(1.0)
-  kNSec = KiloNewton(2e-3) * Second(1.0)
+  # is used.  So Newton*A and KiloNewton*A produce identical BaseDimensions and compare equal.
+  nSec = Newton(2.0) * Ampere(1.0) # no named type for N*A, so this stays Catchall
+  kNSec = KiloNewton(2e-3) * Ampere(1.0)
   @test nSec isa Catchall
   @test kNSec isa Catchall
   @test nSec ≈ kNSec
@@ -230,6 +230,65 @@ end
 @relateMeasures Newton*Meter=NewtonMeter
 @makeMeasure 1e-3 NewtonMeter = 1 NewtonMilliMeter "N*mm"
 @makeMeasure 1e-3 NewtonMeter = 1 MilliNewtonMeter "mN*m"
+
+# Rigid-body dynamics measures.
+# Radian is tracked as a dimension, so products like MassMomentOfInertia*AngularAcceleration carry rad and are Catchall rather than NewtonMeter.
+@makeBaseMeasure Momentum NewtonSecond "N*s"
+@relateMeasures Newton*Second=NewtonSecond
+
+@makeBaseMeasure AngularMomentum NewtonMeterSecond "N*m*s"
+@relateMeasures NewtonMeter*Second=NewtonMeterSecond
+
+@makeBaseMeasure MassMomentOfInertia KiloGramMeter2 "kg*m^2"
+@relateMeasures KiloGram*Meter2=KiloGramMeter2
+
+@makeBaseMeasure SecondMomentOfArea Meter4 "m^4"
+@relateMeasures Meter2*Meter2=Meter4
+@relateMeasures Meter3*Meter=Meter4
+
+@makeBaseMeasure AngularVelocity RadianPerSecond "rad/s"
+@relateMeasures Radian/Second=RadianPerSecond
+@makeMeasure π/180 RadianPerSecond = 1 DegreePerSecond "°/s"
+
+@makeBaseMeasure AngularAcceleration RadianPerSecond2 "rad/s^2"
+@relateMeasures RadianPerSecond/Second=RadianPerSecond2
+
+@makeBaseMeasure LinearStiffness NewtonPerMeter "N/m"
+@relateMeasures Newton/Meter=NewtonPerMeter
+
+@makeBaseMeasure LinearDamping NewtonSecondPerMeter "N*s/m"
+@relateMeasures Newton/MeterPerSecond=NewtonSecondPerMeter
+
+@makeBaseMeasure RotationalStiffness NewtonMeterPerRadian "N*m/rad"
+@relateMeasures NewtonMeter/Radian=NewtonMeterPerRadian
+
+@makeBaseMeasure RotationalDamping NewtonMeterSecondPerRadian "N*m*s/rad"
+@relateMeasures NewtonMeter/RadianPerSecond=NewtonMeterSecondPerRadian
+
+@testitem "Rigid-body dynamics measures" begin
+  @test Newton(2) * Second(3) ≈ NewtonSecond(6)
+  @test NewtonSecond(6) / Second(3) ≈ Newton(2)
+  @test NewtonMeter(2) * Second(3) ≈ NewtonMeterSecond(6)
+  @test KiloGram(2) * Meter(0.1)^2 isa KiloGramMeter2
+  @test KiloGram(2) * Meter2(0.01) ≈ KiloGramMeter2(0.02)
+  @test Meter(2)^2 * Meter(3)^2 ≈ Meter4(36)
+  @test Meter3(2) * Meter(3) ≈ Meter4(6)
+  @test Meter4(36) / Meter2(4) ≈ Meter2(9)
+  @test Radian(6) / Second(3) ≈ RadianPerSecond(2)
+  @test RadianPerSecond(2) * Second(3) ≈ Radian(6)
+  @test DegreePerSecond(180) ≈ convert(DegreePerSecond, RadianPerSecond(π))
+  @test RadianPerSecond(6) / Second(3) ≈ RadianPerSecond2(2)
+  @test Newton(6) / Meter(3) ≈ NewtonPerMeter(2)
+  @test NewtonPerMeter(2) * Meter(3) ≈ Newton(6)
+  @test Newton(6) / MeterPerSecond(3) ≈ NewtonSecondPerMeter(2)
+  @test NewtonSecondPerMeter(2) * MeterPerSecond(3) ≈ Newton(6)
+  @test NewtonMeter(6) / Radian(3) ≈ NewtonMeterPerRadian(2)
+  @test NewtonMeterPerRadian(2) * Radian(3) ≈ NewtonMeter(6)
+  @test NewtonMeter(6) / RadianPerSecond(3) ≈ NewtonMeterSecondPerRadian(2)
+  @test NewtonMeterSecondPerRadian(2) * RadianPerSecond(3) ≈ NewtonMeter(6)
+  @test KiloGram(2) * MeterPerSecond(3) ≈ NewtonSecond(6) # momentum via Catchall resolves to the named type
+  @test NewtonMeter(2) * Second(3) isa AbstractAngularMomentum
+end
 
 @makeBaseMeasure Pressure Pascal "Pa"
 @relateMeasures Newton/Meter2=Pascal
