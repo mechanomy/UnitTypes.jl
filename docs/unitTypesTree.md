@@ -12,6 +12,15 @@ AbstractMeasure
 ├─ AbstractAngle
 │  ├─ Degree
 │  └─ Radian
+├─ AbstractAngularAcceleration
+│  └─ RadianPerSecond2
+├─ AbstractAngularMomentum
+│  └─ NewtonMeterSecond
+├─ AbstractAngularVelocity
+│  ├─ DegreePerSecond
+│  ├─ RadianPerSecond
+│  ├─ RevolutionsPerMinute
+│  └─ RevolutionsPerSecond
 ├─ AbstractArea
 │  ├─ Acre
 │  ├─ Are
@@ -25,6 +34,8 @@ AbstractMeasure
 │  ├─ Section
 │  ├─ Township
 │  └─ Yard2
+├─ AbstractAreaMomentOfInertia
+│  └─ Meter4
 ├─ AbstractCapacitance
 │  ├─ Farad
 │  ├─ MicroFarad
@@ -74,9 +85,7 @@ AbstractMeasure
 │  ├─ AngHertz
 │  ├─ Becquerel
 │  ├─ Hertz
-│  ├─ PerSecond
-│  ├─ RevolutionsPerMinute
-│  └─ RevolutionsPerSecond
+│  └─ PerSecond
 ├─ AbstractIlluminance
 │  └─ Lux
 ├─ AbstractInductance
@@ -114,6 +123,10 @@ AbstractMeasure
 │  ├─ SurveyFoot
 │  ├─ SurveyMile
 │  └─ Yard
+├─ AbstractLinearDamping
+│  └─ NewtonSecondPerMeter
+├─ AbstractLinearStiffness
+│  └─ NewtonPerMeter
 ├─ AbstractLuminousFlux
 │  └─ Lumen
 ├─ AbstractMagneticFieldStrength
@@ -141,8 +154,12 @@ AbstractMeasure
 │  ├─ TroyOunce
 │  ├─ TroyPound
 │  └─ UnifiedAtomicMassUnit
+├─ AbstractMassMomentOfInertia
+│  └─ KiloGramMeter2
 ├─ AbstractMolarConcentration
 │  └─ Molar
+├─ AbstractMomentum
+│  └─ NewtonSecond
 ├─ AbstractPercentage
 │  ├─ BasisPoints
 │  ├─ Perbillion
@@ -177,6 +194,10 @@ AbstractMeasure
 │  ├─ MegaOhm
 │  ├─ MilliOhm
 │  └─ Ohm
+├─ AbstractRotationalDamping
+│  └─ NewtonMeterSecondPerRadian
+├─ AbstractRotationalStiffness
+│  └─ NewtonMeterPerRadian
 ├─ AbstractSolidAngle
 │  └─ Steradian
 ├─ AbstractSpecificVolume

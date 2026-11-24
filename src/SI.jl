@@ -178,8 +178,6 @@ end
 @relateMeasures 1/Second = Hertz  # sets Hertz dims to {AbstractTime=>-1}; must precede @makeMeasure so PerSecond inherits correctly
 @makeMeasure 1 Hertz = 1 PerSecond "s^-1"
 @makeMeasure 1 Hertz = 1 Becquerel "Bq"
-@makeMeasure 1/60 Hertz = 1 RevolutionsPerMinute "rpm"
-@makeMeasure 1 Hertz = 1 RevolutionsPerSecond "rps"
 @makeMeasure 2π Hertz = 1 AngHertz "Hz2π"
 
 Base.convert(::Type{Second}, x::T) where {T<:AbstractFrequency} = 1/x #Second(1/toBaseFloat(x))
@@ -232,23 +230,27 @@ end
 @makeMeasure 1e-3 NewtonMeter = 1 MilliNewtonMeter "mN*m"
 
 # Rigid-body dynamics measures.
-# Radian is tracked as a dimension, so products like MassMomentOfInertia*AngularAcceleration carry rad and are Catchall rather than NewtonMeter.
+# Radian is tracked as a dimension, so MassMomentOfInertia*AngularAcceleration carries rad and is Catchall rather than NewtonMeter.
 @makeBaseMeasure Momentum NewtonSecond "N*s"
 @relateMeasures Newton*Second=NewtonSecond
-
-@makeBaseMeasure AngularMomentum NewtonMeterSecond "N*m*s"
-@relateMeasures NewtonMeter*Second=NewtonMeterSecond
 
 @makeBaseMeasure MassMomentOfInertia KiloGramMeter2 "kg*m^2"
 @relateMeasures KiloGram*Meter2=KiloGramMeter2
 
-@makeBaseMeasure SecondMomentOfArea Meter4 "m^4"
+# AreaMomentOfInertia (m^4, a beam section property) is distinct from MassMomentOfInertia (kg*m^2, a body's rotational inertia).
+@makeBaseMeasure AreaMomentOfInertia Meter4 "m^4"
 @relateMeasures Meter2*Meter2=Meter4
 @relateMeasures Meter3*Meter=Meter4
 
 @makeBaseMeasure AngularVelocity RadianPerSecond "rad/s"
 @relateMeasures Radian/Second=RadianPerSecond
 @makeMeasure π/180 RadianPerSecond = 1 DegreePerSecond "°/s"
+@makeMeasure 2π/60 RadianPerSecond = 1 RevolutionsPerMinute "rpm"
+@makeMeasure 2π RadianPerSecond = 1 RevolutionsPerSecond "rps"
+
+# Angular momentum is defined by L = I*ω, so it carries rad; NewtonMeter*Second lacks rad and is Catchall.
+@makeBaseMeasure AngularMomentum NewtonMeterSecond "N*m*s"
+@relateMeasures KiloGramMeter2*RadianPerSecond=NewtonMeterSecond
 
 @makeBaseMeasure AngularAcceleration RadianPerSecond2 "rad/s^2"
 @relateMeasures RadianPerSecond/Second=RadianPerSecond2
@@ -268,7 +270,18 @@ end
 @testitem "Rigid-body dynamics measures" begin
   @test Newton(2) * Second(3) ≈ NewtonSecond(6)
   @test NewtonSecond(6) / Second(3) ≈ Newton(2)
-  @test NewtonMeter(2) * Second(3) ≈ NewtonMeterSecond(6)
+  @test KiloGramMeter2(2) * RadianPerSecond(3) ≈ NewtonMeterSecond(6)
+  @test RadianPerSecond(3) * KiloGramMeter2(2) isa AbstractAngularMomentum
+  @test NewtonMeterSecond(6) / RadianPerSecond(3) ≈ KiloGramMeter2(2)
+  @test NewtonMeterSecond(6) / KiloGramMeter2(2) ≈ RadianPerSecond(3)
+  @test KiloGram(2) * Meter(1)^2 * RadianPerSecond(3) isa NewtonMeterSecond
+  @test Meter4(1) isa AbstractAreaMomentOfInertia
+  @test !(Meter4(1) isa AbstractMassMomentOfInertia)
+  @test RevolutionsPerMinute(60) isa AbstractAngularVelocity
+  @test convert(RadianPerSecond, RevolutionsPerMinute(60)) ≈ RadianPerSecond(2π)
+  @test convert(RevolutionsPerMinute, RevolutionsPerSecond(1)) ≈ RevolutionsPerMinute(60)
+  @test convert(DegreePerSecond, RevolutionsPerSecond(1)) ≈ DegreePerSecond(360)
+  @test RevolutionsPerMinute(60) * Second(1) ≈ Radian(2π)
   @test KiloGram(2) * Meter(0.1)^2 isa KiloGramMeter2
   @test KiloGram(2) * Meter2(0.01) ≈ KiloGramMeter2(0.02)
   @test Meter(2)^2 * Meter(3)^2 ≈ Meter4(36)
@@ -287,7 +300,6 @@ end
   @test NewtonMeter(6) / RadianPerSecond(3) ≈ NewtonMeterSecondPerRadian(2)
   @test NewtonMeterSecondPerRadian(2) * RadianPerSecond(3) ≈ NewtonMeter(6)
   @test KiloGram(2) * MeterPerSecond(3) ≈ NewtonSecond(6) # momentum via Catchall resolves to the named type
-  @test NewtonMeter(2) * Second(3) isa AbstractAngularMomentum
 end
 
 @makeBaseMeasure Pressure Pascal "Pa"

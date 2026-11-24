@@ -99,3 +99,11 @@ Effort: low
 * The Newton/KiloNewton Catchall parity test now uses Ampere, since Newton*Second resolves to NewtonSecond.
 * Item 1, registration surviving another package's precompilation, is not yet done.
 * Added a "Rigid-body dynamics measures" testitem; all 623 tests pass and the benchmark stays at zero allocations.
+
+# AngularMomentum by L = Iω, rpm as an angular velocity, AreaMomentOfInertia
+2026-11-24, claude-opus-5-5, effort: low
+
+* AngularMomentum (`NewtonMeterSecond`) is now defined by `KiloGramMeter2*RadianPerSecond`, so `I*ω` is a NewtonMeterSecond; `NewtonMeter*Second` lacks rad and is now Catchall.
+* `RevolutionsPerMinute` and `RevolutionsPerSecond` move from Frequency (Hertz basis) to AngularVelocity (RadianPerSecond basis), 1 rpm = 2π/60 rad/s; this is a breaking change for code treating rpm as a frequency.
+* The abstract type of `Meter4` is renamed from SecondMomentOfArea to `AbstractAreaMomentOfInertia`, distinct from `AbstractMassMomentOfInertia` of `KiloGramMeter2`.
+* Regenerated docs/unitTypesTree.md; all 633 tests pass and the benchmark stays at zero allocations.
