@@ -131,3 +131,5 @@ Effort: low
 * StaticArrays' `norm(::StaticArray)` takes precedence and returned the base unit (0.005m), so ext/UnitTypesStaticArraysExt.jl adds `norm` for static vectors of measures with the same rule, allocation-free.
 * LinearAlgebra and StaticArrays are weak dependencies and test dependencies.
 * Added testitems, a readme line and a hypot benchmark; all 709 tests pass and every benchmark reports zero allocations.
+
+* Drafted notes/releaseNotesV4.md for 4.0.0, listing the breaking changes, including the new Base methods (abs, hypot, zero, round...) that fail precompilation in downstream packages defining their own, as Mechanics.jl hit with abs.
