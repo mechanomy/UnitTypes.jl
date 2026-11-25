@@ -120,3 +120,14 @@ Effort: low
 * `isapprox` between measures now follows Base's default, `rtol = atol > 0 ? 0 : √eps`, instead of exact equality, and accepts a measure `atol` converted to the units of the first argument (SI base units for Catchall).
 * The USCustomary inHg test relied on the old `rtol = atol` default and now passes an explicit rtol.
 * Documented `@registerMeasures` in the readme; added isapprox-with-measure-atol, round and zero benchmarks; all 679 tests pass and every benchmark reports zero allocations.
+
+# hypot, norm, abs and isfinite for measures
+2026-11-24, claude-opus-5-5, effort: low
+
+* Requested by Plecto for a pendulum-tip distance example.
+* `hypot(x, ys...)` takes any number of measures of one dimension and returns the first argument's unit, converting the others; mixed dimensions throw an ArgumentError.
+* `abs`, `isfinite`, `isinf` and `isnan` for measures; `withValue(x, v)` builds a measure in x's unit, keeping dimensions for Catchall.
+* `LinearAlgebra.norm` of a measure or a vector of measures, in the first element's unit, in a new package extension ext/UnitTypesLinearAlgebraExt.jl, so UnitTypes does not depend on LinearAlgebra.
+* StaticArrays' `norm(::StaticArray)` takes precedence and returned the base unit (0.005m), so ext/UnitTypesStaticArraysExt.jl adds `norm` for static vectors of measures with the same rule, allocation-free.
+* LinearAlgebra and StaticArrays are weak dependencies and test dependencies.
+* Added testitems, a readme line and a hypot benchmark; all 709 tests pass and every benchmark reports zero allocations.

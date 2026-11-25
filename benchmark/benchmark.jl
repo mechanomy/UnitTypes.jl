@@ -107,3 +107,10 @@ display(@benchmark round(UnitTypes.MilliMeter(12.00000003); digits=3))
 println("\n=== zero of a type: zero(MilliMeter) ===")
 println("UnitTypes:")
 display(@benchmark zero(UnitTypes.MilliMeter))
+
+println("\n=== hypot(3mm, 0.004m) ===")
+println("floats:")
+display(@benchmark hypot(3.0, 4.0))
+
+println("\nUnitTypes:")
+display(@benchmark hypot(UnitTypes.MilliMeter(3.0), UnitTypes.Meter(0.004)))

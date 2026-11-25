@@ -120,6 +120,8 @@ These conceptual gotchas are especially obvious in affine units like Temperature
 
 With use, patience, and [issues](https://github.com/mechanomy/UnitTypes.jl/issues), these coherence rules will become more clear and explained by example.
 
+Magnitudes keep the first argument's unit: `hypot(MilliMeter(3), Meter(0.004))` is `5.0mm`, and with LinearAlgebra loaded `norm([MilliMeter(3), MilliMeter(4)])` is `5.0mm`, also for StaticArrays vectors; mixing dimensions throws an ArgumentError.
+
 ## Naming conventions
 Combining the names of units to get the resulting type name follows these simple rules:
 1. Multiplication is concatenation: Newton * Meter = NewtonMeter (==MeterNewton)

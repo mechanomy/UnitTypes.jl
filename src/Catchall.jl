@@ -220,6 +220,7 @@ Base.isapprox(x::Catchall, y::T; atol::Union{Real,UnitTypes.AbstractMeasure}=0, 
 Base.isapprox(x::T, y::Catchall; atol::Union{Real,UnitTypes.AbstractMeasure}=0, rtol::Real=UnitTypes.defaultRtol(atol)) where {T<:AbstractMeasure} = isapprox(y, x; atol=atol, rtol=rtol)
 
 # A Catchall's value is in SI base units and its type carries no dimensions, so zero, oneunit and round work on instances, in SI base units.
+withValue(x::Catchall, v::Real) = Catchall(v, x.dimensions)
 Base.zero(x::Catchall) = Catchall(0.0, x.dimensions)
 Base.oneunit(x::Catchall) = Catchall(1.0, x.dimensions)
 Base.zero(::Type{Catchall}) = throw(ArgumentError("zero(Catchall) is undefined because the Catchall type carries no dimensions; use zero(x) on an instance"))

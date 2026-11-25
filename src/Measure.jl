@@ -255,6 +255,45 @@ Base.trunc(x::AbstractMeasure; kwargs...) = round(x, RoundToZero; kwargs...)
 end
 
 """
+  `withValue(x, v)`
+
+  A measure of the same unit as `x` with value `v`; for Catchall the dimensions of `x` are kept and `v` is in SI base units.
+"""
+withValue(x::T, v::Real) where {T<:AbstractMeasure} = T(v)
+
+"""
+  `abs(x)`, `hypot(x, ys...)`
+
+  `abs` keeps the measure's unit.
+  `hypot` takes any number of measures of one dimension and returns the first argument's unit, converting the others to it: `hypot(MilliMeter(3), Meter(0.004)) == MilliMeter(5)`.
+  Measures of different dimensions throw an ArgumentError.
+  `LinearAlgebra.norm` of a vector of measures is defined, by the same rule, in ext/UnitTypesLinearAlgebraExt.jl.
+"""
+Base.abs(x::AbstractMeasure) = withValue(x, abs(x.value))
+Base.isfinite(x::AbstractMeasure) = isfinite(x.value)
+Base.isinf(x::AbstractMeasure) = isinf(x.value)
+Base.isnan(x::AbstractMeasure) = isnan(x.value)
+Base.hypot(x::AbstractMeasure, ys::AbstractMeasure...) = withValue(x, hypot(x.value, map(y -> sameUnitValue(x, y), ys)...))
+@testitem "abs and hypot" begin
+  @test abs(MilliMeter(-3)) === MilliMeter(3)
+  @test isfinite(MilliMeter(3)) && !isfinite(MilliMeter(Inf))
+  @test isinf(MilliMeter(-Inf)) && !isinf(MilliMeter(3))
+  @test isnan(MilliMeter(NaN)) && !isnan(MilliMeter(3))
+  @test hypot(MilliMeter(3), MilliMeter(4)) === MilliMeter(5)
+  @test hypot(MilliMeter(3), Meter(0.004)) ≈ MilliMeter(5)
+  @test hypot(MilliMeter(3), Meter(0.004)) isa MilliMeter
+  @test hypot(Meter(0.003), MilliMeter(4)) ≈ Meter(0.005)
+  @test hypot(MilliMeter(2), MilliMeter(3), MilliMeter(6)) ≈ MilliMeter(7)
+  @test hypot(MilliMeter(1), MilliMeter(2), MilliMeter(4), MilliMeter(10)) ≈ MilliMeter(11)
+  @test hypot(MilliMeter(-3)) === MilliMeter(3)
+  @test_throws ArgumentError hypot(MilliMeter(3), Second(4))
+  x = Newton(3) * Ampere(1)
+  y = Newton(4) * Ampere(1)
+  @test hypot(x, y) ≈ Newton(5) * Ampere(1)
+  @test abs(Newton(-3) * Ampere(1)) ≈ x
+end
+
+"""
   `defaultRtol(atol)`, `toleranceIn(T, atol)`, `toleranceBase(atol)`
 
   Support the measure `isapprox` methods.
